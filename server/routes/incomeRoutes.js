@@ -4,13 +4,15 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Apply protection to all routes in this file
+// Middleware applied to all routes below
 router.use(protect);
 
+// Endpoint: /api/income
 router.route('/')
   .get(getIncomes)
   .post(addIncome);
 
+// Endpoint: /api/income/:id
 router.route('/:id')
   .delete(deleteIncome);
 
