@@ -1,5 +1,7 @@
 # Node modules
 node_modules
+client/node_modules/
+server/node_modules/
 
 # Environment variables
 .env
@@ -11,8 +13,10 @@ logs
 *.log
 
 #server uploads
-server/uploads
+server/uploads/*
+!server/uploads/.gitkeep
 
 # OS
 .DS_Store
 Thumbs.db
+dist/
