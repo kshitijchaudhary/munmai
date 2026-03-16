@@ -10,6 +10,9 @@ client/.env
 logs
 *.log
 
+#server uploads
+server/uploads
+
 # OS
 .DS_Store
 Thumbs.db
