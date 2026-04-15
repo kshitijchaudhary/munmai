@@ -1,11 +1,16 @@
 services:
   - type: web
-    name: finvexa-api
+    name: munmai-api
     runtime: node
     rootDir: server
     buildCommand: npm install
     startCommand: npm start
     plan: starter
+
+    disk:
+      name: munmai-data
+      mountPath: /var/data/finvexa
+      sizeGB: 1
 
     envVars:
       - key: NODE_ENV
