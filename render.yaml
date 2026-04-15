@@ -3,47 +3,55 @@ services:
     name: finvexa-api
     runtime: node
     rootDir: server
-    plan: starter
-    region: oregon
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
-    disk:
-      name: finvexa-data
-      mountPath: /var/data/finvexa
-      sizeGB: 1
+    plan: starter
+
     envVars:
       - key: NODE_ENV
         value: production
+
       - key: FORCE_HTTPS
         value: "true"
+
       - key: REQUEST_BODY_LIMIT
         value: 2mb
+
       - key: UPLOAD_LIMIT_MB
         value: "5"
+
       - key: UPLOAD_DIR
         value: /var/data/finvexa/uploads
-      - key: ALLOW_LOCALHOST_EMAIL_LINKS
-        value: "false"
+
       - key: JWT_SECRET
         generateValue: true
+
       - key: MONGO_URI
         sync: false
+
       - key: CLIENT_URL
         sync: false
+
       - key: CLIENT_ORIGINS
         sync: false
+
       - key: SERVER_URL
         sync: false
+
       - key: SMTP_HOST
         sync: false
+
       - key: SMTP_PORT
         sync: false
+
       - key: SMTP_SECURE
         sync: false
+
       - key: SMTP_USER
         sync: false
+
       - key: SMTP_PASS
         sync: false
+
       - key: SMTP_FROM
         sync: false
