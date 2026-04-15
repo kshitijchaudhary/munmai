@@ -2,8 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
-import path from "path";
-import { fileURLToPath } from "url";
+import crypto from "crypto";
 
 import authRoutes from "./routes/authRoutes.js";
 import protect from "./middleware/authMiddleware.js";
@@ -11,18 +10,55 @@ import incomeRoutes from "./routes/incomeRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import { errorHandler } from "./middleware/errorMiddleware.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import transactionRoutes from "./routes/transactionRoutes.js";
+import telemetryRoutes from "./routes/telemetryRoutes.js";
+import receiptRoutes from "./routes/receiptRoutes.js";
+import { ensureUploadDir } from "./utils/uploadPaths.js";
 
 dotenv.config();
 
 const app = express();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const requiredEnvVars = ["MONGO_URI", "JWT_SECRET"];
+const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
 
+if (missingEnvVars.length > 0) {
+  console.error(`Missing environment variables: ${missingEnvVars.join(", ")}`);
+  process.exit(1);
+}
+
+const forceHttps = process.env.FORCE_HTTPS === "true";
+const bodyLimit = process.env.REQUEST_BODY_LIMIT || "1mb";
+ensureUploadDir();
 const allowedOrigins = [
   "http://localhost:5173",
   process.env.CLIENT_URL,
+  ...(process.env.CLIENT_ORIGINS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
 ].filter(Boolean);
+
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+
+app.use((req, res, next) => {
+  req.requestId = crypto.randomUUID();
+  res.setHeader("X-Request-Id", req.requestId);
+  next();
+});
+
+if (forceHttps) {
+  app.use((req, res, next) => {
+    const forwardedProto = req.headers["x-forwarded-proto"];
+
+    if (forwardedProto && forwardedProto !== "https") {
+      return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+    }
+
+    return next();
+  });
+}
 
 app.use(
   cors({
@@ -40,15 +76,24 @@ app.use(
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: bodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    requestId: req.requestId,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/income", incomeRoutes);
 app.use("/api/expenses", expenseRoutes);
+app.use("/api/receipts", receiptRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/transactions", transactionRoutes);
+app.use("/api/telemetry", telemetryRoutes);
 
 app.get("/api/test/protected", protect, (req, res) => {
   res.json({

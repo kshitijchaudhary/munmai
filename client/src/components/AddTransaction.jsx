@@ -4,40 +4,98 @@ import api from "../api/axios";
 const expenseCategories = [
   "Rent",
   "Food",
+  "Groceries",
   "Utilities",
   "Entertainment",
   "Transport",
+  "Fuel",
   "Healthcare",
   "Shopping",
+  "Phone & Internet",
+  "Software & SaaS",
+  "Office Supplies",
+  "Equipment",
+  "Education",
+  "Marketing",
+  "Travel",
+  "Meals",
+  "Insurance",
+  "Bank Fees",
+  "Taxes & Licenses",
+  "Professional Services",
+  "Contractors",
+  "Home Office",
+  "Client Gifts",
   "Other",
 ];
 
 const incomeCategories = [
   "Salary",
   "Freelance",
+  "Contract",
+  "Marketplace",
   "Business",
   "Gift",
   "Investment",
+  "Refund",
   "Other",
 ];
 
+const expenseTypeOptions = [
+  { value: "personal", label: "Personal" },
+  { value: "business", label: "Business" },
+  { value: "mixed", label: "Mixed use" },
+];
+
+const taxCategories = [
+  "Advertising & Marketing",
+  "Bank Fees & Interest",
+  "Cell Phone & Internet",
+  "Continuing Education",
+  "Contractors",
+  "Equipment & Assets",
+  "Home Office",
+  "Insurance",
+  "Meals",
+  "Office Supplies",
+  "Professional Fees",
+  "Rent & Workspace",
+  "Software & SaaS",
+  "Taxes & Licenses",
+  "Travel",
+  "Utilities",
+  "Vehicle",
+  "Other Deductible Expense",
+];
+
+const padNumber = (value) => String(value).padStart(2, "0");
+
 const formatDateInput = (dateValue) => {
   const date = new Date(dateValue);
-  return date.toISOString().split("T")[0];
+
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(
+    date.getDate()
+  )}`;
 };
 
 const getTodayString = () => formatDateInput(new Date());
 
-const getTomorrowString = () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return formatDateInput(tomorrow);
+const getYesterdayString = () => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return formatDateInput(yesterday);
 };
 
 const getMinAllowedDate = () => {
   const minDate = new Date();
-  minDate.setDate(minDate.getDate() - 7);
+  minDate.setFullYear(minDate.getFullYear() - 6);
   return formatDateInput(minDate);
+};
+
+const getMaxAllowedDate = () => {
+  const maxDate = new Date();
+  maxDate.setFullYear(maxDate.getFullYear() + 1);
+  return formatDateInput(maxDate);
 };
 
 const AddTransaction = ({
@@ -57,12 +115,19 @@ const AddTransaction = ({
     category: transactionType === "income" ? "Salary" : "Other",
     date: getTodayString(),
     notes: "",
+    expenseType: "personal",
+    deductible: false,
+    deductiblePercent: "100",
+    taxCategory: "",
   });
 
   const [formData, setFormData] = useState(getInitialFormData("expense"));
 
   const minAllowedDate = getMinAllowedDate();
-  const maxAllowedDate = getTomorrowString();
+  const maxAllowedDate = getMaxAllowedDate();
+  const isEditing = !!editingTransaction;
+  const hasExistingReceipt =
+    isEditing && type === "expense" && Boolean(editingTransaction?.receiptUrl);
 
   const resetFileInput = () => {
     setFile(null);
@@ -77,7 +142,7 @@ const AddTransaction = ({
   };
 
   const switchType = (newType) => {
-    if (editingTransaction) return;
+    if (isEditing) return;
     setType(newType);
     resetForm(newType);
   };
@@ -99,6 +164,15 @@ const AddTransaction = ({
           ? formatDateInput(editingTransaction.date)
           : getTodayString(),
         notes: editingTransaction.notes || "",
+        expenseType: editingTransaction.expenseType || "personal",
+        deductible: Boolean(editingTransaction.deductible),
+        deductiblePercent: editingTransaction.deductible
+          ? String(
+              editingTransaction.deductiblePercent ||
+                (editingTransaction.expenseType === "mixed" ? 50 : 100)
+            )
+          : "0",
+        taxCategory: editingTransaction.taxCategory || "",
       });
 
       resetFileInput();
@@ -111,20 +185,53 @@ const AddTransaction = ({
   const validateDate = (selectedDate) => {
     if (!selectedDate) return "Date is required";
     if (selectedDate < minAllowedDate) {
-      return "You can only add or edit transactions up to 7 days in the past.";
+      return "You can keep records up to 6 years in the past.";
     }
     if (selectedDate > maxAllowedDate) {
-      return "You can only select today or tomorrow.";
+      return "You can only plan transactions up to 1 year ahead.";
     }
     return "";
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type: inputType, checked } = e.target;
 
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: inputType === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleExpenseTypeChange = (nextExpenseType) => {
+    setFormData((prev) => {
+      if (nextExpenseType === "personal") {
+        return {
+          ...prev,
+          expenseType: nextExpenseType,
+          deductible: false,
+          deductiblePercent: "100",
+          taxCategory: "",
+        };
+      }
+
+      return {
+        ...prev,
+        expenseType: nextExpenseType,
+        deductiblePercent:
+          prev.deductiblePercent ||
+          (nextExpenseType === "mixed" ? "50" : "100"),
+      };
+    });
+  };
+
+  const handleDeductibleToggle = (checked) => {
+    setFormData((prev) => ({
+      ...prev,
+      deductible: checked,
+      deductiblePercent: checked
+        ? prev.deductiblePercent || (prev.expenseType === "mixed" ? "50" : "100")
+        : "0",
+      taxCategory: checked ? prev.taxCategory : "",
     }));
   };
 
@@ -141,6 +248,54 @@ const AddTransaction = ({
     if (onCancelEdit) onCancelEdit();
   };
 
+  const handleViewCurrentReceipt = async () => {
+    if (!editingTransaction?._id) {
+      return;
+    }
+
+    try {
+      const response = await api.get(`/receipts/${editingTransaction._id}`, {
+        responseType: "blob",
+      });
+      const blobUrl = window.URL.createObjectURL(response.data);
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (error) {
+      console.error("Receipt fetch error:", error);
+      alert(error?.response?.data?.message || "Failed to open receipt");
+    }
+  };
+
+  const buildExpenseFormData = () => {
+    const data = new FormData();
+    const trimmedRecipient = formData.recipient.trim();
+
+    data.append("amount", formData.amount);
+    data.append("recipient", trimmedRecipient);
+    data.append("category", formData.category);
+    data.append("notes", formData.notes);
+    data.append("date", formData.date);
+    data.append("expenseType", formData.expenseType);
+    data.append("deductible", String(formData.deductible));
+    data.append(
+      "deductiblePercent",
+      formData.deductible
+        ? formData.deductiblePercent ||
+            (formData.expenseType === "mixed" ? "50" : "100")
+        : "0"
+    );
+    data.append(
+      "taxCategory",
+      formData.expenseType === "personal" ? "" : formData.taxCategory
+    );
+
+    if (file) {
+      data.append("receipt", file);
+    }
+
+    return data;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -153,37 +308,33 @@ const AddTransaction = ({
     try {
       setSubmitting(true);
 
-      const isEditing = !!editingTransaction;
-
       if (type === "expense") {
-        if (!formData.amount || !formData.recipient || !formData.category) {
-          alert("Please fill amount, recipient, and category.");
+        if (!formData.amount || !formData.recipient.trim() || !formData.category) {
+          alert("Please fill amount, vendor/payee, and category.");
           return;
         }
 
-        const data = new FormData();
-        data.append("amount", formData.amount);
-        data.append("recipient", formData.recipient);
-        data.append("category", formData.category);
-        data.append("notes", formData.notes);
-        data.append("date", formData.date);
-
-        if (file) {
-          data.append("receipt", file);
+        if (formData.deductible && !formData.taxCategory) {
+          alert("Please select a tax category for deductible expenses.");
+          return;
         }
 
+        if (
+          formData.deductible &&
+          (!formData.deductiblePercent ||
+            Number(formData.deductiblePercent) <= 0 ||
+            Number(formData.deductiblePercent) > 100)
+        ) {
+          alert("Deductible percent must be between 1 and 100.");
+          return;
+        }
+
+        const data = buildExpenseFormData();
+
         if (isEditing) {
-          await api.put(`/expenses/${editingTransaction._id}`, data, {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          });
+          await api.put(`/expenses/${editingTransaction._id}`, data);
         } else {
-          await api.post("/expenses", data, {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          });
+          await api.post("/expenses", data);
         }
       } else {
         if (!formData.amount || !formData.source || !formData.category) {
@@ -214,7 +365,7 @@ const AddTransaction = ({
 
       resetForm(type);
 
-      if (editingTransaction && onCancelEdit) {
+      if (isEditing && onCancelEdit) {
         onCancelEdit();
       }
 
@@ -228,8 +379,6 @@ const AddTransaction = ({
       setSubmitting(false);
     }
   };
-
-  const isEditing = !!editingTransaction;
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -311,10 +460,10 @@ const AddTransaction = ({
             </button>
             <button
               type="button"
-              onClick={() => setQuickDate(getTomorrowString())}
+              onClick={() => setQuickDate(getYesterdayString())}
               className="text-xs px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200"
             >
-              Tomorrow
+              Yesterday
             </button>
           </div>
         </div>
@@ -349,7 +498,7 @@ const AddTransaction = ({
             <input
               type="text"
               name="recipient"
-              placeholder="Recipient / Vendor"
+              placeholder="Vendor / Payee"
               required
               className="border p-2 rounded-lg"
               value={formData.recipient}
@@ -368,6 +517,71 @@ const AddTransaction = ({
                 </option>
               ))}
             </select>
+
+            <select
+              name="expenseType"
+              className="border p-2 rounded-lg"
+              value={formData.expenseType}
+              onChange={(e) => handleExpenseTypeChange(e.target.value)}
+            >
+              {expenseTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <label className="md:col-span-2 flex items-start gap-3 border border-slate-200 rounded-lg p-3">
+              <input
+                type="checkbox"
+                checked={formData.deductible}
+                disabled={formData.expenseType === "personal"}
+                onChange={(e) => handleDeductibleToggle(e.target.checked)}
+                className="mt-1"
+              />
+              <span className="text-sm text-slate-700">
+                <span className="block font-semibold text-slate-900">
+                  Include in Tax Pack
+                </span>
+                Track deductible amounts and build an export-ready freelance or
+                side-hustle record.
+              </span>
+            </label>
+
+            {formData.expenseType !== "personal" && (
+              <>
+                <select
+                  name="taxCategory"
+                  className="border p-2 rounded-lg"
+                  value={formData.taxCategory}
+                  onChange={handleChange}
+                >
+                  <option value="">
+                    {formData.deductible
+                      ? "Select tax category"
+                      : "Optional tax category"}
+                  </option>
+                  {taxCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type="number"
+                  name="deductiblePercent"
+                  min="0"
+                  max="100"
+                  step="1"
+                  placeholder="Deductible %"
+                  disabled={!formData.deductible}
+                  className="border p-2 rounded-lg disabled:bg-slate-100 disabled:text-slate-400"
+                  value={formData.deductible ? formData.deductiblePercent : "0"}
+                  onChange={handleChange}
+                />
+              </>
+            )}
           </>
         )}
 
@@ -380,9 +594,31 @@ const AddTransaction = ({
               className="border p-2 rounded-lg w-full"
               onChange={(e) => setFile(e.target.files[0] || null)}
             />
+
+            {file && (
+              <p className="text-xs text-slate-600 mt-1">
+                Selected receipt: <span className="font-semibold">{file.name}</span>
+              </p>
+            )}
+
+            {hasExistingReceipt && !file && (
+              <button
+                type="button"
+                onClick={handleViewCurrentReceipt}
+                className="inline-block text-xs font-semibold text-indigo-600 hover:underline mt-1"
+              >
+                View current receipt
+              </button>
+            )}
+
             {isEditing && (
               <p className="text-xs text-slate-500 mt-1">
                 Choose a new file only if you want to replace the current receipt.
+              </p>
+            )}
+            {!isEditing && formData.deductible && !file && (
+              <p className="text-xs text-amber-600 mt-1">
+                Add a receipt now to make this expense export-ready for Tax Pack.
               </p>
             )}
           </div>

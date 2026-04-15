@@ -1,32 +1,146 @@
-import Expense from '../models/Expense.js';
-import fs from 'fs';
-import path from 'path';
+import { unlink } from "fs/promises";
+import Expense from "../models/Expense.js";
+import { resolveStoredFilePath } from "../utils/uploadPaths.js";
+
+const allowedExpenseTypes = new Set(["personal", "business", "mixed"]);
+
+const parseBoolean = (value) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  return String(value).toLowerCase() === "true";
+};
+
+const normalizeExpenseType = (value) =>
+  allowedExpenseTypes.has(value) ? value : "personal";
+
+const buildReceiptUrl = (file) => (file ? `/uploads/${file.filename}` : "");
+
+const normalizeExpensePayload = ({ body, receiptUrl }) => {
+  const expenseType = normalizeExpenseType(body.expenseType);
+  const deductibleRequested = parseBoolean(body.deductible);
+  const deductible = expenseType === "personal" ? false : deductibleRequested;
+  const defaultDeductiblePercent = expenseType === "mixed" ? 50 : 100;
+
+  let deductiblePercent = deductible ? Number(body.deductiblePercent) : 0;
+
+  if (!Number.isFinite(deductiblePercent) || deductiblePercent <= 0) {
+    deductiblePercent = deductible ? defaultDeductiblePercent : 0;
+  }
+
+  deductiblePercent = Math.min(Math.max(deductiblePercent, 0), 100);
+
+  return {
+    amount: Number(body.amount),
+    recipient: String(body.recipient || "").trim(),
+    category: String(body.category || "Other").trim() || "Other",
+    expenseType,
+    deductible,
+    deductiblePercent,
+    taxCategory: deductible ? String(body.taxCategory || "").trim() : "",
+    date: body.date ? new Date(body.date) : new Date(),
+    notes: String(body.notes || "").trim(),
+    receiptUrl,
+  };
+};
+
+const validateExpensePayload = (payload) => {
+  if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
+    return "Amount must be greater than 0";
+  }
+
+  if (!payload.recipient || !payload.category) {
+    return "Amount, recipient, and category are required";
+  }
+
+  if (Number.isNaN(payload.date.getTime())) {
+    return "Please provide a valid date";
+  }
+
+  if (payload.deductible && !payload.taxCategory) {
+    return "Select a tax category for deductible expenses";
+  }
+
+  return "";
+};
+
+const applyExpensePayload = (expense, payload) => {
+  expense.amount = payload.amount;
+  expense.recipient = payload.recipient;
+  expense.category = payload.category;
+  expense.expenseType = payload.expenseType;
+  expense.taxCategory = payload.taxCategory;
+  expense.deductible = payload.deductible;
+  expense.deductiblePercent = payload.deductiblePercent;
+  expense.date = payload.date;
+  expense.notes = payload.notes;
+  expense.receiptUrl = payload.receiptUrl;
+};
+
+const deleteStoredReceiptFile = async (fileUrl) => {
+  const filePath = resolveStoredFilePath(fileUrl);
+
+  if (!filePath) {
+    return false;
+  }
+
+  try {
+    await unlink(filePath);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return false;
+    }
+
+    console.warn("Failed to delete stored receipt file", {
+      fileUrl,
+      error: error?.message,
+    });
+    return false;
+  }
+};
+
+const cleanupUploadedReceipt = async (file) => {
+  if (!file?.filename) {
+    return;
+  }
+
+  await deleteStoredReceiptFile(buildReceiptUrl(file));
+};
+
+const findUserExpenseById = (expenseId, userId) =>
+  Expense.findOne({
+    _id: expenseId,
+    userId,
+  });
 
 // @desc    Add new expense
 // @route   POST /api/expenses
 export const addExpense = async (req, res) => {
-  try {
-    const { amount, recipient, category, date, notes } = req.body;
+  const uploadedReceiptUrl = buildReceiptUrl(req.file);
 
-    if (!amount || !recipient || !category) {
-      return res.status(400).json({
-        message: 'Amount, recipient, and category are required',
-      });
+  try {
+    const expensePayload = normalizeExpensePayload({
+      body: req.body,
+      receiptUrl: uploadedReceiptUrl,
+    });
+    const validationError = validateExpensePayload(expensePayload);
+
+    if (validationError) {
+      await cleanupUploadedReceipt(req.file);
+      return res.status(400).json({ message: validationError });
     }
 
     const expense = await Expense.create({
       userId: req.user.id,
-      amount,
-      recipient,
-      category,
-      date: date || Date.now(),
-      notes,
-      receiptUrl: req.file ? `/uploads/${req.file.filename}` : '',
+      ...expensePayload,
     });
 
-    res.status(201).json(expense);
+    return res.status(201).json(expense);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    await cleanupUploadedReceipt(req.file);
+    return res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -35,59 +149,50 @@ export const addExpense = async (req, res) => {
 export const getExpenses = async (req, res) => {
   try {
     const expenses = await Expense.find({ userId: req.user.id }).sort({ date: -1 });
-    res.status(200).json(expenses);
+    return res.status(200).json(expenses);
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    return res.status(500).json({ message: "Server Error" });
   }
 };
 
 // @desc    Update expense
 // @route   PUT /api/expenses/:id
 export const updateExpense = async (req, res) => {
-  try {
-    const { amount, recipient, category, date, notes } = req.body;
+  const uploadedReceiptUrl = buildReceiptUrl(req.file);
 
-    const expense = await Expense.findOne({
-      _id: req.params.id,
-      userId: req.user.id,
-    });
+  try {
+    const expense = await findUserExpenseById(req.params.id, req.user.id);
 
     if (!expense) {
-      return res.status(404).json({ message: 'Expense not found' });
+      await cleanupUploadedReceipt(req.file);
+      return res.status(404).json({ message: "Expense not found" });
     }
 
-    if (!amount || !recipient || !category) {
-      return res.status(400).json({
-        message: 'Amount, recipient, and category are required',
-      });
+    const existingReceiptUrl = expense.receiptUrl || "";
+    const nextReceiptUrl = uploadedReceiptUrl || existingReceiptUrl;
+    const expensePayload = normalizeExpensePayload({
+      body: req.body,
+      receiptUrl: nextReceiptUrl,
+    });
+    const validationError = validateExpensePayload(expensePayload);
+
+    if (validationError) {
+      await cleanupUploadedReceipt(req.file);
+      return res.status(400).json({ message: validationError });
     }
 
-    expense.amount = amount;
-    expense.recipient = recipient;
-    expense.category = category;
-    expense.date = date || expense.date;
-    expense.notes = notes ?? '';
-
-    if (req.file) {
-      if (expense.receiptUrl) {
-        const oldFilePath = path.join(
-          process.cwd(),
-          expense.receiptUrl.replace(/^\/+/, '')
-        );
-
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath);
-        }
-      }
-
-      expense.receiptUrl = `/uploads/${req.file.filename}`;
-    }
+    applyExpensePayload(expense, expensePayload);
 
     const updatedExpense = await expense.save();
 
-    res.status(200).json(updatedExpense);
+    if (uploadedReceiptUrl && existingReceiptUrl && existingReceiptUrl !== uploadedReceiptUrl) {
+      await deleteStoredReceiptFile(existingReceiptUrl);
+    }
+
+    return res.status(200).json(updatedExpense);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    await cleanupUploadedReceipt(req.file);
+    return res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -95,33 +200,23 @@ export const updateExpense = async (req, res) => {
 // @route   DELETE /api/expenses/:id
 export const deleteExpense = async (req, res) => {
   try {
-    const expense = await Expense.findOne({
-      _id: req.params.id,
-      userId: req.user.id,
-    });
+    const expense = await findUserExpenseById(req.params.id, req.user.id);
 
     if (!expense) {
-      return res.status(404).json({ message: 'Expense not found' });
-    }
-
-    if (expense.receiptUrl) {
-      const filePath = path.join(
-        process.cwd(),
-        expense.receiptUrl.replace(/^\/+/, '')
-      );
-
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      return res.status(404).json({ message: "Expense not found" });
     }
 
     await expense.deleteOne();
 
-    res.status(200).json({
+    if (expense.receiptUrl) {
+      await deleteStoredReceiptFile(expense.receiptUrl);
+    }
+
+    return res.status(200).json({
       id: req.params.id,
-      message: 'Expense removed',
+      message: "Expense removed",
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    return res.status(500).json({ message: "Server Error" });
   }
 };

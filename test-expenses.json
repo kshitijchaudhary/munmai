@@ -1,0 +1,86 @@
+[
+    {
+      "userId": { "$oid": "69c17eb6b0b56c7c50185bb8" },
+      "amount": 100,
+      "recipient": "Uber",
+      "category": "Transport",
+      "expenseType": "business",
+      "deductible": true,
+      "deductiblePercent": 100,
+      "taxCategory": "Vehicle",
+      "receiptUrl": "/uploads/receipt1.jpg",
+      "date": { "$date": "2025-01-10T00:00:00Z" }
+    },
+    {
+      "userId": { "$oid": "69c17eb6b0b56c7c50185bb8" },
+      "amount": 50,
+      "recipient": "Tim Hortons",
+      "category": "Meals",
+      "expenseType": "business",
+      "deductible": true,
+      "deductiblePercent": 50,
+      "taxCategory": "Meals",
+      "receiptUrl": "",
+      "date": { "$date": "2025-02-05T00:00:00Z" }
+    },
+    {
+      "userId": { "$oid": "69c17eb6b0b56c7c50185bb8" },
+      "amount": 200,
+      "recipient": "Amazon",
+      "category": "Equipment",
+      "expenseType": "business",
+      "deductible": true,
+      "deductiblePercent": 100,
+      "taxCategory": "",
+      "receiptUrl": "/uploads/receipt3.jpg",
+      "date": { "$date": "2025-03-12T00:00:00Z" }
+    },
+    {
+      "userId": { "$oid": "69c17eb6b0b56c7c50185bb8" },
+      "amount": 80,
+      "recipient": "Shell",
+      "category": "Fuel",
+      "expenseType": "business",
+      "deductible": true,
+      "deductiblePercent": 0,
+      "taxCategory": "Vehicle",
+      "receiptUrl": "/uploads/receipt4.jpg",
+      "date": { "$date": "2025-04-01T00:00:00Z" }
+    },
+    {
+      "userId": { "$oid": "69c17eb6b0b56c7c50185bb8" },
+      "amount": 120,
+      "recipient": "Bell Internet",
+      "category": "Utilities",
+      "expenseType": "mixed",
+      "deductible": true,
+      "deductiblePercent": 50,
+      "taxCategory": "Internet",
+      "receiptUrl": "/uploads/receipt5.jpg",
+      "date": { "$date": "2025-05-15T00:00:00Z" }
+    },
+    {
+      "userId": { "$oid": "69c17eb6b0b56c7c50185bb8" },
+      "amount": 300,
+      "recipient": "Walmart",
+      "category": "Shopping",
+      "expenseType": "personal",
+      "deductible": false,
+      "deductiblePercent": 0,
+      "taxCategory": "",
+      "receiptUrl": "",
+      "date": { "$date": "2025-06-01T00:00:00Z" }
+    },
+    {
+      "userId": { "$oid": "69c17eb6b0b56c7c50185bb8" },
+      "amount": 90,
+      "recipient": "Office Depot",
+      "category": "Office Supplies",
+      "expenseType": "business",
+      "deductible": false,
+      "deductiblePercent": 0,
+      "taxCategory": "Office Supplies",
+      "receiptUrl": "/uploads/receipt7.jpg",
+      "date": { "$date": "2025-07-20T00:00:00Z" }
+    }
+  ]

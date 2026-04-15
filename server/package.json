@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "backup:json": "node scripts/backupMongo.mjs"
   },
   "keywords": [],
   "author": "",

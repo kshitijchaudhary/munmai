@@ -1,0 +1,4 @@
+Transaction Date,Merchant,Amount,Type,Category
+2026-03-04,Grocery Market,82.17,Purchase,Groceries
+2026-03-05,Software Subscription,19.99,Purchase,Software & SaaS
+2026-03-06,Refund - Grocery Market,12.00,Refund,Refund

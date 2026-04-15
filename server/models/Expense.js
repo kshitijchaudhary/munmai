@@ -1,5 +1,33 @@
 import mongoose from 'mongoose';
 
+const expenseCategories = [
+  'Rent',
+  'Food',
+  'Groceries',
+  'Utilities',
+  'Entertainment',
+  'Transport',
+  'Fuel',
+  'Healthcare',
+  'Shopping',
+  'Phone & Internet',
+  'Software & SaaS',
+  'Office Supplies',
+  'Equipment',
+  'Education',
+  'Marketing',
+  'Travel',
+  'Meals',
+  'Insurance',
+  'Bank Fees',
+  'Taxes & Licenses',
+  'Professional Services',
+  'Contractors',
+  'Home Office',
+  'Client Gifts',
+  'Other',
+];
+
 const expenseSchema = new mongoose.Schema(
   {
     userId: {
@@ -20,17 +48,28 @@ const expenseSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: [
-        'Rent',
-        'Food',
-        'Utilities',
-        'Entertainment',
-        'Transport',
-        'Healthcare',
-        'Shopping',
-        'Other',
-      ],
+      enum: expenseCategories,
       default: 'Other',
+    },
+    expenseType: {
+      type: String,
+      enum: ['personal', 'business', 'mixed'],
+      default: 'personal',
+    },
+    taxCategory: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    deductible: {
+      type: Boolean,
+      default: false,
+    },
+    deductiblePercent: {
+      type: Number,
+      min: [0, 'Deductible percent cannot be negative'],
+      max: [100, 'Deductible percent cannot exceed 100'],
+      default: 0,
     },
     date: {
       type: Date,

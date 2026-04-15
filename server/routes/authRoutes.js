@@ -1,18 +1,25 @@
 import express from "express";
 import {
+  deleteAccount,
+  exportUserData,
   registerUser,
   loginUser,
+  resendVerificationEmail,
   verifyEmail,
 } from "../controllers/authController.js";
+import { protect } from "../middleware/authMiddleware.js";
 
-import nodemailer from "nodemailer";
+//import nodemailer from "nodemailer";
 const router = express.Router();
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);
+router.post("/resend-verification", resendVerificationEmail);
 router.get("/verify-email", verifyEmail);
+router.get("/export-data", protect, exportUserData);
+router.delete("/account", protect, deleteAccount);
 
-router.get("/test-email", async (req, res) => {
+/*router.get("/test-email", async (req, res) => {
     try {
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -30,7 +37,7 @@ router.get("/test-email", async (req, res) => {
       await transporter.sendMail({
         from: process.env.SMTP_FROM,
         to: "register@asiandns.com",
-        subject: "FinTrack SMTP Test",
+        subject: "Finvexa SMTP Test",
         text: "SMTP is working successfully.",
       });
   
@@ -39,5 +46,5 @@ router.get("/test-email", async (req, res) => {
       console.error("SMTP test error:", error);
       res.status(500).json({ message: error.message });
     }
-  });
+  });*/
 export default router;

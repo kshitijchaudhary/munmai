@@ -19,7 +19,7 @@ export const exportMonthlyPdf = ({
   const doc = new jsPDF();
 
   doc.setFontSize(20);
-  doc.text("Babal.Mitra", 14, 18);
+  doc.text("Finvexa", 14, 18);
 
   doc.setFontSize(14);
   doc.text("Monthly Financial Summary", 14, 28);
