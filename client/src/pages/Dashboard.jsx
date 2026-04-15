@@ -775,8 +775,20 @@ const TransactionRow = ({ item, onDelete, onEdit, deleting }) => {
         responseType: "blob",
       });
       const blobUrl = window.URL.createObjectURL(response.data);
-      window.open(blobUrl, "_blank", "noopener,noreferrer");
-      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+      const receiptWindow = window.open(blobUrl, "_blank", "noopener,noreferrer");
+      if (receiptWindow && typeof receiptWindow.addEventListener === "function") {
+        try {
+          receiptWindow.addEventListener(
+            "load",
+            () => window.URL.revokeObjectURL(blobUrl),
+            { once: true }
+          );
+        } catch {
+          window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+        }
+      } else {
+        window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+      }
     } catch (error) {
       console.error("Receipt fetch error:", error);
       alert(error?.response?.data?.message || "Failed to open receipt");

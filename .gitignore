@@ -12,6 +12,14 @@ client/.env
 logs
 *.log
 
+client/dist/
+server/dist/
+coverage/ 
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
 #server uploads
 server/uploads/*
 !server/uploads/.gitkeep

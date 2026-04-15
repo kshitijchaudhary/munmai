@@ -35,6 +35,9 @@ export const getReceiptFile = async (req, res) => {
       }
     });
   } catch (error) {
+    if (error?.name === "CastError") {
+      return res.status(404).json({ message: "Expense not found" });
+    }
     return res.status(500).json({ message: "Receipt delivery failed" });
   }
 };
