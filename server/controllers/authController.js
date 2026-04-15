@@ -180,12 +180,15 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    if (!isEmailConfigured()) {
-      return res.status(500).json({
-        message: "Email delivery is not configured correctly.",
-        hint: buildEmailDeliveryHint(),
-      });
-    }
+    const emailValidation = buildEmailConfigValidation();
+
+    if (!emailValidation.valid) {
+    return res.status(500).json({
+      message: "Email delivery is not configured correctly. " + emailValidation.summary,
+      hint: buildEmailDeliveryHint(),
+      details: emailValidation.summary,
+  });
+}
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
 
