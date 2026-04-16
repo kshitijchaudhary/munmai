@@ -3,20 +3,20 @@ import { useLocation } from "react-router-dom";
 import { trackEvent } from "../utils/telemetry";
 
 const PAGE_TITLES = {
-  "/": "Finvexa - Dashboard",
-  "/dashboard": "Finvexa - Dashboard",
-  "/login": "Finvexa - Login",
-  "/register": "Finvexa - Register",
-  "/privacy": "Finvexa - Privacy Policy",
-  "/terms": "Finvexa - Terms of Use",
-  "/what-we-store": "Finvexa - What We Store",
+  "/": "Munmai - Dashboard",
+  "/dashboard": "Munmai - Dashboard",
+  "/login": "Munmai - Login",
+  "/register": "Munmai - Register",
+  "/privacy": "Munmai - Privacy Policy",
+  "/terms": "Munmai - Terms of Use",
+  "/what-we-store": "Munmai - What We Store",
 };
 
 const PageTracker = () => {
   const location = useLocation();
 
   useEffect(() => {
-    document.title = PAGE_TITLES[location.pathname] || "Finvexa";
+    document.title = PAGE_TITLES[location.pathname] || "Munmai";
 
     trackEvent("page_view", {
       search: location.search,

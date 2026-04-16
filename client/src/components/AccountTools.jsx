@@ -24,10 +24,10 @@ const AccountTools = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       const safeName =
-        user?.name?.trim()?.replace(/\s+/g, "-").toLowerCase() || "finvexa-user";
+        user?.name?.trim()?.replace(/\s+/g, "-").toLowerCase() || "munmai-user";
 
       link.href = url;
-      link.download = `${safeName}-finvexa-export.json`;
+      link.download = `${safeName}-munmai-export.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();

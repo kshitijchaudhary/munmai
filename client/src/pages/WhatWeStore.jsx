@@ -3,7 +3,7 @@ import LegalPageLayout from "../components/LegalPageLayout";
 const WhatWeStore = () => (
   <LegalPageLayout
     title="What We Store"
-    subtitle="A simple breakdown of the data Finvexa keeps so the product works."
+    subtitle="A simple breakdown of the data unmai keeps so the product works."
   >
     <section>
       <h2 className="text-xl font-bold text-slate-900 mb-2">Account data</h2>
