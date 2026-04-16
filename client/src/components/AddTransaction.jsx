@@ -102,10 +102,13 @@ const AddTransaction = ({
   onTransactionAdded,
   editingTransaction,
   onCancelEdit,
+  onStatusMessage,
 }) => {
   const [type, setType] = useState("expense");
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [openingCurrentReceipt, setOpeningCurrentReceipt] = useState(false);
+  const [formStatus, setFormStatus] = useState(null);
   const fileInputRef = useRef(null);
 
   const getInitialFormData = (transactionType = "expense") => ({
@@ -136,8 +139,12 @@ const AddTransaction = ({
     }
   };
 
-  const resetForm = (nextType = type) => {
+  const resetForm = (nextType = type, options = {}) => {
+    const { clearStatus = true } = options;
     setFormData(getInitialFormData(nextType));
+    if (clearStatus) {
+      setFormStatus(null);
+    }
     resetFileInput();
   };
 
@@ -196,6 +203,10 @@ const AddTransaction = ({
   const handleChange = (e) => {
     const { name, value, type: inputType, checked } = e.target;
 
+    if (formStatus) {
+      setFormStatus(null);
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: inputType === "checkbox" ? checked : value,
@@ -249,11 +260,12 @@ const AddTransaction = ({
   };
 
   const handleViewCurrentReceipt = async () => {
-    if (!editingTransaction?._id) {
+    if (!editingTransaction?._id || openingCurrentReceipt) {
       return;
     }
 
     try {
+      setOpeningCurrentReceipt(true);
       const response = await api.get(`/receipts/${editingTransaction._id}`, {
         responseType: "blob",
       });
@@ -274,7 +286,12 @@ const AddTransaction = ({
       }
     } catch (error) {
       console.error("Receipt fetch error:", error);
-      alert(error?.response?.data?.message || "Failed to open receipt");
+      const message =
+        error?.response?.data?.message || "Failed to open receipt.";
+      setFormStatus({ type: "error", message });
+      onStatusMessage?.("error", message);
+    } finally {
+      setOpeningCurrentReceipt(false);
     }
   };
 
@@ -313,21 +330,28 @@ const AddTransaction = ({
 
     const dateError = validateDate(formData.date);
     if (dateError) {
-      alert(dateError);
+      setFormStatus({ type: "error", message: dateError });
       return;
     }
 
     try {
       setSubmitting(true);
+      setFormStatus(null);
 
       if (type === "expense") {
         if (!formData.amount || !formData.recipient.trim() || !formData.category) {
-          alert("Please fill amount, vendor/payee, and category.");
+          setFormStatus({
+            type: "error",
+            message: "Please fill amount, vendor/payee, and category.",
+          });
           return;
         }
 
         if (formData.deductible && !formData.taxCategory) {
-          alert("Please select a tax category for deductible expenses.");
+          setFormStatus({
+            type: "error",
+            message: "Please select a tax category for deductible expenses.",
+          });
           return;
         }
 
@@ -337,7 +361,10 @@ const AddTransaction = ({
             Number(formData.deductiblePercent) <= 0 ||
             Number(formData.deductiblePercent) > 100)
         ) {
-          alert("Deductible percent must be between 1 and 100.");
+          setFormStatus({
+            type: "error",
+            message: "Deductible percent must be between 1 and 100.",
+          });
           return;
         }
 
@@ -350,7 +377,10 @@ const AddTransaction = ({
         }
       } else {
         if (!formData.amount || !formData.source || !formData.category) {
-          alert("Please fill amount, source, and category.");
+          setFormStatus({
+            type: "error",
+            message: "Please fill amount, source, and category.",
+          });
           return;
         }
 
@@ -369,24 +399,27 @@ const AddTransaction = ({
         }
       }
 
-      alert(
-        isEditing
-          ? `${type === "income" ? "Income" : "Expense"} updated successfully`
-          : `${type === "income" ? "Income" : "Expense"} saved successfully`
-      );
+      const successMessage = isEditing
+        ? `${type === "income" ? "Income" : "Expense"} updated successfully.`
+        : `${type === "income" ? "Income" : "Expense"} saved successfully.`;
 
-      resetForm(type);
+      resetForm(type, { clearStatus: false });
+      setFormStatus({ type: "success", message: successMessage });
+      onStatusMessage?.("success", successMessage);
 
       if (isEditing && onCancelEdit) {
         onCancelEdit();
       }
 
       if (onTransactionAdded) {
-        onTransactionAdded();
+        await onTransactionAdded();
       }
     } catch (error) {
       console.error("Transaction save error:", error);
-      alert(error?.response?.data?.message || "Error saving transaction");
+      const message =
+        error?.response?.data?.message || "Error saving transaction.";
+      setFormStatus({ type: "error", message });
+      onStatusMessage?.("error", message);
     } finally {
       setSubmitting(false);
     }
@@ -437,6 +470,18 @@ const AddTransaction = ({
           Expense
         </button>
       </div>
+
+      {formStatus?.message && (
+        <div
+          className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${
+            formStatus.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-rose-200 bg-rose-50 text-rose-800"
+          }`}
+        >
+          {formStatus.message}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <input
@@ -617,9 +662,10 @@ const AddTransaction = ({
               <button
                 type="button"
                 onClick={handleViewCurrentReceipt}
-                className="inline-block text-xs font-semibold text-indigo-600 hover:underline mt-1"
+                disabled={openingCurrentReceipt}
+                className="inline-block mt-1 text-xs font-semibold text-indigo-600 hover:underline disabled:text-slate-400 disabled:no-underline"
               >
-                View current receipt
+                {openingCurrentReceipt ? "Opening..." : "Open current receipt"}
               </button>
             )}
 

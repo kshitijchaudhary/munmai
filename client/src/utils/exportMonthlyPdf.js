@@ -19,7 +19,10 @@ export const exportMonthlyPdf = ({
   const doc = new jsPDF();
 
   doc.setFontSize(20);
-  doc.text("Finvexa", 14, 18);
+  doc.text("Munmai", 14, 18);
+
+  doc.setFontSize(16);
+  doc.text("Personal finance and expense tracking application", 14, 28);
 
   doc.setFontSize(14);
   doc.text("Monthly Financial Summary", 14, 28);

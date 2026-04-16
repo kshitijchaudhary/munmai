@@ -107,6 +107,7 @@ const Dashboard = () => {
 
   const [data, setData] = useState({ income: [], expenses: [] });
   const [loading, setLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState(null);
   const [deletingId, setDeletingId] = useState("");
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [filter, setFilter] = useState("all");
@@ -121,6 +122,10 @@ const Dashboard = () => {
 
   const displayName =
     user?.name?.split(" ")[0] || user?.email?.split("@")[0] || "User";
+
+  const pushStatusMessage = useCallback((type, message) => {
+    setStatusMessage({ type, message });
+  }, []);
 
   const yearOptions = useMemo(() => {
     const current = new Date().getFullYear();
@@ -169,6 +174,18 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  useEffect(() => {
+    if (!statusMessage?.message) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setStatusMessage(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [statusMessage]);
 
   const stats = useMemo(() => {
     const normalizedIncome = data.income.map((item) =>
@@ -296,9 +313,16 @@ const Dashboard = () => {
       }
 
       await fetchDashboardData();
+      pushStatusMessage(
+        "success",
+        `${item.isIncome ? "Income" : "Expense"} deleted successfully.`
+      );
     } catch (error) {
       console.error("Delete error:", error);
-      alert(error?.response?.data?.message || `Failed to delete ${typeLabel}`);
+      pushStatusMessage(
+        "error",
+        error?.response?.data?.message || `Failed to delete ${typeLabel}.`
+      );
     } finally {
       setDeletingId("");
     }
@@ -348,7 +372,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Tax Pack export error:", error);
       trackError("tax_pack_export_failed", error.message);
-      alert("Failed to export Tax Pack");
+      pushStatusMessage("error", "Failed to export Tax Pack CSV.");
     } finally {
       setExportingTaxPack(false);
     }
@@ -357,6 +381,9 @@ const Dashboard = () => {
   const taxPackSummary = taxPack?.summary ?? {};
   const deductibleByCategory = taxPackSummary?.deductibleByCategory ?? [];
   const taxPackRecords = taxPack?.records ?? [];
+  const hasAnyTransactions = stats.allTransactions.length > 0;
+  const hasPeriodTransactions = stats.periodTransactions.length > 0;
+  const hasFilteredTransactions = stats.filteredTransactions.length > 0;
 
   if (loading && data.income.length === 0 && data.expenses.length === 0) {
     return (
@@ -392,9 +419,25 @@ const Dashboard = () => {
             Financial Summary
           </h2>
           <p className="text-slate-500 font-medium">
-            Tracking {stats.allTransactions.length} transactions.
+            {hasAnyTransactions
+              ? `Tracking ${stats.allTransactions.length} transactions.`
+              : "No account activity yet. Add your first income or expense to begin tracking."}
           </p>
         </header>
+
+        {statusMessage?.message && (
+          <div
+            className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-medium ${
+              statusMessage.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : statusMessage.type === "error"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : "border-slate-200 bg-slate-50 text-slate-700"
+            }`}
+          >
+            {statusMessage.message}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           <MetricCard label="Net Balance" value={stats.totalBalance} isBalance />
@@ -468,6 +511,7 @@ const Dashboard = () => {
               onTransactionAdded={fetchDashboardData}
               editingTransaction={editingTransaction}
               onCancelEdit={() => setEditingTransaction(null)}
+              onStatusMessage={pushStatusMessage}
             />
 
             <ImportTransactions onImportComplete={fetchDashboardData} />
@@ -634,7 +678,9 @@ const Dashboard = () => {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-400 font-medium italic">
-                  No expense data to visualize for {stats.periodLabel}.
+                  {hasAnyTransactions
+                    ? `No expense data to visualize for ${stats.periodLabel}.`
+                    : "Add your first expense to unlock category insights here."}
                 </div>
               )}
             </div>
@@ -707,9 +753,29 @@ const Dashboard = () => {
                 <div className="p-10 text-center text-slate-400 font-medium">
                   Refreshing data...
                 </div>
-              ) : stats.filteredTransactions.length === 0 ? (
+              ) : !hasAnyTransactions ? (
+                <div className="p-10 text-center">
+                  <p className="font-semibold text-slate-700">
+                    No transactions yet.
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Add an income or expense to start building your dashboard,
+                    Tax Pack, and monthly summaries.
+                  </p>
+                </div>
+              ) : !hasPeriodTransactions ? (
+                <div className="p-10 text-center">
+                  <p className="font-semibold text-slate-700">
+                    No transactions recorded for {stats.periodLabel}.
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Pick a different month or add a new transaction for this
+                    period.
+                  </p>
+                </div>
+              ) : !hasFilteredTransactions ? (
                 <div className="p-10 text-center text-slate-400 font-medium">
-                  No transactions found for this month and filter.
+                  No transactions match the current search or filter.
                 </div>
               ) : (
                 stats.filteredTransactions.map((item) => (
@@ -719,6 +785,7 @@ const Dashboard = () => {
                     deleting={deletingId === item._id}
                     onDelete={handleDelete}
                     onEdit={handleEdit}
+                    onStatusMessage={pushStatusMessage}
                   />
                 ))
               )}
@@ -768,9 +835,22 @@ const MiniMetric = ({ label, value }) => (
   </div>
 );
 
-const TransactionRow = ({ item, onDelete, onEdit, deleting }) => {
+const TransactionRow = ({
+  item,
+  onDelete,
+  onEdit,
+  deleting,
+  onStatusMessage,
+}) => {
+  const [openingReceipt, setOpeningReceipt] = useState(false);
+
   const handleViewReceipt = async () => {
+    if (openingReceipt) {
+      return;
+    }
+
     try {
+      setOpeningReceipt(true);
       const response = await api.get(`/receipts/${item._id}`, {
         responseType: "blob",
       });
@@ -791,7 +871,12 @@ const TransactionRow = ({ item, onDelete, onEdit, deleting }) => {
       }
     } catch (error) {
       console.error("Receipt fetch error:", error);
-      alert(error?.response?.data?.message || "Failed to open receipt");
+      onStatusMessage?.(
+        "error",
+        error?.response?.data?.message || "Failed to open receipt."
+      );
+    } finally {
+      setOpeningReceipt(false);
     }
   };
 
@@ -849,9 +934,10 @@ const TransactionRow = ({ item, onDelete, onEdit, deleting }) => {
               <button
                 type="button"
                 onClick={handleViewReceipt}
-                className="inline-block mt-2 text-xs font-semibold text-indigo-600 hover:underline"
+                disabled={openingReceipt}
+                className="inline-block mt-2 text-xs font-semibold text-indigo-600 hover:underline disabled:text-slate-400 disabled:no-underline"
               >
-                View receipt
+                {openingReceipt ? "Opening..." : "Open receipt"}
               </button>
             )}
           </div>
