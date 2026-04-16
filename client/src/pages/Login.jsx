@@ -113,7 +113,7 @@ const Login = () => {
         onSubmit={handleSubmit}
         className="p-8 bg-white rounded-2xl shadow-xl w-full max-w-md"
       >
-        <h2 className="text-2xl font-bold mb-2 text-blue-600">Finvexa Login</h2>
+        <h2 className="text-2xl font-bold mb-2 text-blue-600">Munmai Login</h2>
         <p className="text-slate-500 mb-5">Sign in to continue</p>
 
         {verifiedMessage && (

@@ -83,8 +83,7 @@ const buildEmailConfigValidation = () => {
   };
 };
 
-const isEmailConfigured = () =>
-  buildEmailConfigValidation().valid;
+const isEmailConfigured = () => buildEmailConfigValidation().valid;
 
 const createMailTransporter = () => {
   const validation = buildEmailConfigValidation();
@@ -125,10 +124,11 @@ const sendVerificationEmail = async (email, name, rawToken) => {
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: email,
-    subject: "Verify your Finvexa account",
+    subject: "Verify your Munmai account",
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2>Welcome to Finvexa, ${name}!</h2>
+        <h2>Welcome to Munmai, ${name} 👋</h2>
+        <p>You're one step away from getting full control over your finances.</p>
         <p>Please verify your email address to activate your account.</p>
         <p>
           <a
@@ -138,9 +138,10 @@ const sendVerificationEmail = async (email, name, rawToken) => {
             Verify Email
           </a>
         </p>
-        <p>Or open this link manually:</p>
+        <p>If the button doesn't work, you can copy and paste this link:</p>
         <p>${verifyUrl}</p>
-        <p>This link expires in 24 hours.</p>
+        <p>This link expires in 24 hours. If you didn't request this verification, please ignore this email.</p>
+        <p>Thanks for choosing Munmai.</p>
       </div>
     `,
   });
@@ -181,14 +182,15 @@ export const registerUser = async (req, res) => {
     }
 
     const emailValidation = buildEmailConfigValidation();
+    console.log("EMAIL CONFIG VALIDATION:", emailValidation);
 
     if (!emailValidation.valid) {
-    return res.status(500).json({
-      message: "Email delivery is not configured correctly. " + emailValidation.summary,
-      hint: buildEmailDeliveryHint(),
-      details: emailValidation.summary,
-  });
-}
+      return res.status(500).json({
+        message: "Email delivery is not configured correctly.",
+        hint: buildEmailDeliveryHint(),
+        details: emailValidation.summary,
+      });
+    }
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
 
@@ -201,12 +203,12 @@ export const registerUser = async (req, res) => {
         await prepareVerificationEmail(existingUser);
         return res.status(200).json({
           message:
-            "This account already exists but is not verified. We sent a fresh verification email.",
+            "This account already exists but is not verified. We sent a new verification email.",
         });
       } catch (error) {
         return res.status(502).json({
           message:
-            "This account exists, but the verification email could not be delivered.",
+            "Sorry, we couldn't send the verification email. This account exists, but the verification email could not be delivered.",
           hint: buildEmailDeliveryHint(),
           details: error.message,
         });
@@ -232,12 +234,12 @@ export const registerUser = async (req, res) => {
     try {
       await sendVerificationEmail(user.email, user.name, rawToken);
 
-      res.status(201).json({
+      return res.status(201).json({
         message:
           "Registration successful. Please check your email to verify your account.",
       });
     } catch (error) {
-      res.status(502).json({
+      return res.status(502).json({
         message:
           "Account created, but the verification email could not be delivered.",
         hint: buildEmailDeliveryHint(),
@@ -245,7 +247,7 @@ export const registerUser = async (req, res) => {
       });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -254,9 +256,7 @@ export const verifyEmail = async (req, res) => {
     const { token } = req.query;
 
     if (!token) {
-      return res.redirect(
-        `${process.env.CLIENT_URL}/login?verified=failed`
-      );
+      return res.redirect(`${process.env.CLIENT_URL}/login?verified=failed`);
     }
 
     const hashedToken = crypto
@@ -270,9 +270,7 @@ export const verifyEmail = async (req, res) => {
     });
 
     if (!user) {
-      return res.redirect(
-        `${process.env.CLIENT_URL}/login?verified=failed`
-      );
+      return res.redirect(`${process.env.CLIENT_URL}/login?verified=failed`);
     }
 
     user.isVerified = true;
@@ -281,13 +279,9 @@ export const verifyEmail = async (req, res) => {
 
     await user.save();
 
-    return res.redirect(
-      `${process.env.CLIENT_URL}/login?verified=success`
-    );
+    return res.redirect(`${process.env.CLIENT_URL}/login?verified=success`);
   } catch (error) {
-    return res.redirect(
-      `${process.env.CLIENT_URL}/login?verified=failed`
-    );
+    return res.redirect(`${process.env.CLIENT_URL}/login?verified=failed`);
   }
 };
 
@@ -321,14 +315,14 @@ export const loginUser = async (req, res) => {
 
     const token = createToken(user._id);
 
-    res.json({
+    return res.json({
       id: user._id,
       name: user.name,
       email: user.email,
       token,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -344,7 +338,8 @@ export const resendVerificationEmail = async (req, res) => {
 
     if (!user) {
       return res.status(200).json({
-        message: "If an unverified account exists, a new verification link has been sent.",
+        message:
+          "If an unverified account exists, a new verification link has been sent.",
       });
     }
 
@@ -365,7 +360,7 @@ export const resendVerificationEmail = async (req, res) => {
       message: "A fresh verification email has been sent.",
     });
   } catch (error) {
-    res.status(502).json({
+    return res.status(502).json({
       message: "Verification email could not be delivered.",
       hint: buildEmailDeliveryHint(),
       details: error.message,
@@ -409,12 +404,12 @@ export const exportUserData = async (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="finvexa-export-${exportDate}.json"`
+      `attachment; filename="munmai-export-${exportDate}.json"`
     );
 
-    res.status(200).send(JSON.stringify(dataExport, null, 2));
+    return res.status(200).send(JSON.stringify(dataExport, null, 2));
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -430,10 +425,10 @@ export const deleteAccount = async (req, res) => {
       User.findByIdAndDelete(req.user.id),
     ]);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Account and transaction data deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
