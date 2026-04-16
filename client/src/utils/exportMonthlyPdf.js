@@ -18,24 +18,28 @@ export const exportMonthlyPdf = ({
 }) => {
   const doc = new jsPDF();
 
-  doc.setFontSize(20);
+  doc.setFontSize(22);
+  doc.setFont("helvetica", "bold");
   doc.text("Munmai", 14, 18);
 
-  doc.setFontSize(16);
-  doc.text("Personal finance and expense tracking application", 14, 28);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.text("Track, analyze, and manage your finances with clarity", 14, 26);
 
-  doc.setFontSize(14);
-  doc.text("Monthly Financial Summary", 14, 28);
+  doc.setFontSize(15);
+  doc.setFont("helvetica", "bold");
+  doc.text("Monthly Financial Summary", 14, 36);
 
   doc.setFontSize(11);
-  doc.text(`User: ${userName}`, 14, 38);
-  doc.text(`Month: ${monthLabel}`, 14, 45);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 52);
+  doc.setFont("helvetica", "normal");
+  doc.text(`User: ${userName}`, 14, 48);
+  doc.text(`Month: ${monthLabel}`, 14, 55);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 62);
 
   doc.setFontSize(12);
-  doc.text(`Monthly Income: ${formatCurrency(monthlyIncome)}`, 14, 65);
-  doc.text(`Monthly Expense: ${formatCurrency(monthlyExpense)}`, 14, 73);
-  doc.text(`Monthly Balance: ${formatCurrency(monthlyBalance)}`, 14, 81);
+  doc.text(`Monthly Income: ${formatCurrency(monthlyIncome)}`, 14, 75);
+  doc.text(`Monthly Expense: ${formatCurrency(monthlyExpense)}`, 14, 83);
+  doc.text(`Monthly Balance: ${formatCurrency(monthlyBalance)}`, 14, 91);
 
   const tableBody = transactions.map((item) => {
     const isIncome = !!item.source;
@@ -53,7 +57,7 @@ export const exportMonthlyPdf = ({
   });
 
   autoTable(doc, {
-    startY: 90,
+    startY: 100,
     head: [["Date", "Type", "Title", "Category", "Amount", "Notes"]],
     body: tableBody.length
       ? tableBody
