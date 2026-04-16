@@ -135,22 +135,24 @@ npm run dev
 
 ## 📸 Screenshots
 
-## 📸 Screenshots
 
 ### Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
 
+### Login
+![Login](docs/screenshots/login.png)
+
+### Register
+![Register](docs/screenshots/register.png)
+
 ### Add Transaction
 ![Add Transaction](docs/screenshots/add-transaction.png)
-
-### Transactions
-![Transactions](docs/screenshots/transactions.png)
 
 ### Receipt View
 ![Receipt](docs/screenshots/receipt-view.png)
 
 ### PDF Report
-![PDF Report](docs/screenshots/pdf-report.png)
+![PDF Report](docs/screenshots/monthly-summary-pdf.png)
 
 ---
 
