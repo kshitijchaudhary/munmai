@@ -8,11 +8,25 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import { resolveStoredFilePath } from "../utils/uploadPaths.js";
 
+const usernamePattern = /^[a-z0-9_]{3,20}$/;
+
 const createToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: "7d",
   });
 };
+
+const normalizeUsername = (value) => String(value || "").trim().toLowerCase();
+
+const isValidUsername = (value) => usernamePattern.test(value);
+
+const buildAuthUserPayload = (user, token) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  username: user.username || "",
+  token,
+});
 
 const createVerificationToken = () => {
   const rawToken = crypto.randomBytes(32).toString("hex");
@@ -161,11 +175,21 @@ const removeStoredFile = (fileUrl) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, confirmPassword } = req.body;
+    const { name, email, username, password, confirmPassword } = req.body;
+    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const normalizedUsername = normalizeUsername(username);
 
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !normalizedEmail || !normalizedUsername || !password || !confirmPassword) {
       return res.status(400).json({
-        message: "Name, email, password, and confirm password are required",
+        message:
+          "Name, email, username, password, and confirm password are required",
+      });
+    }
+
+    if (!isValidUsername(normalizedUsername)) {
+      return res.status(400).json({
+        message:
+          "Username must be 3-20 characters and use only lowercase letters, numbers, and underscores",
       });
     }
 
@@ -192,14 +216,26 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUsernameUser = await User.findOne({ username: normalizedUsername });
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser) {
+      if (
+        existingUsernameUser &&
+        String(existingUsernameUser._id) !== String(existingUser._id)
+      ) {
+        return res.status(400).json({ message: "Username is already taken" });
+      }
+
       if (existingUser.isVerified) {
         return res.status(400).json({ message: "User already exists" });
       }
 
       try {
+        existingUser.name = String(name).trim();
+        existingUser.username = normalizedUsername;
+        await existingUser.save();
         await prepareVerificationEmail(existingUser);
         return res.status(200).json({
           message:
@@ -222,7 +258,8 @@ export const registerUser = async (req, res) => {
 
     const user = new User({
       name,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
+      username: normalizedUsername,
       password: hashedPassword,
       isVerified: false,
       verificationToken: hashedToken,
@@ -315,12 +352,7 @@ export const loginUser = async (req, res) => {
 
     const token = createToken(user._id);
 
-    return res.json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      token,
-    });
+    return res.json(buildAuthUserPayload(user, token));
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -381,6 +413,7 @@ export const exportUserData = async (req, res) => {
         id: req.user.id,
         name: req.user.name,
         email: req.user.email,
+        username: req.user.username || "",
         createdAt: req.user.createdAt,
       },
       summary: {

@@ -3,7 +3,7 @@ import LegalPageLayout from "../components/LegalPageLayout";
 const PrivacyPolicy = () => (
   <LegalPageLayout
     title="Privacy Policy"
-    subtitle="A plain-language summary of how Finvexa handles your data."
+    subtitle="A plain-language summary of how Munmai handles your data."
   >
     <section>
       <h2 className="text-xl font-bold text-slate-900 mb-2">What we collect</h2>

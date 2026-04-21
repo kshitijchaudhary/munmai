@@ -13,6 +13,12 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
 import telemetryRoutes from "./routes/telemetryRoutes.js";
 import receiptRoutes from "./routes/receiptRoutes.js";
+import groupRoutes from "./routes/groupRoutes.js";
+import sharedExpenseRoutes from "./routes/sharedExpenseRoutes.js";
+import settlementRoutes from "./routes/settlementRoutes.js";
+import openingBalanceRoutes from "./routes/openingBalanceRoutes.js";
+import balanceRoutes from "./routes/balanceRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 import { ensureUploadDir } from "./utils/uploadPaths.js";
 
 dotenv.config();
@@ -91,9 +97,15 @@ app.use("/api/auth", authRoutes);
 app.use("/api/income", incomeRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/receipts", receiptRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/telemetry", telemetryRoutes);
+app.use("/api/groups", groupRoutes);
+app.use("/api/shared-expenses", sharedExpenseRoutes);
+app.use("/api/settlements", settlementRoutes);
+app.use("/api/opening-balances", openingBalanceRoutes);
+app.use("/api/balance", balanceRoutes);
 
 app.get("/api/test/protected", protect, (req, res) => {
   res.json({

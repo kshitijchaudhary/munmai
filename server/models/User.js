@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+const usernamePattern = /^[a-z0-9_]{3,20}$/;
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -13,6 +15,24 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
+    },
+    username: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      unique: true,
+      sparse: true,
+      validate: {
+        validator: (value) => {
+          if (value == null || value === "") {
+            return true;
+          }
+
+          return usernamePattern.test(value);
+        },
+        message:
+          "Username must be 3-20 characters and use only lowercase letters, numbers, and underscores",
+      },
     },
     password: {
       type: String,
@@ -33,6 +53,8 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+userSchema.index({ username: 1 }, { unique: true, sparse: true });
 
 const User = mongoose.model("User", userSchema);
 

@@ -5,6 +5,7 @@ import { trackEvent } from "../utils/telemetry";
 const PAGE_TITLES = {
   "/": "Munmai - Dashboard",
   "/dashboard": "Munmai - Dashboard",
+  "/groups": "Munmai - Groups",
   "/login": "Munmai - Login",
   "/register": "Munmai - Register",
   "/privacy": "Munmai - Privacy Policy",
@@ -12,11 +13,19 @@ const PAGE_TITLES = {
   "/what-we-store": "Munmai - What We Store",
 };
 
+const getPageTitle = (pathname) => {
+  if (pathname.startsWith("/groups/")) {
+    return "Munmai - Group Detail";
+  }
+
+  return PAGE_TITLES[pathname] || "Munmai";
+};
+
 const PageTracker = () => {
   const location = useLocation();
 
   useEffect(() => {
-    document.title = PAGE_TITLES[location.pathname] || "Munmai";
+    document.title = getPageTitle(location.pathname);
 
     trackEvent("page_view", {
       search: location.search,

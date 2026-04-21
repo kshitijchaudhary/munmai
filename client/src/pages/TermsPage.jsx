@@ -3,7 +3,7 @@ import LegalPageLayout from "../components/LegalPageLayout";
 const TermsPage = () => (
   <LegalPageLayout
     title="Terms of Use"
-    subtitle="The core terms for using Finvexa responsibly."
+    subtitle="The core terms for using Munmai responsibly."
   >
     <section>
       <h2 className="text-xl font-bold text-slate-900 mb-2">Use at your own judgment</h2>
