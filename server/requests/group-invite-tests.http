@@ -1,0 +1,191 @@
+@baseUrl = http://localhost:5000
+
+### =========================================
+### AUTH SECTION (REGISTER + LOGIN)
+### =========================================
+
+### Register Owner
+POST {{baseUrl}}/api/users/register
+Content-Type: application/json
+
+{
+  "name": "Owner User",
+  "email": "owner@test.com",
+  "password": "123456"
+}
+
+###
+
+### Login Owner
+# Copy token from response and paste below
+POST {{baseUrl}}/api/users/login
+Content-Type: application/json
+
+{
+  "email": "owner@test.com",
+  "password": "123456"
+}
+
+###
+
+### Register Member
+POST {{baseUrl}}/api/users/register
+Content-Type: application/json
+
+{
+  "name": "Member User",
+  "email": "member@test.com",
+  "password": "123456"
+}
+
+###
+
+### Login Member
+# Copy token from response and paste below
+POST {{baseUrl}}/api/users/login
+Content-Type: application/json
+
+{
+  "email": "member@test.com",
+  "password": "123456"
+}
+
+###
+
+### =========================================
+### SET VARIABLES (MANUAL STEP)
+### =========================================
+
+# 🔴 IMPORTANT:
+# After login responses, paste tokens here manually
+
+@ownerToken = PASTE_OWNER_TOKEN_HERE
+@memberToken = PASTE_MEMBER_TOKEN_HERE
+
+# After creating group
+@groupId = PASTE_GROUP_ID_HERE
+
+# After creating invite
+@invitationId = PASTE_INVITATION_ID_HERE
+
+###
+
+### =========================================
+### GROUP CREATION
+### =========================================
+
+### Create Group (Owner)
+POST {{baseUrl}}/api/groups
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Munmai Test Group"
+}
+
+###
+
+### Get Owner Groups
+GET {{baseUrl}}/api/groups
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### =========================================
+### INVITE FLOW (OWNER SIDE)
+### =========================================
+
+### Create Invite (by email)
+POST {{baseUrl}}/api/groups/{{groupId}}/invitations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "email": "member@test.com"
+}
+
+###
+
+### Get Group Invites (Owner)
+GET {{baseUrl}}/api/groups/{{groupId}}/invitations
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### =========================================
+### INVITE FLOW (MEMBER SIDE)
+### =========================================
+
+### Get My Pending Invites
+GET {{baseUrl}}/api/groups/my-invites
+Authorization: Bearer {{memberToken}}
+
+###
+
+### Accept Invite
+POST {{baseUrl}}/api/groups/invitations/{{invitationId}}/accept
+Authorization: Bearer {{memberToken}}
+
+###
+
+### Check Member Groups After Accept
+GET {{baseUrl}}/api/groups
+Authorization: Bearer {{memberToken}}
+
+###
+
+### =========================================
+### DECLINE FLOW (OPTIONAL TEST)
+### =========================================
+
+### Create Another Invite (run as owner again)
+POST {{baseUrl}}/api/groups/{{groupId}}/invitations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "email": "member@test.com"
+}
+
+###
+
+### Decline Invite (use new invitationId)
+POST {{baseUrl}}/api/groups/invitations/{{invitationId}}/decline
+Authorization: Bearer {{memberToken}}
+
+###
+
+### =========================================
+### EDGE CASE TESTS
+### =========================================
+
+### Duplicate Invite (should fail with 409)
+POST {{baseUrl}}/api/groups/{{groupId}}/invitations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "email": "member@test.com"
+}
+
+###
+
+### Self Invite (should fail)
+POST {{baseUrl}}/api/groups/{{groupId}}/invitations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "email": "owner@test.com"
+}
+
+###
+
+### Invalid Group ID
+POST {{baseUrl}}/api/groups/123/invitations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "email": "member@test.com"
+}

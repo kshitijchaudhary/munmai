@@ -19,6 +19,7 @@ import settlementRoutes from "./routes/settlementRoutes.js";
 import openingBalanceRoutes from "./routes/openingBalanceRoutes.js";
 import balanceRoutes from "./routes/balanceRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import groupMembershipRoutes from "./routes/groupMembershipRoutes.js";
 import { ensureUploadDir } from "./utils/uploadPaths.js";
 
 dotenv.config();
@@ -98,6 +99,7 @@ app.use("/api/income", incomeRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/receipts", receiptRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api", groupMembershipRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/telemetry", telemetryRoutes);
