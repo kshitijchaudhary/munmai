@@ -18,6 +18,48 @@ const addBalanceEntry = (ledger, fromUserId, toUserId, amount) => {
   ledger.set(key, roundMoney(currentAmount + normalizedAmount));
 };
 
+const netReverseBalances = (ledger) => {
+  const processedPairs = new Set();
+  const balances = [];
+
+  for (const key of ledger.keys()) {
+    const [from, to] = key.split("|");
+    const pairKey = [from, to].sort().join("|");
+
+    if (processedPairs.has(pairKey)) {
+      continue;
+    }
+
+    processedPairs.add(pairKey);
+
+    const forwardAmount = roundMoney(ledger.get(buildBalanceKey(from, to)) || 0);
+    const reverseAmount = roundMoney(ledger.get(buildBalanceKey(to, from)) || 0);
+    const netAmount = roundMoney(forwardAmount - reverseAmount);
+
+    if (netAmount > 0) {
+      balances.push({
+        from,
+        to,
+        amount: netAmount,
+      });
+    } else if (netAmount < 0) {
+      balances.push({
+        from: to,
+        to: from,
+        amount: roundMoney(Math.abs(netAmount)),
+      });
+    }
+  }
+
+  return balances.sort((a, b) => {
+    if (a.from === b.from) {
+      return a.to.localeCompare(b.to);
+    }
+
+    return a.from.localeCompare(b.from);
+  });
+};
+
 export const getGroupBalances = async (groupId) => {
   const expenses = await SharedExpense.find({ group: groupId })
     .select("_id paidBy")
@@ -60,23 +102,7 @@ export const getGroupBalances = async (groupId) => {
     }
   }
 
-  return Array.from(ledger.entries())
-    .map(([key, amount]) => {
-      const [from, to] = key.split("|");
-
-      return {
-        from,
-        to,
-        amount: roundMoney(amount),
-      };
-    })
-    .sort((a, b) => {
-      if (a.from === b.from) {
-        return a.to.localeCompare(b.to);
-      }
-
-      return a.from.localeCompare(b.from);
-    });
+  return netReverseBalances(ledger);
 };
 
 export default {
