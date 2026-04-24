@@ -1,5 +1,6 @@
 import Income from "../models/Income.js";
 import Expense from "../models/Expense.js";
+import { getDashboardSummary as getDashboardSharedMoneySummary } from "../services/dashboardService.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
   try {
@@ -199,6 +200,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
 
   const incomeTotal = incomeTotalResult[0]?.total || 0;
   const expenseTotal = expenseTotalResult[0]?.total || 0;
+  const sharedMoney = await getDashboardSharedMoneySummary(userId);
 
   res.json({
     incomeTotal,
@@ -208,6 +210,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
       category: item._id,
       amount: item.amount,
     })),
+    sharedMoney,
   });
 });
 
