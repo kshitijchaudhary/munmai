@@ -88,6 +88,41 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
       });
       return;
     }
+
+    if (!formData.paidBy) {
+      setStatusMessage({
+        type: "error",
+        text: "Select who paid for this expense.",
+      });
+      return;
+    }
+    
+    if (formData.participants.length === 0) {
+      setStatusMessage({
+        type: "error",
+        text: "Select at least one participant.",
+      });
+      return;
+    }
+    
+    if (!formData.participants.includes(formData.paidBy)) {
+      setStatusMessage({
+        type: "error",
+        text: "Payer must be included in participants.",
+      });
+      return;
+    }
+    
+    if (
+      formData.participants.length === 1 &&
+      formData.participants[0] === formData.paidBy
+    ) {
+      setStatusMessage({
+        type: "error",
+        text: "Select at least one other participant besides the payer.",
+      });
+      return;
+    }
   
     if (!formData.amount || Number(formData.amount) <= 0) {
       setStatusMessage({
