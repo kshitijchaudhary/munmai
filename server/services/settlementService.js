@@ -88,6 +88,29 @@ export const createSettlement = async (groupId, payload, currentUserId) => {
   return { settlement };
 };
 
+export const getGroupSettlementHistory = async (groupId) => {
+  const settlements = await Settlement.find({ group: groupId })
+    .populate("from", "_id name email")
+    .populate("to", "_id name email")
+    .populate("recordedBy", "_id name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return {
+    settlements: settlements.map((settlement) => ({
+      _id: settlement._id,
+      group: settlement.group,
+      from: settlement.from,
+      to: settlement.to,
+      amount: settlement.amount,
+      note: settlement.note,
+      recordedBy: settlement.recordedBy,
+      createdAt: settlement.createdAt,
+    })),
+  };
+};
+
 export default {
   createSettlement,
+  getGroupSettlementHistory,
 };
