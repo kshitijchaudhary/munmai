@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Group from "../models/Group.js";
-import { calculateGroupBalances } from "../services/balanceService.js";
+import { isActiveGroupMember } from "../services/groupMembershipService.js";
+import { getGroupBalances } from "../services/balanceService.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
   try {
@@ -19,16 +20,19 @@ export const getGroupBalance = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Invalid group ID" });
   }
 
-  const group = await Group.findOne({
-    _id: groupId,
-    members: req.user.id,
-  }).lean();
+  const group = await Group.findById(groupId).select("_id").lean();
 
   if (!group) {
     return res.status(404).json({ message: "Group not found" });
   }
 
-  const balanceSummary = await calculateGroupBalances(groupId);
+  const isMember = await isActiveGroupMember(groupId, req.user.id);
 
-  return res.status(200).json(balanceSummary);
+  if (!isMember) {
+    return res.status(403).json({ message: "Only active group members can view balances" });
+  }
+
+  const balances = await getGroupBalances(groupId);
+
+  return res.status(200).json(balances);
 });
