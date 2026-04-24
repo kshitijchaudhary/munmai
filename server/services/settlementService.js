@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Group from "../models/Group.js";
-import GroupMembership from "../models/GroupMembership.js";
 import Settlement from "../models/Settlement.js";
+import { getActiveMemberIds } from "./groupMembershipService.js";
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 const toIdString = (value) => String(value || "");
@@ -13,27 +13,16 @@ const createError = (message, statusCode) => {
 };
 
 const getActiveGroupMemberIds = async (groupId) => {
-  const [group, activeMemberships] = await Promise.all([
+  const [group, memberIds] = await Promise.all([
     Group.findById(groupId).select("_id"),
-    GroupMembership.find({
-      groupId,
-      status: "active",
-      userId: { $ne: null },
-    })
-      .select("userId")
-      .lean(),
+    getActiveMemberIds(groupId),
   ]);
 
   if (!group) {
     throw createError("Group not found", 404);
   }
 
-  return new Set(
-    activeMemberships
-      .map((membership) => membership.userId)
-      .filter(Boolean)
-      .map((userId) => toIdString(userId))
-  );
+  return memberIds;
 };
 
 export const createSettlement = async (groupId, payload, currentUserId) => {

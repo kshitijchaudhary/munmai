@@ -4,7 +4,7 @@ import GroupMembership from "../models/GroupMembership.js";
 import User from "../models/User.js";
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
-const OPEN_INVITATION_STATUSES = ["pending", "invited"];
+const OPEN_INVITATION_STATUSES = ["pending"];
 const OPEN_OR_ACTIVE_STATUSES = [...OPEN_INVITATION_STATUSES, "active"];
 
 const createError = (message, statusCode) => {
@@ -123,6 +123,23 @@ const buildMembershipActiveMatch = (groupId, userId) => ({
   status: "active",
 });
 
+export const getActiveMemberIds = async (groupId) => {
+  const activeMemberships = await GroupMembership.find({
+    groupId,
+    status: "active",
+    userId: { $ne: null },
+  })
+    .select("userId")
+    .lean();
+
+  return new Set(
+    activeMemberships
+      .map((membership) => membership.userId)
+      .filter(Boolean)
+      .map((userId) => toIdString(userId))
+  );
+};
+
 export const createOwnerMembership = async (group, user) => {
   const now = new Date();
 
@@ -230,8 +247,8 @@ export const upsertActiveMembership = async ({
     userId,
     email: invitedEmail,
     excludeId: membership._id,
-    statuses: OPEN_OR_ACTIVE_STATUSES,
-    nextStatus: "removed",
+    statuses: OPEN_INVITATION_STATUSES,
+    nextStatus: "declined",
     respondedAt: now,
   });
 
@@ -295,7 +312,7 @@ export const createEmailInvitation = async (groupId, invitedEmail, invitedBy) =>
       invitedEmail: normalizedEmail,
       invitedBy,
       role: "member",
-      status: "invited",
+      status: "pending",
     });
   } catch (error) {
     if (error?.code === 11000) {
@@ -448,6 +465,7 @@ export const getGroupedMemberships = async (groupId) => {
 
 export default {
   createOwnerMembership,
+  getActiveMemberIds,
   isActiveGroupMember,
   isGroupOwner,
   createEmailInvitation,

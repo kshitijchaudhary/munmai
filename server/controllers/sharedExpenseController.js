@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Group from "../models/Group.js";
-import { isActiveGroupMember } from "../services/groupMembershipService.js";
+import { getActiveMemberIds } from "../services/groupMembershipService.js";
 import {
   createSharedExpense as createSharedExpenseService,
   getGroupExpenseHistory as getGroupExpenseHistoryService,
@@ -41,7 +41,8 @@ export const getGroupExpenseHistory = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Group not found" });
   }
 
-  const isMember = await isActiveGroupMember(groupId, req.user.id);
+  const activeMemberIds = await getActiveMemberIds(groupId);
+  const isMember = activeMemberIds.has(String(req.user.id));
 
   if (!isMember) {
     return res.status(403).json({ message: "Only active group members can view expenses" });

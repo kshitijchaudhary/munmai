@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 import Group from "../models/Group.js";
-import GroupMembership from "../models/GroupMembership.js";
 import SharedExpense from "../models/SharedExpense.js";
 import ExpenseSplit from "../models/ExpenseSplit.js";
+import { getActiveMemberIds } from "./groupMembershipService.js";
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 const toIdString = (value) => String(value || "");
@@ -16,27 +16,14 @@ const createError = (message, statusCode) => {
 const normalizeParticipantIds = (participants = []) => participants.map((value) => String(value));
 
 const getActiveGroupMemberIds = async (groupId) => {
-  const [group, activeMemberships] = await Promise.all([
+  const [group, memberIds] = await Promise.all([
     Group.findById(groupId).select("_id"),
-    GroupMembership.find({
-      groupId,
-      status: "active",
-      userId: { $ne: null },
-    })
-      .select("userId")
-      .lean(),
+    getActiveMemberIds(groupId),
   ]);
 
   if (!group) {
     throw createError("Group not found", 404);
   }
-
-  const memberIds = new Set(
-    activeMemberships
-      .map((membership) => membership.userId)
-      .filter(Boolean)
-      .map((memberId) => toIdString(memberId))
-  );
 
   return memberIds;
 };
