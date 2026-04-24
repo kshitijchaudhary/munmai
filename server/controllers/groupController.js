@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Group from "../models/Group.js";
 import GroupMembership from "../models/GroupMembership.js";
 import User from "../models/User.js";
+import { getGroupSummary as getGroupSummaryService } from "../services/groupSummaryService.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
   try {
@@ -174,6 +175,17 @@ export const getGroupById = asyncHandler(async (req, res) => {
   }
 
   return res.status(200).json(group);
+});
+
+export const getGroupSummary = asyncHandler(async (req, res) => {
+  try {
+    const summary = await getGroupSummaryService(req.params.groupId, req.user.id);
+    return res.status(200).json(summary);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || "Server Error",
+    });
+  }
 });
 
 export const addGroupMembers = asyncHandler(async (req, res) => {

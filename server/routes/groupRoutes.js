@@ -15,6 +15,7 @@ import {
   getGroups,
   getGroupInvites,
   getMyPendingGroupInvites,
+  getGroupSummary,
 } from "../controllers/groupController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -26,6 +27,7 @@ router.route("/").post(createGroup).get(getGroups);
 router.get("/my-invites", getMyPendingGroupInvites);
 router.post("/invitations/:invitationId/accept", acceptGroupInvite);
 router.post("/invitations/:invitationId/decline", declineGroupInvite);
+router.get("/:groupId/summary", getGroupSummary);
 router.get("/:groupId/balances", getGroupBalance);
 router.get("/:groupId/expenses", getGroupExpenseHistory);
 router
