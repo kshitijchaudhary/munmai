@@ -35,5 +35,5 @@ export const getGroupBalance = asyncHandler(async (req, res) => {
 
   const balances = await getGroupBalances(groupId);
 
-  return res.status(200).json(balances);
+  return res.status(200).json({ balances });
 });
