@@ -12,7 +12,11 @@ import AddTransaction from "../components/AddTransaction";
 import ImportTransactions from "../components/ImportTransactions";
 import AccountTools from "../components/AccountTools";
 import api from "../api/axios";
-import { exportTaxPackCsv, getTaxPackSummary } from "../api/dashboard";
+import {
+  exportTaxPackCsv,
+  getDashboardSummary,
+  getTaxPackSummary,
+} from "../api/dashboard";
 import { exportMonthlyPdf } from "../utils/exportMonthlyPdf";
 import { trackError, trackEvent } from "../utils/telemetry";
 
@@ -61,6 +65,18 @@ const buildEmptyTaxPack = (taxYear) => ({
   records: [],
 });
 
+const buildEmptyDashboardSummary = () => ({
+  incomeTotal: 0,
+  expenseTotal: 0,
+  balance: 0,
+  categoryBreakdown: [],
+  sharedMoney: {
+    totalYouOwe: 0,
+    totalYouAreOwed: 0,
+    netBalance: 0,
+  },
+});
+
 const getGreeting = () => {
   const hour = new Date().getHours();
 
@@ -106,6 +122,8 @@ const Dashboard = () => {
   const { logout, user } = useContext(AuthContext);
 
   const [data, setData] = useState({ income: [], expenses: [] });
+  const [dashboardSummary, setDashboardSummary] = useState(buildEmptyDashboardSummary);
+  const [dashboardError, setDashboardError] = useState("");
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState(null);
   const [deletingId, setDeletingId] = useState("");
@@ -141,11 +159,31 @@ const Dashboard = () => {
     setLoading(true);
     setTaxPackLoading(true);
 
-    const [incomeResult, expenseResult, taxPackResult] = await Promise.allSettled([
+    const [summaryResult, incomeResult, expenseResult, taxPackResult] = await Promise.allSettled([
+      getDashboardSummary(),
       api.get("/income"),
       api.get("/expenses"),
       getTaxPackSummary(taxPackYear),
     ]);
+
+    if (summaryResult.status === "fulfilled") {
+      setDashboardSummary({
+        ...buildEmptyDashboardSummary(),
+        ...(summaryResult.value || {}),
+        sharedMoney: {
+          ...buildEmptyDashboardSummary().sharedMoney,
+          ...(summaryResult.value?.sharedMoney || {}),
+        },
+      });
+      setDashboardError("");
+    } else {
+      console.error("Dashboard Summary Error:", summaryResult.reason);
+      setDashboardSummary(buildEmptyDashboardSummary());
+      setDashboardError(
+        summaryResult.reason?.response?.data?.message ||
+          "Failed to load dashboard summary."
+      );
+    }
 
     if (incomeResult.status === "fulfilled" && expenseResult.status === "fulfilled") {
       setData({
@@ -379,6 +417,7 @@ const Dashboard = () => {
   };
 
   const taxPackSummary = taxPack?.summary ?? {};
+  const sharedMoney = dashboardSummary.sharedMoney ?? buildEmptyDashboardSummary().sharedMoney;
   const deductibleByCategory = taxPackSummary?.deductibleByCategory ?? [];
   const taxPackRecords = taxPack?.records ?? [];
   const hasAnyTransactions = stats.allTransactions.length > 0;
@@ -400,6 +439,15 @@ const Dashboard = () => {
           <h1 className="text-xl font-bold text-indigo-600 tracking-tight">
             Munmai
           </h1>
+
+          <div className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-500">
+            <span className="rounded-full bg-slate-100 px-3 py-1.5">
+              Opening Balance — Coming Soon
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1.5">
+              Liabilities — Coming Soon
+            </span>
+          </div>
 
           <button
             onClick={logout}
@@ -441,10 +489,22 @@ const Dashboard = () => {
           </div>
         )}
 
+        {dashboardError && (
+          <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
+            {dashboardError}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <MetricCard label="Net Balance" value={stats.totalBalance} isBalance />
-          <MetricCard label="Total Inflow" value={stats.totalIncome} type="income" />
-          <MetricCard label="Total Outflow" value={stats.totalExpense} type="expense" />
+          <MetricCard label="Personal Balance" value={dashboardSummary.balance} isBalance />
+          <MetricCard label="Income Total" value={dashboardSummary.incomeTotal} type="income" />
+          <MetricCard label="Expense Total" value={dashboardSummary.expenseTotal} type="expense" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <MetricCard label="You Owe" value={sharedMoney.totalYouOwe} type="expense" />
+          <MetricCard label="You Are Owed" value={sharedMoney.totalYouAreOwed} type="income" />
+          <MetricCard label="Shared Net Balance" value={sharedMoney.netBalance} isBalance />
         </div>
 
         <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-slate-100 mb-10">
