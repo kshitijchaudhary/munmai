@@ -1,5 +1,6 @@
 import SharedExpense from "../models/SharedExpense.js";
 import ExpenseSplit from "../models/ExpenseSplit.js";
+import Settlement from "../models/Settlement.js";
 
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
@@ -61,20 +62,20 @@ const netReverseBalances = (ledger) => {
 };
 
 export const getGroupBalances = async (groupId) => {
-  const expenses = await SharedExpense.find({ group: groupId })
-    .select("_id paidBy")
-    .lean();
-
-  if (expenses.length === 0) {
-    return [];
-  }
+  const [expenses, settlements] = await Promise.all([
+    SharedExpense.find({ group: groupId }).select("_id paidBy").lean(),
+    Settlement.find({ group: groupId }).select("from to amount").lean(),
+  ]);
 
   const expenseIds = expenses.map((expense) => expense._id);
-  const splits = await ExpenseSplit.find({
-    expense: { $in: expenseIds },
-  })
-    .select("expense user amount")
-    .lean();
+  const splits =
+    expenseIds.length > 0
+      ? await ExpenseSplit.find({
+          expense: { $in: expenseIds },
+        })
+          .select("expense user amount")
+          .lean()
+      : [];
 
   const splitsByExpenseId = new Map();
 
@@ -100,6 +101,10 @@ export const getGroupBalances = async (groupId) => {
 
       addBalanceEntry(ledger, participantId, payerId, split.amount);
     }
+  }
+
+  for (const settlement of settlements) {
+    addBalanceEntry(ledger, String(settlement.to), String(settlement.from), settlement.amount);
   }
 
   return netReverseBalances(ledger);
