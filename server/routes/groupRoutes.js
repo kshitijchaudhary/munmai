@@ -1,5 +1,6 @@
 import express from "express";
 import { getGroupBalance } from "../controllers/balanceController.js";
+import { createGroupSettlement } from "../controllers/settlementController.js";
 import { getGroupExpenseHistory } from "../controllers/sharedExpenseController.js";
 import {
   addGroupMembers,
@@ -24,6 +25,7 @@ router.post("/invitations/:invitationId/accept", acceptGroupInvite);
 router.post("/invitations/:invitationId/decline", declineGroupInvite);
 router.get("/:groupId/balances", getGroupBalance);
 router.get("/:groupId/expenses", getGroupExpenseHistory);
+router.post("/:groupId/settlements", createGroupSettlement);
 router.get("/:id", getGroupById);
 router.post("/:id/members", addGroupMembers);
 router.route("/:id/invitations").post(createGroupInvite).get(getGroupInvites);
