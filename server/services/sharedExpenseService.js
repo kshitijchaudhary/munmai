@@ -120,6 +120,53 @@ export const createSharedExpense = async (payload, currentUserId) => {
   };
 };
 
+export const getGroupExpenseHistory = async (groupId) => {
+  const expenses = await SharedExpense.find({ group: groupId })
+    .populate("paidBy", "_id name email")
+    .populate("createdBy", "_id name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (expenses.length === 0) {
+    return { expenses: [] };
+  }
+
+  const expenseIds = expenses.map((expense) => expense._id);
+  const splits = await ExpenseSplit.find({
+    expense: { $in: expenseIds },
+  })
+    .populate("user", "_id name email")
+    .sort({ createdAt: 1 })
+    .lean();
+
+  const splitsByExpenseId = new Map();
+
+  for (const split of splits) {
+    const expenseId = toIdString(split.expense);
+    const expenseSplits = splitsByExpenseId.get(expenseId) || [];
+    expenseSplits.push({
+      _id: split._id,
+      user: split.user,
+      amount: split.amount,
+    });
+    splitsByExpenseId.set(expenseId, expenseSplits);
+  }
+
+  return {
+    expenses: expenses.map((expense) => ({
+      _id: expense._id,
+      group: expense.group,
+      paidBy: expense.paidBy,
+      amount: expense.amount,
+      description: expense.description,
+      createdBy: expense.createdBy,
+      createdAt: expense.createdAt,
+      splits: splitsByExpenseId.get(toIdString(expense._id)) || [],
+    })),
+  };
+};
+
 export default {
   createSharedExpense,
+  getGroupExpenseHistory,
 };
