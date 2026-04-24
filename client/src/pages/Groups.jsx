@@ -96,7 +96,7 @@ const Groups = () => {
                   <button
                     key={group._id}
                     type="button"
-                    onClick={() => navigate(`/groups/${group._id}`)}
+                    onClick={() => navigate(`/groups/${group._id}/summary`)}
                     className="w-full px-5 py-4 text-left transition hover:bg-slate-50 md:px-6"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -110,7 +110,7 @@ const Groups = () => {
                         </p>
                       </div>
                       <span className="text-sm font-semibold text-indigo-600">
-                        Open group
+                        View summary
                       </span>
                     </div>
                   </button>

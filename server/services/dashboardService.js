@@ -4,6 +4,8 @@ import { getGroupBalances } from "./balanceService.js";
 const roundMoney = (v) =>
   Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
 
+const getBalanceUserId = (value) => String(value?._id || value || "");
+
 export const getDashboardSummary = async (userId) => {
   // 1. get all groups where user is active
   const memberships = await GroupMembership.find({
@@ -23,10 +25,10 @@ export const getDashboardSummary = async (userId) => {
     const balances = await getGroupBalances(groupId);
 
     for (const b of balances) {
-      if (String(b.from) === String(userId)) {
+      if (getBalanceUserId(b.from) === String(userId)) {
         totalYouOwe += Number(b.amount);
       }
-      if (String(b.to) === String(userId)) {
+      if (getBalanceUserId(b.to) === String(userId)) {
         totalYouAreOwed += Number(b.amount);
       }
     }

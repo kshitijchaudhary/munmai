@@ -8,6 +8,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
+import GroupSummary from "./pages/GroupSummary";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsPage from "./pages/TermsPage";
 import WhatWeStore from "./pages/WhatWeStore";
@@ -45,6 +46,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Groups />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:groupId/summary"
+              element={
+                <ProtectedRoute>
+                  <GroupSummary />
                 </ProtectedRoute>
               }
             />

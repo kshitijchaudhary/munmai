@@ -16,6 +16,8 @@ const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
+const getBalanceUserId = (value) => String(value?._id || value || "");
+
 const getAggregateSummary = async (Model, groupId) => {
   const [result] = await Model.aggregate([
     { $match: { group: groupId } },
@@ -64,14 +66,18 @@ export const getGroupSummary = async (groupId, currentUserId) => {
   const totalYouOwe = roundMoney(
     balances.reduce(
       (sum, balance) =>
-        String(balance.from) === String(currentUserId) ? sum + Number(balance.amount || 0) : sum,
+        getBalanceUserId(balance.from) === String(currentUserId)
+          ? sum + Number(balance.amount || 0)
+          : sum,
       0
     )
   );
   const totalYouAreOwed = roundMoney(
     balances.reduce(
       (sum, balance) =>
-        String(balance.to) === String(currentUserId) ? sum + Number(balance.amount || 0) : sum,
+        getBalanceUserId(balance.to) === String(currentUserId)
+          ? sum + Number(balance.amount || 0)
+          : sum,
       0
     )
   );
