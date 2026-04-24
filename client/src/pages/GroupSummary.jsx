@@ -1,6 +1,8 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getGroupSummary } from "../api/groups";
+import SettlementForm from "../components/SettlementForm";
+import SharedExpenseForm from "../components/SharedExpenseForm";
 import { AuthContext } from "../context/AuthContext";
 
 const emptySummary = {
@@ -67,6 +69,43 @@ const getBalanceLabel = (balance, currentUser) => {
   )}`;
 };
 
+const getUserObjectId = (value) => String(value?._id || value?.id || value || "");
+
+const getCurrentUserOption = (user) => {
+  const userId = getUserId(user);
+
+  if (!userId) {
+    return null;
+  }
+
+  return {
+    _id: userId,
+    name: user?.name || "You",
+    email: user?.email || "",
+  };
+};
+
+const getSelectableMembers = (balances, currentUser) => {
+  const membersById = new Map();
+  const currentUserOption = getCurrentUserOption(currentUser);
+
+  if (currentUserOption) {
+    membersById.set(currentUserOption._id, currentUserOption);
+  }
+
+  for (const balance of balances) {
+    for (const member of [balance.from, balance.to]) {
+      const memberId = getUserObjectId(member);
+
+      if (memberId && !membersById.has(memberId)) {
+        membersById.set(memberId, member);
+      }
+    }
+  }
+
+  return [...membersById.values()];
+};
+
 const GroupSummary = () => {
   const { groupId } = useParams();
   const { user } = useContext(AuthContext);
@@ -78,9 +117,12 @@ const GroupSummary = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const fetchSummary = useCallback(async () => {
+  const fetchSummary = useCallback(async ({ showLoading = true } = {}) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
+
       setError("");
 
       const data = await getGroupSummary(groupId);
@@ -134,6 +176,7 @@ const GroupSummary = () => {
   }
 
   const { group, summary, balances } = groupSummary;
+  const selectableMembers = getSelectableMembers(balances, user);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -202,40 +245,63 @@ const GroupSummary = () => {
           />
         </section>
 
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="border-b border-slate-100 px-5 py-4 md:px-6">
-            <h2 className="text-lg font-bold text-slate-900">Balances</h2>
-            <p className="text-sm text-slate-500">
-              Netted balances across shared expenses and settlements.
-            </p>
+        <section className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+          <div className="xl:col-span-4 space-y-8">
+            <SharedExpenseForm
+              groupId={groupId}
+              members={selectableMembers}
+              onCreated={() => fetchSummary({ showLoading: false })}
+            />
+
+            <SettlementForm
+              groupId={groupId}
+              members={selectableMembers}
+              onCreated={() => fetchSummary({ showLoading: false })}
+            />
+
+            {selectableMembers.length <= 1 && (
+              <p className="mt-3 text-sm text-slate-500">
+                More selectable members will appear here once balances include
+                other group members.
+              </p>
+            )}
           </div>
 
-          <div className="divide-y divide-slate-100">
-            {balances.length === 0 ? (
-              <div className="px-6 py-10 text-center text-slate-500">
-                No outstanding balances.
-              </div>
-            ) : (
-              balances.map((balance) => (
-                <div
-                  key={`${balance.from}-${balance.to}`}
-                  className="px-5 py-4 md:px-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="font-bold text-slate-900 break-all">
-                      {getBalanceLabel(balance, user)}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      Balance after reverse netting and settlements.
+          <div className="xl:col-span-8 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="border-b border-slate-100 px-5 py-4 md:px-6">
+              <h2 className="text-lg font-bold text-slate-900">Balances</h2>
+              <p className="text-sm text-slate-500">
+                Netted balances across shared expenses and settlements.
+              </p>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {balances.length === 0 ? (
+                <div className="px-6 py-10 text-center text-slate-500">
+                  No outstanding balances.
+                </div>
+              ) : (
+                balances.map((balance) => (
+                  <div
+                    key={`${getUserObjectId(balance.from)}-${getUserObjectId(balance.to)}`}
+                    className="px-5 py-4 md:px-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 break-all">
+                        {getBalanceLabel(balance, user)}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        Balance after reverse netting and settlements.
+                      </p>
+                    </div>
+
+                    <p className="text-lg font-black text-slate-900">
+                      {formatCurrency(balance.amount)}
                     </p>
                   </div>
-
-                  <p className="text-lg font-black text-slate-900">
-                    {formatCurrency(balance.amount)}
-                  </p>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </section>
       </div>

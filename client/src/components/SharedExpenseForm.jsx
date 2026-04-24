@@ -1,5 +1,20 @@
 import { useMemo, useState } from "react";
-import api from "../api/axios";
+import { createSharedExpense } from "../api/groups";
+
+const getMemberId = (member) => String(member?._id || member?.id || member || "");
+
+const getMemberLabel = (member) => {
+  if (member?.name) {
+    return member.name;
+  }
+
+  if (member?.email) {
+    return member.email;
+  }
+
+  const memberId = getMemberId(member);
+  return memberId ? `Member ${memberId.slice(-6)}` : "Unknown member";
+};
 
 const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
   const [formData, setFormData] = useState({
@@ -13,10 +28,12 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
 
   const memberOptions = useMemo(
     () =>
-      members.map((memberId) => ({
-        value: String(memberId),
-        label: String(memberId),
-      })),
+      members
+        .map((member) => ({
+          value: getMemberId(member),
+          label: getMemberLabel(member),
+        }))
+        .filter((member) => member.value),
     [members]
   );
 
@@ -83,13 +100,12 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
     try {
       setSubmitting(true);
   
-      await api.post("/shared-expenses", {
+      await createSharedExpense({
         groupId,
         paidBy: formData.paidBy,
         participants: formData.participants,
         amount: Number(formData.amount),
         description: formData.description.trim(),
-        splitType: "equal",
       });
   
       resetForm();

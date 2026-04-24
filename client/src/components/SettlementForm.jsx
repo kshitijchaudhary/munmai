@@ -1,10 +1,25 @@
 import { useMemo, useState } from "react";
-import api from "../api/axios";
+import { createGroupSettlement } from "../api/groups";
+
+const getMemberId = (member) => String(member?._id || member?.id || member || "");
+
+const getMemberLabel = (member) => {
+  if (member?.name) {
+    return member.name;
+  }
+
+  if (member?.email) {
+    return member.email;
+  }
+
+  const memberId = getMemberId(member);
+  return memberId ? `Member ${memberId.slice(-6)}` : "Unknown member";
+};
 
 const SettlementForm = ({ groupId, members = [], onCreated }) => {
   const [formData, setFormData] = useState({
-    fromUser: "",
-    toUser: "",
+    from: "",
+    to: "",
     amount: "",
     note: "",
   });
@@ -13,29 +28,31 @@ const SettlementForm = ({ groupId, members = [], onCreated }) => {
 
   const memberOptions = useMemo(
     () =>
-      members.map((memberId) => ({
-        value: String(memberId),
-        label: String(memberId),
-      })),
+      members
+        .map((member) => ({
+          value: getMemberId(member),
+          label: getMemberLabel(member),
+        }))
+        .filter((member) => member.value),
     [members]
   );
   
   const fromUserOptions = useMemo(
     () =>
-      memberOptions.filter((member) => member.value !== formData.toUser),
-    [memberOptions, formData.toUser]
+      memberOptions.filter((member) => member.value !== formData.to),
+    [memberOptions, formData.to]
   );
   
   const toUserOptions = useMemo(
     () =>
-      memberOptions.filter((member) => member.value !== formData.fromUser),
-    [memberOptions, formData.fromUser]
+      memberOptions.filter((member) => member.value !== formData.from),
+    [memberOptions, formData.from]
   );
 
   const resetForm = () => {
     setFormData({
-      fromUser: "",
-      toUser: "",
+      from: "",
+      to: "",
       amount: "",
       note: "",
     });
@@ -46,7 +63,7 @@ const SettlementForm = ({ groupId, members = [], onCreated }) => {
     if (submitting) return;
     setStatusMessage(null);
 
-    if (!formData.fromUser || !formData.toUser) {
+    if (!formData.from || !formData.to) {
       setStatusMessage({
         type: "error",
         text: "Select both users for the settlement.",
@@ -54,7 +71,7 @@ const SettlementForm = ({ groupId, members = [], onCreated }) => {
       return;
     }
 
-    if (formData.fromUser === formData.toUser) {
+    if (formData.from === formData.to) {
       setStatusMessage({
         type: "error",
         text: "Settlement users must be different.",
@@ -73,10 +90,9 @@ const SettlementForm = ({ groupId, members = [], onCreated }) => {
     try {
       setSubmitting(true);
 
-      await api.post("/settlements", {
-        groupId,
-        fromUser: formData.fromUser,
-        toUser: formData.toUser,
+      await createGroupSettlement(groupId, {
+        from: formData.from,
+        to: formData.to,
         amount: Number(formData.amount),
         note: formData.note.trim(),
       });
@@ -127,12 +143,12 @@ const SettlementForm = ({ groupId, members = [], onCreated }) => {
             From user
           </label>
           <select
-            value={formData.fromUser}
+            value={formData.from}
             onChange={(event) =>
               setFormData((prev) => ({
                 ...prev,
-                fromUser: event.target.value,
-                toUser: prev.toUser === event.target.value ? "" : prev.toUser,
+                from: event.target.value,
+                to: prev.to === event.target.value ? "" : prev.to,
               }))
             }
             disabled={submitting}
@@ -152,12 +168,12 @@ const SettlementForm = ({ groupId, members = [], onCreated }) => {
             To user
           </label>
           <select
-            value={formData.toUser}
+            value={formData.to}
             onChange={(event) =>
               setFormData((prev) => ({
                 ...prev,
-                toUser: event.target.value,
-                fromUser: prev.fromUser === event.target.value ? "" : prev.fromUser,
+                to: event.target.value,
+                from: prev.from === event.target.value ? "" : prev.from,
               }))
             }
             disabled={submitting}
