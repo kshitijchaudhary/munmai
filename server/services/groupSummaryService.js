@@ -51,12 +51,16 @@ export const getGroupSummary = async (groupId, currentUserId) => {
     throw createError("Only active group members can view group summary", 403);
   }
 
-  const [expenseSummary, settlementSummary, balances] = await Promise.all([
+  const [expenseSummary, settlementSummary, balanceResult] = await Promise.all([
     getAggregateSummary(SharedExpense, group._id),
     getAggregateSummary(Settlement, group._id),
     getGroupBalances(group._id),
   ]);
-
+  
+  const balances = Array.isArray(balanceResult)
+    ? balanceResult
+    : balanceResult?.balances || [];
+    
   const totalYouOwe = roundMoney(
     balances.reduce(
       (sum, balance) =>
