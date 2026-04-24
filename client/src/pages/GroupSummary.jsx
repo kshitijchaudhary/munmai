@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getGroupSummary } from "../api/groups";
+import Sidebar from "../components/Sidebar";
 import SettlementForm from "../components/SettlementForm";
 import SharedExpenseForm from "../components/SharedExpenseForm";
 import { AuthContext } from "../context/AuthContext";
@@ -180,7 +181,8 @@ const GroupSummary = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-10">
+      <Sidebar />
+      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-sm font-semibold text-indigo-600 mb-2">
@@ -304,7 +306,7 @@ const GroupSummary = () => {
             </div>
           </div>
         </section>
-      </div>
+      </main>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import GroupForm from "../components/GroupForm";
+import Sidebar from "../components/Sidebar";
 
 const Groups = () => {
   const navigate = useNavigate();
@@ -32,7 +33,8 @@ const Groups = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-10">
+      <Sidebar />
+      <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold text-indigo-600 mb-2">Shared Expenses</p>
@@ -119,7 +121,7 @@ const Groups = () => {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
