@@ -20,10 +20,10 @@ const getNavSections = (pathname) => [
   {
     label: "Money",
     items: [
-      { label: "Add Transaction", to: "/dashboard#add-transaction", status: "In Dashboard" },
-      { label: "Expenses", to: "/dashboard#transactions", status: "In Dashboard" },
-      { label: "Income", to: "/dashboard#transactions", status: "In Dashboard" },
-      { label: "Receipts", to: "/dashboard#import", status: "In Dashboard" },
+      { label: "Add Transaction", to: "/money/transactions#add-transaction" },
+      { label: "Expenses", to: "/money/transactions?type=expense" },
+      { label: "Income", to: "/money/transactions?type=income" },
+      { label: "Receipts", to: "/money/transactions#import" },
     ],
   },
   {
@@ -54,7 +54,7 @@ const getNavSections = (pathname) => [
   },
 ];
 
-const isActiveItem = (pathname, hash, item) => {
+const isActiveItem = (pathname, search, hash, item) => {
   if (!item.to || futureItems.has(item.label)) {
     return false;
   }
@@ -63,10 +63,19 @@ const isActiveItem = (pathname, hash, item) => {
     return false;
   }
 
-  const [targetPath, targetHash = ""] = item.to.split("#");
+  const [targetUrl, targetHash = ""] = item.to.split("#");
+  const [targetPath, targetSearch = ""] = targetUrl.split("?");
 
   if (targetPath === "/dashboard") {
     return pathname === "/dashboard" && (!targetHash || hash === `#${targetHash}`);
+  }
+
+  if (targetPath === "/money/transactions") {
+    return (
+      pathname === "/money/transactions" &&
+      (!targetSearch || search === `?${targetSearch}`) &&
+      (!targetHash || hash === `#${targetHash}`)
+    );
   }
 
   if (targetPath === "/groups") {
@@ -77,8 +86,8 @@ const isActiveItem = (pathname, hash, item) => {
 };
 
 const NavItem = ({ item, onNavigate }) => {
-  const { pathname, hash } = useLocation();
-  const active = isActiveItem(pathname, hash, item);
+  const { pathname, search, hash } = useLocation();
+  const active = isActiveItem(pathname, search, hash, item);
   const disabled = !item.to || futureItems.has(item.label);
 
   if (disabled) {

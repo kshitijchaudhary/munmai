@@ -6,6 +6,7 @@ import PageTracker from "./components/PageTracker";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import MoneyTransactions from "./pages/MoneyTransactions";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import GroupSummary from "./pages/GroupSummary";
@@ -38,6 +39,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/money/transactions"
+              element={
+                <ProtectedRoute>
+                  <MoneyTransactions />
                 </ProtectedRoute>
               }
             />
