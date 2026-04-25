@@ -7,6 +7,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import MoneyTransactions from "./pages/MoneyTransactions";
+import MoneyReceipts from "./pages/MoneyReceipts";
+import MoneyTaxPack from "./pages/MoneyTaxPack";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import GroupSummary from "./pages/GroupSummary";
@@ -47,6 +49,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MoneyTransactions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/money/receipts"
+              element={
+                <ProtectedRoute>
+                  <MoneyReceipts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/money/tax-pack"
+              element={
+                <ProtectedRoute>
+                  <MoneyTaxPack />
                 </ProtectedRoute>
               }
             />

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Income from "../models/Income.js";
 import Expense from "../models/Expense.js";
 import { getDashboardSummary as getDashboardSharedMoneySummary } from "../services/dashboardService.js";
@@ -11,6 +12,16 @@ const asyncHandler = (handler) => async (req, res, next) => {
 };
 
 const getUserId = (req) => req.user?.id || req.user?._id;
+
+const getAggregateUserId = (req) => {
+  const userId = String(getUserId(req) || "");
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return userId;
+  }
+
+  return new mongoose.Types.ObjectId(userId);
+};
 
 const parseTaxYear = (value) => {
   const currentYear = new Date().getFullYear();
@@ -176,19 +187,20 @@ const getTaxPackExpenses = async (req, year) => {
 
 export const getDashboardSummary = asyncHandler(async (req, res) => {
   const userId = getUserId(req);
+  const aggregateUserId = getAggregateUserId(req);
 
   const incomeTotalResult = await Income.aggregate([
-    { $match: { userId } },
+    { $match: { userId: aggregateUserId } },
     { $group: { _id: null, total: { $sum: "$amount" } } },
   ]);
 
   const expenseTotalResult = await Expense.aggregate([
-    { $match: { userId } },
+    { $match: { userId: aggregateUserId } },
     { $group: { _id: null, total: { $sum: "$amount" } } },
   ]);
 
   const categoryBreakdown = await Expense.aggregate([
-    { $match: { userId } },
+    { $match: { userId: aggregateUserId } },
     {
       $group: {
         _id: "$category",

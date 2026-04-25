@@ -23,7 +23,7 @@ const getNavSections = (pathname) => [
       { label: "Add Transaction", to: "/money/transactions#add-transaction" },
       { label: "Expenses", to: "/money/transactions?type=expense" },
       { label: "Income", to: "/money/transactions?type=income" },
-      { label: "Receipts", to: "/money/transactions#import" },
+      { label: "Receipts", to: "/money/receipts" },
     ],
   },
   {
@@ -37,7 +37,7 @@ const getNavSections = (pathname) => [
   {
     label: "Reports",
     items: [
-      { label: "Tax Pack", to: "/dashboard#tax-pack", status: "In Dashboard" },
+      { label: "Tax Pack", to: "/money/tax-pack" },
       { label: "Monthly Summary", status: "Coming Soon" },
     ],
   },
