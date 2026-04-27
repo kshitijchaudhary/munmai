@@ -113,6 +113,33 @@ const quickActions = [
   },
 ];
 
+const getStartedItems = [
+  {
+    key: "transaction",
+    label: "Add your first transaction",
+    to: "/money/transactions#add-transaction",
+    cta: "Add transaction",
+  },
+  {
+    key: "group",
+    label: "Create or join a group",
+    to: "/groups",
+    cta: "Create/join group",
+  },
+  {
+    key: "sharedExpense",
+    label: "Add a shared expense",
+    to: "/groups",
+    cta: "Add shared expense",
+  },
+  {
+    key: "receipt",
+    label: "Upload or attach a receipt",
+    to: "/money/receipts",
+    cta: "Upload receipt",
+  },
+];
+
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
   const [data, setData] = useState({ income: [], expenses: [] });
@@ -259,6 +286,19 @@ const Dashboard = () => {
   const hasAnyTransactions = stats.allTransactions.length > 0;
   const hasAnyGroups = groups.length > 0;
   const showOnboarding = !hasAnyTransactions && !hasAnyGroups && !groupError;
+  const hasSharedExpenseActivity =
+    Number(sharedMoney.totalYouOwe || 0) !== 0 ||
+    Number(sharedMoney.totalYouAreOwed || 0) !== 0 ||
+    Number(sharedMoney.netBalance || 0) !== 0;
+  const hasAnyReceipt = data.expenses.some((expense) =>
+    Boolean(String(expense?.receiptUrl || expense?.receipt || "").trim())
+  );
+  const checklistCompletion = {
+    transaction: hasAnyTransactions,
+    group: hasAnyGroups,
+    sharedExpense: hasSharedExpenseActivity,
+    receipt: hasAnyReceipt,
+  };
 
   if (loading && !hasAnyTransactions) {
     return (
@@ -347,6 +387,8 @@ const Dashboard = () => {
             </div>
           </section>
         )}
+
+        <GetStartedChecklist completion={checklistCompletion} />
 
         <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
           <MetricCard
@@ -585,6 +627,71 @@ const QuickActionCard = ({ action }) => (
     <p className="font-black text-slate-900">{action.title}</p>
     <p className="mt-2 text-sm text-slate-500">{action.description}</p>
   </Link>
+);
+
+const GetStartedChecklist = ({ completion }) => (
+  <section className="mb-10 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+    <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div>
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+          Onboarding
+        </p>
+        <h2 className="text-xl font-black text-slate-900">
+          Get Started with Munmai
+        </h2>
+      </div>
+      <p className="text-sm font-semibold text-slate-500">
+        {Object.values(completion).filter(Boolean).length} of {getStartedItems.length} complete
+      </p>
+    </div>
+
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {getStartedItems.map((item) => {
+        const completed = Boolean(completion[item.key]);
+
+        return (
+          <div
+            key={item.key}
+            className={`rounded-2xl border p-4 ${
+              completed
+                ? "border-emerald-100 bg-emerald-50"
+                : "border-slate-100 bg-slate-50"
+            }`}
+          >
+            <div className="mb-3 flex items-start gap-3">
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                  completed
+                    ? "bg-emerald-600 text-white"
+                    : "bg-white text-slate-400 ring-1 ring-slate-200"
+                }`}
+              >
+                {completed ? "✓" : "•"}
+              </span>
+              <p
+                className={`font-bold ${
+                  completed ? "text-emerald-900" : "text-slate-900"
+                }`}
+              >
+                {item.label}
+              </p>
+            </div>
+
+            {completed ? (
+              <p className="text-sm font-semibold text-emerald-700">Complete</p>
+            ) : (
+              <Link
+                to={item.to}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800"
+              >
+                {item.cta}
+              </Link>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </section>
 );
 
 const RecentTransactionRow = ({ item }) => (
