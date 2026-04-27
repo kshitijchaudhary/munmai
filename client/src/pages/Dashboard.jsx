@@ -116,12 +116,14 @@ const quickActions = [
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
   const [data, setData] = useState({ income: [], expenses: [] });
+  const [groups, setGroups] = useState([]);
   const [dashboardSummary, setDashboardSummary] = useState(
     buildEmptyDashboardSummary
   );
   const [loading, setLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
   const [transactionError, setTransactionError] = useState("");
+  const [groupError, setGroupError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
@@ -136,11 +138,13 @@ const Dashboard = () => {
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
 
-    const [summaryResult, incomeResult, expenseResult] = await Promise.allSettled([
-      getDashboardSummary(),
-      api.get("/income"),
-      api.get("/expenses"),
-    ]);
+    const [summaryResult, incomeResult, expenseResult, groupResult] =
+      await Promise.allSettled([
+        getDashboardSummary(),
+        api.get("/income"),
+        api.get("/expenses"),
+        api.get("/groups"),
+      ]);
 
     if (summaryResult.status === "fulfilled") {
       setDashboardSummary({
@@ -169,6 +173,14 @@ const Dashboard = () => {
     } else {
       setData({ income: [], expenses: [] });
       setTransactionError("Failed to load transaction preview.");
+    }
+
+    if (groupResult.status === "fulfilled") {
+      setGroups(Array.isArray(groupResult.value.data) ? groupResult.value.data : []);
+      setGroupError("");
+    } else {
+      setGroups([]);
+      setGroupError("Failed to load group preview.");
     }
 
     setLoading(false);
@@ -245,6 +257,8 @@ const Dashboard = () => {
   const sharedMoney =
     dashboardSummary.sharedMoney ?? buildEmptyDashboardSummary().sharedMoney;
   const hasAnyTransactions = stats.allTransactions.length > 0;
+  const hasAnyGroups = groups.length > 0;
+  const showOnboarding = !hasAnyTransactions && !hasAnyGroups && !groupError;
 
   if (loading && !hasAnyTransactions) {
     return (
@@ -275,13 +289,43 @@ const Dashboard = () => {
           </p>
         </header>
 
-        {(dashboardError || transactionError) && (
+        {(dashboardError || transactionError || groupError) && (
           <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
-            {dashboardError || transactionError}
+            {dashboardError || transactionError || groupError}
           </div>
         )}
 
-        {!hasAnyTransactions && (
+        {showOnboarding && (
+          <section className="mb-10 rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  Welcome to Munmai 👋
+                </h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  Start tracking your money in seconds.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Link
+                  to="/money/transactions#add-transaction"
+                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                >
+                  Add Transaction
+                </Link>
+                <Link
+                  to="/groups"
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
+                >
+                  Create Group
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!hasAnyTransactions && !showOnboarding && (
           <section className="mb-10 rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
