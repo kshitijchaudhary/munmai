@@ -1,191 +1,175 @@
-# Munmai
+# 🚀 Munmai — Personal & Shared Finance OS
 
-Munmai is a production-ready personal finance and expense tracking application that helps users manage income, expenses, receipts, and tax-ready financial records through a clean and reliable interface.
+Munmai is a modern finance tracking system designed for **individual and group money management** — combining transactions, receipts, tax insights, and shared expense tracking in one clean interface.
 
----
-
-## 🌐 Live Demo
-
-- Frontend: https://munmai.com  
-- Backend API: https://munmai-api.onrender.com  
+👉 Live App: https://munmai.com
 
 ---
 
-## 🚀 Features
+## ✨ Current Version
 
-### 🔐 Authentication & Security
-- User registration with email verification
-- Secure login using JWT authentication
-- Protected routes with user-specific data isolation
+**v1.1.0 — Product Usability Release**
 
-### 💰 Finance Tracking
-- Add, edit, and delete income and expense transactions
-- Categorize transactions for better insights
-- Monthly financial summary (income, expense, balance)
-
-### 🧾 Receipt Management
-- Upload receipts with transactions
-- Secure backend-controlled receipt access (not publicly exposed)
-- Replace and delete receipts safely
-
-### 📊 Dashboard & Analytics
-- Monthly summary cards
-- Category-based expense breakdown
-- Transaction filtering and search
-
-### 📦 Export & Reporting
-- Monthly PDF financial report
-- Tax pack CSV export for deductible expenses
-- Structured reports for real-world usage
-
-### ⚙️ Production Quality
-- Error boundaries for UI crash protection
-- User feedback states (success, error, loading)
-- Telemetry logging for debugging
-- Stable and clean UX flows
+Munmai is now a **fully usable MVP** with core financial workflows working end-to-end.
 
 ---
 
-## 🛠 Tech Stack
+## 🧠 Core Features
+
+### 💰 Personal Finance
+- Track **income and expenses**
+- Monthly summaries (In / Out / Net)
+- Transaction search, filters, and CSV import
+
+### 🧾 Receipts Management
+- Upload and store receipts
+- Track missing receipts
+- Open/view receipts securely
+
+### 📊 Tax Pack
+- Deductible expense tracking
+- Receipt coverage insights
+- CSV export for tax filing
+
+### 👥 Group & Shared Expenses
+- Create groups
+- Invite users via email
+- Track shared expenses
+- Automatic balance calculations
+- Settlement tracking
+
+### 🧭 Smart UX
+- Onboarding checklist
+- Empty states with guided actions
+- Clean dashboard overview
+- Mobile responsive UI
+
+---
+
+## 🏗️ Tech Stack
 
 ### Frontend
 - React (Vite)
 - Tailwind CSS
 - Axios
-- Recharts
 
 ### Backend
-- Node.js
-- Express.js
+- Node.js + Express
 - MongoDB (Mongoose)
 - JWT Authentication
-- Nodemailer (Email verification)
-- Multer (File uploads)
 
 ### Infrastructure
-- Vercel (Frontend Hosting)
-- Render (Backend Hosting)
-- Cloudflare (Domain & DNS)
-- MongoDB Atlas (Database)
+- Frontend: Vercel
+- Backend: Render
+- Database: MongoDB Atlas
 
 ---
 
-## 🧠 Architecture Overview
+## 🧪 What You Can Do (End-to-End)
 
-User → munmai.com (Vercel) → API (Render) → MongoDB Atlas
-
-### Key Decisions
-- Environment-based configuration for production safety
-- Secure receipt access via backend routes (no public file exposure)
-- CORS configured for custom domain
-- Email verification required before account activation
-
----
-
-## 🔑 Environment Variables
-
-### Backend (.env)
-
-PORT=5000  
-MONGO_URI=your_mongodb_uri  
-JWT_SECRET=your_secret  
-
-SMTP_HOST=your_smtp_host  
-SMTP_PORT=your_smtp_port  
-SMTP_USER=your_email  
-SMTP_PASS=your_password  
-SMTP_FROM=no-reply@munmai.com  
-
-CLIENT_URL=https://munmai.com  
-CLIENT_ORIGINS=https://munmai.com,https://www.munmai.com  
-SERVER_URL=https://munmai-api.onrender.com  
+- Register → Verify email → Login
+- Add income/expenses
+- Upload receipts
+- Create a group
+- Invite another user
+- Accept invitation
+- Add shared expense
+- Record settlement
+- View balances
+- Export Tax Pack
 
 ---
 
-### Frontend (.env)
+## ⚠️ Current Limitations (v1.1)
 
-VITE_API_URL=https://munmai-api.onrender.com/api  
+- Receipts stored on local disk (Render persistent disk required)
+- Invites only work for **registered users**
+- No real-time notifications yet
+- No liabilities / advanced financial insights yet
 
 ---
 
-## 💻 Local Setup
+## 🚧 Roadmap (Next Versions)
 
-### 1. Clone the repository
+### v1.2 (Next Focus)
+- Invite UX improvements (search users)
+- Notifications system
+- Better group activity visibility
 
-https://github.com/kshitijchaudhary/munmai
+### v2.0 (Major Upgrade)
+- Opening balances
+- Liabilities tracking
+- Advanced analytics
+- Financial insights layer (AI-ready)
+
+---
+
+## ⚙️ Local Development
+
+### Clone repo
+```bash
+git clone https://github.com/kshitijchaudhary/munmai.git
 cd munmai
+```
+
+### Install dependencies
+```bash
+npm install
+cd client && npm install
+cd ../server && npm install
+```
+
+### Run app
+```bash
+# root
+npm run dev
+```
 
 ---
 
-### 2. Setup backend
+## 🔐 Environment Variables
 
-cd server  
-npm install  
-npm run dev  
+### Backend (`server/.env`)
+```env
+MONGO_URI=
+JWT_SECRET=
+CLIENT_URL=http://localhost:5173
+SERVER_URL=http://localhost:5000
+UPLOAD_DIR=./uploads
+```
 
----
-
-### 3. Setup frontend
-
-cd client  
-npm install  
-npm run dev  
-
----
-
-## 📸 Screenshots
-
-
-### Dashboard
-![Dashboard](docs/screenshots/dashboard.png)
-
-### Login
-![Login](docs/screenshots/login.png)
-
-### Register
-![Register](docs/screenshots/register.png)
-
-### Add Transaction
-![Add Transaction](docs/screenshots/add-transaction.png)
-
-### Receipt View
-![Receipt](docs/screenshots/receipt-view.png)
-
-### PDF Report
-![PDF Report](docs/screenshots/monthly-summary-pdf.png)
+### Frontend (`client/.env`)
+```env
+VITE_API_URL=http://localhost:5000/api
+```
 
 ---
 
-## 📈 Roadmap
+## 🚀 Deployment
 
-Planned improvements:
-
-- Multiple currency support (including NPR)
-- Advanced analytics (income vs expense charts)
-- Liabilities and starting balance tracking
-- Shared expenses and split payments
-- Multi-language support
+See full guide: [`DEPLOYMENT.md`](./DEPLOYMENT.md)
 
 ---
 
-## ⚡ Key Learnings
+## 👤 Author
 
-- Handling real-world CORS issues in production
-- SMTP email verification setup and debugging
-- Secure file handling vs public uploads
-- Full-stack deployment across Vercel, Render, and Cloudflare
-- Domain configuration and DNS debugging
-- Building resilient UX with proper feedback states
+**Kshitij Chaudhary**  
+Full Stack Developer (Canada)
 
 ---
 
-## 👨‍💻 Author
+## 💡 Vision
 
-Kshitij Chaudhary  
-Full Stack Developer  
+Munmai is evolving into a **Financial Command Center** — combining:
+- personal finance
+- shared money tracking
+- tax readiness
+- insights & automation
 
 ---
 
-## 📄 License
+## ⭐ Status
 
-This project is for educational and portfolio purposes.
+🟢 Actively developed  
+🟢 Production deployed  
+🟢 Portfolio-ready project
