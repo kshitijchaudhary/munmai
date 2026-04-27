@@ -23,9 +23,16 @@ const GroupInvitationForm = ({ groupId }) => {
       setEmail("");
       setMessage({ type: "success", text: "Invite sent." });
     } catch (error) {
+      const statusCode = error.response?.status;
+      const serverMessage = error.response?.data?.message || "";
+      const isMissingUser =
+        statusCode === 404 && serverMessage.toLowerCase().includes("user");
+
       setMessage({
         type: "error",
-        text: error.response?.data?.message || "Failed to send invite.",
+        text: isMissingUser
+          ? "This email is not registered on Munmai yet."
+          : serverMessage || "Failed to send invite.",
       });
     } finally {
       setSubmitting(false);
@@ -40,7 +47,7 @@ const GroupInvitationForm = ({ groupId }) => {
       <div className="mb-4">
         <h2 className="text-lg font-bold text-slate-900">Invite Member</h2>
         <p className="text-sm text-slate-500">
-          Invite an existing Munmai user by email.
+          Invite existing Munmai users by email.
         </p>
       </div>
 

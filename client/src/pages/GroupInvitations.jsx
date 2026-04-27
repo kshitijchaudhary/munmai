@@ -14,10 +14,10 @@ const getInviterLabel = (invitation) => {
   const inviter = invitation?.invitedBy;
 
   if (!inviter) {
-    return "";
+    return "a Munmai user";
   }
 
-  return inviter.name || inviter.email || "A group member";
+  return inviter.name || inviter.email || "a Munmai user";
 };
 
 const GroupInvitations = () => {
@@ -52,7 +52,11 @@ const GroupInvitations = () => {
       setMessage(null);
       await acceptGroupInvitation(invitationId);
       await fetchInvitations();
-      setMessage({ type: "success", text: "Invitation accepted." });
+      setMessage({
+        type: "success",
+        text: "Invitation accepted. You can now access the group.",
+        showGroupsLink: true,
+      });
     } catch (error) {
       setMessage({
         type: "error",
@@ -111,7 +115,17 @@ const GroupInvitations = () => {
                 : "border-rose-200 bg-rose-50 text-rose-800"
             }`}
           >
-            {message.text}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>{message.text}</span>
+              {message.showGroupsLink && (
+                <Link
+                  to="/groups"
+                  className="inline-flex items-center justify-center rounded-xl bg-white px-3 py-2 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                >
+                  Go to Groups
+                </Link>
+              )}
+            </div>
           </div>
         )}
 
@@ -149,8 +163,14 @@ const GroupInvitations = () => {
                   No pending invitations.
                 </p>
                 <p className="mt-2 text-sm text-slate-500">
-                  New group invites will appear here.
+                  When someone invites you to a group, it will appear here.
                 </p>
+                <Link
+                  to="/groups"
+                  className="mt-4 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                >
+                  Go to Groups
+                </Link>
               </div>
             ) : (
               invitations.map((invitation) => {

@@ -299,6 +299,8 @@ const Dashboard = () => {
     sharedExpense: hasSharedExpenseActivity,
     receipt: hasAnyReceipt,
   };
+  const completedChecklistCount = Object.values(checklistCompletion).filter(Boolean).length;
+  const showChecklist = completedChecklistCount < getStartedItems.length;
 
   if (loading && !hasAnyTransactions) {
     return (
@@ -388,7 +390,12 @@ const Dashboard = () => {
           </section>
         )}
 
-        <GetStartedChecklist completion={checklistCompletion} />
+        {showChecklist && (
+          <GetStartedChecklist
+            completion={checklistCompletion}
+            completedCount={completedChecklistCount}
+          />
+        )}
 
         <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
           <MetricCard
@@ -629,7 +636,7 @@ const QuickActionCard = ({ action }) => (
   </Link>
 );
 
-const GetStartedChecklist = ({ completion }) => (
+const GetStartedChecklist = ({ completion, completedCount }) => (
   <section className="mb-10 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
     <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
       <div>
@@ -641,7 +648,7 @@ const GetStartedChecklist = ({ completion }) => (
         </h2>
       </div>
       <p className="text-sm font-semibold text-slate-500">
-        {Object.values(completion).filter(Boolean).length} of {getStartedItems.length} complete
+        {completedCount} of {getStartedItems.length} complete
       </p>
     </div>
 

@@ -334,7 +334,8 @@ export const getUserInvitations = async (user) => {
     status: { $in: OPEN_INVITATION_STATUSES },
     $or: [{ userId: user._id }, { invitedEmail: normalizedEmail }],
   })
-    .populate("groupId", "name")
+    .populate("groupId", "_id name")
+    .populate("invitedBy", "_id name email username")
     .sort({ createdAt: -1 });
 };
 
