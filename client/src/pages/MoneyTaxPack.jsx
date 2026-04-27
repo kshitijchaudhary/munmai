@@ -98,7 +98,7 @@ const MoneyTaxPack = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <Sidebar />
-      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="mb-2 text-sm font-semibold text-indigo-600">Reports</p>
@@ -114,7 +114,7 @@ const MoneyTaxPack = () => {
             <select
               value={taxYear}
               onChange={(event) => setTaxYear(Number(event.target.value))}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto"
             >
               {taxYearOptions.map((year) => (
                 <option key={year} value={year}>
@@ -127,7 +127,7 @@ const MoneyTaxPack = () => {
               type="button"
               onClick={handleExport}
               disabled={loading || exporting}
-              className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:bg-slate-300"
+              className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:bg-slate-300 sm:w-auto"
             >
               {exporting ? "Exporting..." : "Export CSV"}
             </button>
@@ -153,7 +153,7 @@ const MoneyTaxPack = () => {
               type="button"
               onClick={fetchTaxPack}
               disabled={loading}
-              className="text-sm font-bold text-indigo-600 hover:underline disabled:text-slate-400"
+              className="text-left text-sm font-bold text-indigo-600 hover:underline disabled:text-slate-400 md:text-right"
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
@@ -263,7 +263,7 @@ const SummaryCard = ({ label, value, tone = "text-slate-900" }) => (
     <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
       {label}
     </p>
-    <p className={`text-3xl font-black ${tone}`}>{value}</p>
+    <p className={`break-words text-2xl font-black sm:text-3xl ${tone}`}>{value}</p>
   </div>
 );
 

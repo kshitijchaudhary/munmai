@@ -189,14 +189,14 @@ const Sidebar = () => {
           <button
             type="button"
             onClick={() => setMobileOpen((value) => !value)}
-            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+            className="shrink-0 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
           >
             {mobileOpen ? "Close" : "Menu"}
           </button>
         </div>
 
         {mobileOpen && (
-          <div className="mt-4 max-h-[75vh] overflow-y-auto rounded-2xl border border-slate-100 bg-white p-4 shadow-xl">
+          <div className="mt-4 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-100 bg-white p-4 shadow-xl">
             <SidebarContent onNavigate={() => setMobileOpen(false)} />
           </div>
         )}

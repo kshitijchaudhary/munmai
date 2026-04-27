@@ -86,7 +86,7 @@ const GroupForm = ({ onCreated }) => {
 
       {statusMessage && (
         <div
-          className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${
+          className={`mb-4 break-words rounded-xl border px-4 py-3 text-sm font-medium ${
             statusMessage.type === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : statusMessage.type === "warning"

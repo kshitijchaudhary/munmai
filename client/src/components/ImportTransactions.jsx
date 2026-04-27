@@ -263,7 +263,7 @@ const ImportTransactions = ({ onImportComplete }) => {
           type="file"
           accept=".csv,text/csv"
           onChange={handleFileChange}
-          className="border border-slate-200 rounded-xl p-3 text-sm"
+          className="w-full rounded-xl border border-slate-200 p-3 text-sm"
         />
 
         {message && (
@@ -341,12 +341,12 @@ const ImportTransactions = ({ onImportComplete }) => {
               <button
                 type="button"
                 onClick={handleBuildReviewQueue}
-                className="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition"
+                className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 sm:w-auto"
               >
                 Build Review Queue
               </button>
 
-              <div className="text-sm text-slate-500 flex items-center">
+              <div className="flex items-center text-sm text-slate-500">
                 Previewing {previewRows.length} of {rows.length} loaded row(s)
               </div>
             </div>
@@ -357,7 +357,7 @@ const ImportTransactions = ({ onImportComplete }) => {
                   Raw Preview
                 </p>
                 <div className="overflow-x-auto border border-slate-100 rounded-2xl">
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-[520px] text-sm">
                     <thead className="bg-slate-50 text-slate-500">
                       <tr>
                         {headers.slice(0, 4).map((header) => (
@@ -387,7 +387,7 @@ const ImportTransactions = ({ onImportComplete }) => {
 
         {reviewRows.length > 0 && (
           <>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <MiniMetric label="Ready rows" value={readyCount} />
               <MiniMetric label="Needs review" value={needsReviewCount} />
               <MiniMetric label="Selected" value={selectedCount} />
@@ -421,7 +421,7 @@ const ImportTransactions = ({ onImportComplete }) => {
               <button
                 type="button"
                 onClick={applyBulkChanges}
-                className="bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-200 transition"
+                className="w-full rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-200 sm:w-auto"
               >
                 Apply to Selected
               </button>
@@ -445,7 +445,7 @@ const ImportTransactions = ({ onImportComplete }) => {
             </div>
 
             <div className="overflow-x-auto border border-slate-100 rounded-2xl">
-              <table className="min-w-full text-sm">
+              <table className="min-w-[920px] text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="text-left px-3 py-2 font-semibold">Use</th>
@@ -543,7 +543,7 @@ const ImportTransactions = ({ onImportComplete }) => {
               type="button"
               onClick={handleImport}
               disabled={importing}
-              className="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition disabled:bg-slate-300"
+              className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:bg-slate-300 sm:w-auto"
             >
               {importing ? "Importing..." : "Import Selected Rows"}
             </button>

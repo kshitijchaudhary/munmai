@@ -138,7 +138,7 @@ const MoneyReceipts = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <Sidebar />
-      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
         <header className="mb-8">
           <p className="mb-2 text-sm font-semibold text-indigo-600">Money</p>
           <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
@@ -167,7 +167,7 @@ const MoneyReceipts = () => {
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               {MONTH_OPTIONS.map((month) => (
                 <option key={month.value} value={month.value}>
@@ -179,7 +179,7 @@ const MoneyReceipts = () => {
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               {yearOptions.map((year) => (
                 <option key={year} value={year}>
@@ -191,7 +191,7 @@ const MoneyReceipts = () => {
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               {categories.map((item) => (
                 <option key={item} value={item}>
@@ -203,7 +203,7 @@ const MoneyReceipts = () => {
             <select
               value={receiptStatus}
               onChange={(event) => setReceiptStatus(event.target.value)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               <option value="all">All receipts</option>
               <option value="with">With receipt</option>
@@ -242,7 +242,7 @@ const MoneyReceipts = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-[760px] text-sm">
               <thead className="bg-slate-50 text-left text-xs font-black uppercase tracking-widest text-slate-400">
                 <tr>
                   <th className="px-5 py-3">Date</th>
@@ -341,7 +341,7 @@ const SummaryCard = ({ label, value, tone = "text-slate-900" }) => (
     <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
       {label}
     </p>
-    <p className={`text-3xl font-black ${tone}`}>{value}</p>
+    <p className={`break-words text-2xl font-black sm:text-3xl ${tone}`}>{value}</p>
   </div>
 );
 

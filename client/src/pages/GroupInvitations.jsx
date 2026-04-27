@@ -87,7 +87,7 @@ const GroupInvitations = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <Sidebar />
-      <main className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
+      <main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="mb-2 text-sm font-semibold text-indigo-600">Groups</p>
@@ -101,7 +101,7 @@ const GroupInvitations = () => {
 
           <Link
             to="/groups"
-            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
+            className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100 sm:w-auto"
           >
             View groups
           </Link>
@@ -120,7 +120,7 @@ const GroupInvitations = () => {
               {message.showGroupsLink && (
                 <Link
                   to="/groups"
-                  className="inline-flex items-center justify-center rounded-xl bg-white px-3 py-2 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-white px-3 py-2 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100 sm:w-auto"
                 >
                   Go to Groups
                 </Link>
@@ -167,7 +167,7 @@ const GroupInvitations = () => {
                 </p>
                 <Link
                   to="/groups"
-                  className="mt-4 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
                 >
                   Go to Groups
                 </Link>
@@ -201,7 +201,7 @@ const GroupInvitations = () => {
                         type="button"
                         onClick={() => handleAccept(invitationId)}
                         disabled={Boolean(actingId)}
-                        className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+                        className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300 sm:w-auto"
                       >
                         {actingId === invitationId ? "Working..." : "Accept"}
                       </button>
@@ -209,7 +209,7 @@ const GroupInvitations = () => {
                         type="button"
                         onClick={() => handleDecline(invitationId)}
                         disabled={Boolean(actingId)}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-400 sm:w-auto"
                       >
                         Decline
                       </button>

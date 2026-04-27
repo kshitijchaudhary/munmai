@@ -316,7 +316,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-20 antialiased">
       <Sidebar />
-      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
         <header className="mb-8 md:mb-10">
           <p className="mb-2 text-sm font-semibold text-indigo-600">
             {getGreeting()}, {displayName}
@@ -352,13 +352,13 @@ const Dashboard = () => {
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Link
                   to="/money/transactions#add-transaction"
-                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
                 >
                   Add Transaction
                 </Link>
                 <Link
                   to="/groups"
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 sm:w-auto"
                 >
                   Create Group
                 </Link>
@@ -382,7 +382,7 @@ const Dashboard = () => {
 
               <Link
                 to="/money/transactions#add-transaction"
-                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
               >
                 Add Transaction
               </Link>
@@ -611,7 +611,7 @@ const MetricCard = ({ label, value, type, isBalance }) => (
       {label}
     </p>
     <p
-      className={`text-3xl font-black ${
+      className={`break-words text-2xl font-black sm:text-3xl ${
         isBalance
           ? Number(value || 0) >= 0
             ? "text-slate-900"
@@ -689,7 +689,7 @@ const GetStartedChecklist = ({ completion, completedCount }) => (
             ) : (
               <Link
                 to={item.to}
-                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
               >
                 {item.cta}
               </Link>
@@ -717,7 +717,7 @@ const RecentTransactionRow = ({ item }) => (
 
         <div className="min-w-0">
           <p className="truncate font-bold text-slate-800">{item.displayTitle}</p>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <p className="break-words text-[10px] font-black uppercase tracking-widest text-slate-400">
             {item.displaySubLabel} | {new Date(item.date).toLocaleDateString()}
           </p>
           {item.displaySubtitle && (
@@ -729,7 +729,7 @@ const RecentTransactionRow = ({ item }) => (
       </div>
 
       <p
-        className={`text-lg font-black ${
+        className={`shrink-0 text-lg font-black ${
           item.isIncome ? "text-emerald-600" : "text-slate-900"
         }`}
       >

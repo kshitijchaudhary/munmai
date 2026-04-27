@@ -34,7 +34,7 @@ const Groups = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
-      <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold text-indigo-600 mb-2">Shared Expenses</p>
@@ -46,7 +46,7 @@ const Groups = () => {
 
           <Link
             to="/dashboard"
-            className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm border border-slate-200 hover:bg-slate-100"
+            className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100 sm:w-auto"
           >
             Back to dashboard
           </Link>
@@ -59,7 +59,7 @@ const Groups = () => {
 
           <div className="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="border-b border-slate-100 px-5 py-4 md:px-6">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">Your Groups</h2>
                   <p className="text-sm text-slate-500">

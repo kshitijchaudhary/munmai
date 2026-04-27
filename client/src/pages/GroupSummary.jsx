@@ -216,10 +216,10 @@ const GroupSummary = () => {
   if (error || !groupSummary.group) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="max-w-4xl mx-auto px-4 md:px-6 py-10">
+        <div className="mx-auto max-w-4xl px-4 py-10 md:px-6">
           <Link
             to="/groups"
-            className="inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm border border-slate-200 hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
           >
             Back to groups
           </Link>
@@ -239,7 +239,7 @@ const GroupSummary = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
-      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-sm font-semibold text-indigo-600 mb-2">
@@ -253,10 +253,10 @@ const GroupSummary = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               to="/groups"
-              className="inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm border border-slate-200 hover:bg-slate-100"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
             >
               Back to groups
             </Link>
@@ -264,7 +264,7 @@ const GroupSummary = () => {
             <button
               type="button"
               onClick={fetchSummary}
-              className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
             >
               Refresh
             </button>
@@ -334,7 +334,7 @@ const GroupSummary = () => {
             )}
           </div>
 
-          <div className="xl:col-span-8 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm xl:col-span-8">
             <div className="border-b border-slate-100 px-5 py-4 md:px-6">
               <h2 className="text-lg font-bold text-slate-900">Balances</h2>
               <p className="text-sm text-slate-500">
@@ -356,7 +356,7 @@ const GroupSummary = () => {
                 balances.map((balance) => (
                   <div
                     key={`${getUserObjectId(balance.from)}-${getUserObjectId(balance.to)}`}
-                    className="px-5 py-4 md:px-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+                    className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6"
                   >
                     <div className="min-w-0">
                       <p className="font-bold text-slate-900 break-all">
@@ -386,7 +386,7 @@ const SummaryCard = ({ label, value, tone = "text-slate-900" }) => (
     <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">
       {label}
     </p>
-    <p className={`text-2xl md:text-3xl font-black ${tone}`}>{value}</p>
+    <p className={`break-words text-2xl font-black md:text-3xl ${tone}`}>{value}</p>
   </div>
 );
 

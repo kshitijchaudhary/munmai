@@ -231,7 +231,7 @@ const MoneyTransactions = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <Sidebar />
-      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
         <header className="mb-8">
           <p className="mb-2 text-sm font-semibold text-indigo-600">Money</p>
           <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
@@ -308,7 +308,7 @@ const MoneyTransactions = () => {
                 <select
                   value={selectedMonth}
                   onChange={(event) => setSelectedMonth(Number(event.target.value))}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
                 >
                   {MONTH_OPTIONS.map((month) => (
                     <option key={month.value} value={month.value}>
@@ -320,7 +320,7 @@ const MoneyTransactions = () => {
                 <select
                   value={selectedYear}
                   onChange={(event) => setSelectedYear(Number(event.target.value))}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
                 >
                   {yearOptions.map((year) => (
                     <option key={year} value={year}>
@@ -391,7 +391,7 @@ const SummaryCard = ({ label, value, tone }) => (
     <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
       {label}
     </p>
-    <p className={`text-3xl font-black ${tone}`}>{value}</p>
+    <p className={`break-words text-2xl font-black sm:text-3xl ${tone}`}>{value}</p>
   </div>
 );
 
@@ -424,7 +424,7 @@ const TransactionRow = ({ item, onDelete, onEdit, deleting, onStatusMessage }) =
   return (
     <div className="p-4 transition-colors hover:bg-slate-50 md:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-black ${
               item.isIncome
@@ -437,7 +437,7 @@ const TransactionRow = ({ item, onDelete, onEdit, deleting, onStatusMessage }) =
 
           <div className="min-w-0">
             <p className="truncate font-bold text-slate-800">{item.displayTitle}</p>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <p className="break-words text-[10px] font-black uppercase tracking-widest text-slate-400">
               {item.displaySubLabel} | {new Date(item.date).toLocaleDateString()}
             </p>
             {item.displaySubtitle && (
@@ -458,7 +458,7 @@ const TransactionRow = ({ item, onDelete, onEdit, deleting, onStatusMessage }) =
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 sm:justify-end">
+        <div className="flex w-full flex-wrap items-center justify-between gap-4 sm:w-auto sm:justify-end">
           <p
             className={`text-lg font-black ${
               item.isIncome ? "text-emerald-600" : "text-slate-900"

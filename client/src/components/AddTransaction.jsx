@@ -427,7 +427,7 @@ const AddTransaction = ({
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
-      <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-xl font-bold">
           {isEditing ? "Edit Transaction" : "Add New Transaction"}
         </h3>
@@ -443,12 +443,12 @@ const AddTransaction = ({
         )}
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="mb-4 grid grid-cols-2 gap-3">
         <button
           type="button"
           onClick={() => switchType("income")}
           disabled={isEditing}
-          className={`px-4 py-2 rounded-lg font-medium transition ${
+          className={`rounded-lg px-4 py-2 font-medium transition ${
             type === "income"
               ? "bg-green-600 text-white"
               : "bg-gray-200 text-gray-800"
@@ -461,7 +461,7 @@ const AddTransaction = ({
           type="button"
           onClick={() => switchType("expense")}
           disabled={isEditing}
-          className={`px-4 py-2 rounded-lg font-medium transition ${
+          className={`rounded-lg px-4 py-2 font-medium transition ${
             type === "expense"
               ? "bg-red-600 text-white"
               : "bg-gray-200 text-gray-800"
@@ -491,7 +491,7 @@ const AddTransaction = ({
           required
           min="0"
           step="0.01"
-          className="border p-2 rounded-lg"
+          className="w-full rounded-lg border p-2"
           value={formData.amount}
           onChange={handleChange}
         />
@@ -511,14 +511,14 @@ const AddTransaction = ({
             <button
               type="button"
               onClick={() => setQuickDate(getTodayString())}
-              className="text-xs px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200"
+              className="rounded-full bg-slate-100 px-3 py-1 text-xs hover:bg-slate-200"
             >
               Today
             </button>
             <button
               type="button"
               onClick={() => setQuickDate(getYesterdayString())}
-              className="text-xs px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200"
+              className="rounded-full bg-slate-100 px-3 py-1 text-xs hover:bg-slate-200"
             >
               Yesterday
             </button>
@@ -532,14 +532,14 @@ const AddTransaction = ({
               name="source"
               placeholder="Source"
               required
-              className="border p-2 rounded-lg"
+              className="w-full rounded-lg border p-2"
               value={formData.source}
               onChange={handleChange}
             />
 
             <select
               name="category"
-              className="border p-2 rounded-lg"
+              className="w-full rounded-lg border p-2"
               value={formData.category}
               onChange={handleChange}
             >
@@ -557,14 +557,14 @@ const AddTransaction = ({
               name="recipient"
               placeholder="Vendor / Payee"
               required
-              className="border p-2 rounded-lg"
+              className="w-full rounded-lg border p-2"
               value={formData.recipient}
               onChange={handleChange}
             />
 
             <select
               name="category"
-              className="border p-2 rounded-lg"
+              className="w-full rounded-lg border p-2"
               value={formData.category}
               onChange={handleChange}
             >
@@ -577,7 +577,7 @@ const AddTransaction = ({
 
             <select
               name="expenseType"
-              className="border p-2 rounded-lg"
+              className="w-full rounded-lg border p-2"
               value={formData.expenseType}
               onChange={(e) => handleExpenseTypeChange(e.target.value)}
             >
@@ -609,7 +609,7 @@ const AddTransaction = ({
               <>
                 <select
                   name="taxCategory"
-                  className="border p-2 rounded-lg"
+                  className="w-full rounded-lg border p-2"
                   value={formData.taxCategory}
                   onChange={handleChange}
                 >
@@ -633,7 +633,7 @@ const AddTransaction = ({
                   step="1"
                   placeholder="Deductible %"
                   disabled={!formData.deductible}
-                  className="border p-2 rounded-lg disabled:bg-slate-100 disabled:text-slate-400"
+                  className="w-full rounded-lg border p-2 disabled:bg-slate-100 disabled:text-slate-400"
                   value={formData.deductible ? formData.deductiblePercent : "0"}
                   onChange={handleChange}
                 />
@@ -686,7 +686,7 @@ const AddTransaction = ({
           name="notes"
           placeholder="Notes (optional)"
           rows="4"
-          className="border p-2 rounded-lg md:col-span-2"
+          className="w-full rounded-lg border p-2 md:col-span-2"
           value={formData.notes}
           onChange={handleChange}
         />
