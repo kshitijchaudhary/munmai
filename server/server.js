@@ -35,14 +35,19 @@ if (missingEnvVars.length > 0) {
 const forceHttps = process.env.FORCE_HTTPS === "true";
 const bodyLimit = process.env.REQUEST_BODY_LIMIT || "1mb";
 ensureUploadDir();
+
+const normalizeOrigin = (value) => String(value || "").trim().replace(/\/+$/, "");
+
 const allowedOrigins = [
   "http://localhost:5173",
   process.env.CLIENT_URL,
   ...(process.env.CLIENT_ORIGINS || "")
     .split(",")
-    .map((value) => value.trim())
+    .map(normalizeOrigin)
     .filter(Boolean),
-].filter(Boolean);
+]
+  .map(normalizeOrigin)
+  .filter(Boolean);
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);

@@ -26,6 +26,10 @@ export const getApiBaseUrl = () => {
       return "http://localhost:5000/api";
     }
 
+    if (import.meta.env.PROD) {
+      throw new Error("VITE_API_URL must be configured for production builds.");
+    }
+
     return addApiSuffix(window.location.origin);
   }
 

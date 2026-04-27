@@ -3,13 +3,14 @@ services:
     name: munmai-api
     runtime: node
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
+    healthCheckPath: /api/health
     plan: starter
 
     disk:
       name: munmai-data
-      mountPath: /var/data/finvexa
+      mountPath: /var/data/munmai
       sizeGB: 1
 
     envVars:
@@ -26,7 +27,10 @@ services:
         value: "5"
 
       - key: UPLOAD_DIR
-        value: /var/data/finvexa/uploads
+        value: /var/data/munmai/uploads
+
+      - key: ALLOW_LOCALHOST_EMAIL_LINKS
+        value: "false"
 
       - key: JWT_SECRET
         generateValue: true
