@@ -280,7 +280,12 @@ const GroupSummary = () => {
             <div className="divide-y divide-slate-100">
               {balances.length === 0 ? (
                 <div className="px-6 py-10 text-center text-slate-500">
-                  No outstanding balances.
+                  <p className="font-semibold text-slate-700">
+                    No outstanding balances.
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Add a shared expense to start tracking who owes whom.
+                  </p>
                 </div>
               ) : (
                 balances.map((balance) => (

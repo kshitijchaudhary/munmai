@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { exportTaxPackCsv, getTaxPackSummary } from "../api/dashboard";
 import Sidebar from "../components/Sidebar";
 import { AuthContext } from "../context/AuthContext";
@@ -43,6 +44,7 @@ const MoneyTaxPack = () => {
   const deductibleByCategory = Array.isArray(summary.deductibleByCategory)
     ? summary.deductibleByCategory
     : [];
+  const hasDeductibleExpenses = Number(summary.deductibleTransactionCount || 0) > 0;
 
   const displayName =
     user?.name?.split(" ")[0] || user?.email?.split("@")[0] || "user";
@@ -222,8 +224,18 @@ const MoneyTaxPack = () => {
                   Loading Tax Pack...
                 </div>
               ) : deductibleByCategory.length === 0 ? (
-                <div className="px-6 py-10 text-center text-slate-500">
-                  No deductible categories found for {taxYear}.
+                <div className="px-6 py-10 text-center">
+                  <p className="font-semibold text-slate-700">
+                    {hasDeductibleExpenses
+                      ? `No deductible categories found for ${taxYear}.`
+                      : "No deductible expenses found for this tax year."}
+                  </p>
+                  <Link
+                    to="/money/transactions"
+                    className="mt-3 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                  >
+                    Review transactions
+                  </Link>
                 </div>
               ) : (
                 deductibleByCategory.map((item) => (

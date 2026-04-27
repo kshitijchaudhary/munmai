@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import api from "../api/axios";
 
@@ -67,7 +68,7 @@ const MoneyReceipts = () => {
     return ["all", ...Array.from(new Set(values)).sort()];
   }, [expenses]);
 
-  const filteredExpenses = useMemo(() => {
+  const receiptScopeExpenses = useMemo(() => {
     return expenses
       .filter((expense) => {
         const expenseDate = new Date(expense.date);
@@ -76,7 +77,11 @@ const MoneyReceipts = () => {
           expenseDate.getFullYear() === selectedYear
         );
       })
-      .filter((expense) => category === "all" || expense.category === category)
+      .filter((expense) => category === "all" || expense.category === category);
+  }, [category, expenses, selectedMonth, selectedYear]);
+
+  const filteredExpenses = useMemo(() => {
+    return receiptScopeExpenses
       .filter((expense) => {
         if (receiptStatus === "with") {
           return hasReceipt(expense);
@@ -89,7 +94,7 @@ const MoneyReceipts = () => {
         return true;
       })
       .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [category, expenses, receiptStatus, selectedMonth, selectedYear]);
+  }, [receiptScopeExpenses, receiptStatus]);
 
   const stats = useMemo(() => {
     const checked = filteredExpenses.length;
@@ -103,6 +108,12 @@ const MoneyReceipts = () => {
       coverage: checked > 0 ? Math.round((withReceipts / checked) * 100) : 0,
     };
   }, [filteredExpenses]);
+
+  const hasAnyExpenses = expenses.length > 0;
+  const allTrackedExpensesHaveReceipts =
+    hasAnyExpenses &&
+    receiptScopeExpenses.length > 0 &&
+    receiptScopeExpenses.every(hasReceipt);
 
   const openReceipt = async (expenseId) => {
     if (openingReceiptId) {
@@ -201,6 +212,15 @@ const MoneyReceipts = () => {
           </div>
         </section>
 
+        {allTrackedExpensesHaveReceipts && (
+          <section className="mb-8 rounded-3xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-emerald-800 shadow-sm md:px-6">
+            <p className="font-semibold">All tracked expenses have receipts.</p>
+            <p className="mt-1 text-sm text-emerald-700">
+              This selected period and category are fully covered.
+            </p>
+          </section>
+        )}
+
         <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-4 md:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -238,6 +258,20 @@ const MoneyReceipts = () => {
                   <tr>
                     <td colSpan="6" className="px-5 py-10 text-center text-slate-400">
                       Loading receipts...
+                    </td>
+                  </tr>
+                ) : !hasAnyExpenses ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-10 text-center">
+                      <p className="font-semibold text-slate-700">
+                        No expenses to check for receipts yet.
+                      </p>
+                      <Link
+                        to="/money/transactions#add-transaction"
+                        className="mt-3 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                      >
+                        Add Expense
+                      </Link>
                     </td>
                   </tr>
                 ) : filteredExpenses.length === 0 ? (

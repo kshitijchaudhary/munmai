@@ -281,6 +281,29 @@ const Dashboard = () => {
           </div>
         )}
 
+        {!hasAnyTransactions && (
+          <section className="mb-10 rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  Start by adding your first transaction.
+                </h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  Add income or expenses to unlock your monthly overview,
+                  spending chart, receipts, and Tax Pack.
+                </p>
+              </div>
+
+              <Link
+                to="/money/transactions#add-transaction"
+                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+              >
+                Add Transaction
+              </Link>
+            </div>
+          </section>
+        )}
+
         <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
           <MetricCard
             label="Personal Balance"

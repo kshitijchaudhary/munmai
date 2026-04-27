@@ -88,9 +88,12 @@ const Groups = () => {
                 </div>
               ) : groups.length === 0 ? (
                 <div className="px-6 py-10 text-center">
-                  <p className="font-semibold text-slate-700">No groups yet.</p>
+                  <p className="font-semibold text-slate-700">
+                    Create your first group to track shared expenses.
+                  </p>
                   <p className="mt-2 text-sm text-slate-500">
-                    Create your first group to start tracking shared balances.
+                    Use the form beside this list to add roommates, trips, or
+                    shared household expenses.
                   </p>
                 </div>
               ) : (

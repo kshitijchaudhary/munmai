@@ -177,6 +177,8 @@ const MoneyTransactions = () => {
     };
   }, [data, filter, searchTerm, selectedMonth, selectedYear]);
 
+  const hasAnyTransactions = stats.allTransactions.length > 0;
+
   const setTypeFilter = (nextFilter) => {
     setFilter(nextFilter);
 
@@ -350,6 +352,15 @@ const MoneyTransactions = () => {
               {loading ? (
                 <div className="p-10 text-center font-medium text-slate-400">
                   Loading transactions...
+                </div>
+              ) : !hasAnyTransactions ? (
+                <div className="p-10 text-center">
+                  <p className="font-semibold text-slate-700">
+                    No transactions yet.
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Add your first income or expense to start tracking.
+                  </p>
                 </div>
               ) : stats.filteredTransactions.length === 0 ? (
                 <div className="p-10 text-center text-slate-500">
