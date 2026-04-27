@@ -7,7 +7,6 @@ import {
   getGroupedMemberships,
   getUserInvitations,
   isActiveGroupMember,
-  isGroupOwner,
 } from "../services/groupMembershipService.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
@@ -41,10 +40,10 @@ export const inviteGroupMemberByEmail = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "A valid email is required" });
   }
 
-  const isOwner = await isGroupOwner(groupId, req.user.id);
+  const isMember = await isActiveGroupMember(groupId, req.user.id);
 
-  if (!isOwner) {
-    return res.status(403).json({ message: "Only the group owner can invite members" });
+  if (!isMember) {
+    return res.status(403).json({ message: "Only active group members can invite members" });
   }
 
   try {

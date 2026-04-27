@@ -27,8 +27,8 @@ const Groups = () => {
     fetchGroups();
   }, []);
 
-  const handleGroupCreated = (group) => {
-    setGroups((prev) => [group, ...prev]);
+  const handleGroupCreated = () => {
+    fetchGroups();
   };
 
   return (

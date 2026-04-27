@@ -276,6 +276,10 @@ export const createEmailInvitation = async (groupId, invitedEmail, invitedBy) =>
     throw createError("Inviting user not found", 404);
   }
 
+  if (!linkedUser) {
+    throw createError("User not found", 404);
+  }
+
   if (normalizeEmail(inviter.email) === normalizedEmail) {
     throw createError("You cannot invite yourself", 400);
   }
@@ -308,7 +312,7 @@ export const createEmailInvitation = async (groupId, invitedEmail, invitedBy) =>
   try {
     return await GroupMembership.create({
       groupId,
-      userId: linkedUser?._id || null,
+      userId: linkedUser._id,
       invitedEmail: normalizedEmail,
       invitedBy,
       role: "member",
@@ -428,9 +432,18 @@ export const getGroupedMemberships = async (groupId) => {
       .filter(Boolean)
       .map((value) => toIdString(value))
   );
+  const pendingUserIds = new Set(
+    pendingInvites
+      .map((membership) => membership.userId?._id || membership.userId)
+      .filter(Boolean)
+      .map((value) => toIdString(value))
+  );
 
   const legacyOnlyMemberIds = (group.members || []).filter(
-    (memberId) => !activeUserIds.has(toIdString(memberId))
+    (memberId) => {
+      const memberIdString = toIdString(memberId);
+      return !activeUserIds.has(memberIdString) && !pendingUserIds.has(memberIdString);
+    }
   );
 
   let legacyUsers = [];

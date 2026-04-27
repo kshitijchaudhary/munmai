@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getGroupSummary } from "../api/groups";
+import { getGroupMembers, getGroupSummary } from "../api/groups";
+import GroupInvitationForm from "../components/GroupInvitationForm";
 import Sidebar from "../components/Sidebar";
 import SettlementForm from "../components/SettlementForm";
 import SharedExpenseForm from "../components/SharedExpenseForm";
@@ -107,6 +108,38 @@ const getSelectableMembers = (balances, currentUser) => {
   return [...membersById.values()];
 };
 
+const getActiveMemberOptions = (memberships = [], pendingInvites = []) => {
+  const membersById = new Map();
+  const pendingUserIds = new Set(
+    pendingInvites
+      .map((membership) => getUserObjectId(membership?.userId))
+      .filter(Boolean)
+  );
+
+  for (const membership of memberships) {
+    if (membership?.status !== "active") {
+      continue;
+    }
+
+    const member = membership.userId;
+    const memberId = getUserObjectId(member);
+
+    if (pendingUserIds.has(memberId)) {
+      continue;
+    }
+
+    if (memberId && !membersById.has(memberId)) {
+      membersById.set(memberId, {
+        _id: memberId,
+        name: member?.name || member?.email || `Member ${memberId.slice(-6)}`,
+        email: member?.email || "",
+      });
+    }
+  }
+
+  return [...membersById.values()];
+};
+
 const GroupSummary = () => {
   const { groupId } = useParams();
   const { user } = useContext(AuthContext);
@@ -115,6 +148,8 @@ const GroupSummary = () => {
     summary: emptySummary,
     balances: [],
   });
+  const [activeMembers, setActiveMembers] = useState([]);
+  const [membersError, setMembersError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -126,8 +161,16 @@ const GroupSummary = () => {
 
       setError("");
 
-      const data = await getGroupSummary(groupId);
+      const [summaryResult, membersResult] = await Promise.allSettled([
+        getGroupSummary(groupId),
+        getGroupMembers(groupId),
+      ]);
 
+      if (summaryResult.status === "rejected") {
+        throw summaryResult.reason;
+      }
+
+      const data = summaryResult.value;
       setGroupSummary({
         group: data?.group || null,
         summary: {
@@ -136,6 +179,19 @@ const GroupSummary = () => {
         },
         balances: Array.isArray(data?.balances) ? data.balances : [],
       });
+
+      if (membersResult.status === "fulfilled") {
+        setActiveMembers(
+          getActiveMemberOptions(
+            membersResult.value?.activeMembers,
+            membersResult.value?.pendingInvites
+          )
+        );
+        setMembersError("");
+      } else {
+        setActiveMembers([]);
+        setMembersError("Could not load group members. Showing limited member options.");
+      }
     } catch (fetchError) {
       setError(
         fetchError.response?.data?.message || "Failed to load group summary."
@@ -177,7 +233,8 @@ const GroupSummary = () => {
   }
 
   const { group, summary, balances } = groupSummary;
-  const selectableMembers = getSelectableMembers(balances, user);
+  const fallbackMembers = getSelectableMembers(balances, user);
+  const selectableMembers = activeMembers.length > 0 ? activeMembers : fallbackMembers;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -249,6 +306,14 @@ const GroupSummary = () => {
 
         <section className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
           <div className="xl:col-span-4 space-y-8">
+            <GroupInvitationForm groupId={groupId} />
+
+            {membersError && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                {membersError}
+              </div>
+            )}
+
             <SharedExpenseForm
               groupId={groupId}
               members={selectableMembers}

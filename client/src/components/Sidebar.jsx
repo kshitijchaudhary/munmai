@@ -30,6 +30,7 @@ const getNavSections = (pathname) => [
     label: "Groups",
     items: [
       { label: "My Groups", to: "/groups" },
+      { label: "Invitations", to: "/group-invitations" },
       { label: "Shared Expenses", to: getGroupDestination(pathname), status: "In Group" },
       { label: "Settlements", to: getGroupDestination(pathname), status: "In Group" },
     ],
