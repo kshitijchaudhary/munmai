@@ -1,6 +1,11 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getGroupMembers, getGroupSummary } from "../api/groups";
+import {
+  getGroupExpenseHistory,
+  getGroupMembers,
+  getGroupSettlementHistory,
+  getGroupSummary,
+} from "../api/groups";
 import GroupInvitationForm from "../components/GroupInvitationForm";
 import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
@@ -17,6 +22,15 @@ const emptySummary = {
   totalYouAreOwed: 0,
   netBalance: 0,
 };
+
+const groupTabs = ["summary", "expenses", "balances", "settlements", "members"];
+
+const getEmptyListState = () => ({
+  items: [],
+  loading: false,
+  error: "",
+  loaded: false,
+});
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-CA", {
@@ -73,6 +87,16 @@ const getBalanceLabel = (balance, currentUser) => {
 };
 
 const getUserObjectId = (value) => String(value?._id || value?.id || value || "");
+
+const formatDate = (value) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown date";
+  }
+
+  return date.toLocaleDateString();
+};
 
 const getCurrentUserOption = (user) => {
   const userId = getUserId(user);
@@ -141,6 +165,24 @@ const getActiveMemberOptions = (memberships = [], pendingInvites = []) => {
   return [...membersById.values()];
 };
 
+const getMembershipUser = (membership) => membership?.userId || membership?.user || null;
+
+const getMemberName = (member) => {
+  if (member?.name) return member.name;
+  if (member?.email) return member.email;
+
+  const memberId = getUserObjectId(member);
+  return memberId ? `Member ${memberId.slice(-6)}` : "Unknown member";
+};
+
+const getHistoryUserLabel = (value) => {
+  if (value?.name) return value.name;
+  if (value?.email) return value.email;
+
+  const valueId = getUserObjectId(value);
+  return valueId ? `Member ${valueId.slice(-6)}` : "Unknown member";
+};
+
 const GroupSummary = () => {
   const { groupId } = useParams();
   const { user } = useContext(AuthContext);
@@ -149,8 +191,13 @@ const GroupSummary = () => {
     summary: emptySummary,
     balances: [],
   });
+  const [activeTab, setActiveTab] = useState("summary");
   const [activeMembers, setActiveMembers] = useState([]);
+  const [activeMemberships, setActiveMemberships] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
   const [membersError, setMembersError] = useState("");
+  const [expenseHistory, setExpenseHistory] = useState(getEmptyListState);
+  const [settlementHistory, setSettlementHistory] = useState(getEmptyListState);
   const [settlementDraft, setSettlementDraft] = useState(null);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [settlementModalOpen, setSettlementModalOpen] = useState(false);
@@ -186,15 +233,26 @@ const GroupSummary = () => {
       });
 
       if (membersResult.status === "fulfilled") {
+        const nextActiveMemberships = Array.isArray(membersResult.value?.activeMembers)
+          ? membersResult.value.activeMembers
+          : [];
+        const nextPendingInvites = Array.isArray(membersResult.value?.pendingInvites)
+          ? membersResult.value.pendingInvites
+          : [];
+
+        setActiveMemberships(nextActiveMemberships);
+        setPendingInvites(nextPendingInvites);
         setActiveMembers(
           getActiveMemberOptions(
-            membersResult.value?.activeMembers,
-            membersResult.value?.pendingInvites
+            nextActiveMemberships,
+            nextPendingInvites
           )
         );
         setMembersError("");
       } else {
         setActiveMembers([]);
+        setActiveMemberships([]);
+        setPendingInvites([]);
         setMembersError("Could not load group members. Showing limited member options.");
       }
     } catch (fetchError) {
@@ -206,9 +264,77 @@ const GroupSummary = () => {
     }
   }, [groupId]);
 
+  const fetchExpenseHistory = useCallback(async () => {
+    setExpenseHistory((prev) => ({ ...prev, loading: true, error: "" }));
+
+    try {
+      const data = await getGroupExpenseHistory(groupId);
+      setExpenseHistory({
+        items: Array.isArray(data?.expenses) ? data.expenses : [],
+        loading: false,
+        error: "",
+        loaded: true,
+      });
+    } catch (fetchError) {
+      setExpenseHistory({
+        items: [],
+        loading: false,
+        error:
+          fetchError.response?.data?.message ||
+          "Failed to load shared expenses.",
+        loaded: true,
+      });
+    }
+  }, [groupId]);
+
+  const fetchSettlementHistory = useCallback(async () => {
+    setSettlementHistory((prev) => ({ ...prev, loading: true, error: "" }));
+
+    try {
+      const data = await getGroupSettlementHistory(groupId);
+      setSettlementHistory({
+        items: Array.isArray(data?.settlements) ? data.settlements : [],
+        loading: false,
+        error: "",
+        loaded: true,
+      });
+    } catch (fetchError) {
+      setSettlementHistory({
+        items: [],
+        loading: false,
+        error:
+          fetchError.response?.data?.message ||
+          "Failed to load settlements.",
+        loaded: true,
+      });
+    }
+  }, [groupId]);
+
   useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
+
+  useEffect(() => {
+    if (activeTab === "expenses" && !expenseHistory.loaded && !expenseHistory.loading) {
+      fetchExpenseHistory();
+    }
+
+    if (
+      activeTab === "settlements" &&
+      !settlementHistory.loaded &&
+      !settlementHistory.loading
+    ) {
+      fetchSettlementHistory();
+    }
+  }, [
+    activeTab,
+    expenseHistory.loaded,
+    expenseHistory.loading,
+    fetchExpenseHistory,
+    fetchSettlementHistory,
+    settlementHistory.loaded,
+    settlementHistory.loading,
+  ]);
 
   if (loading) {
     return (
@@ -263,6 +389,27 @@ const GroupSummary = () => {
       note: "Settlement for shared expenses",
     });
     setSettlementModalOpen(true);
+  };
+
+  const handleSharedExpenseCreated = async () => {
+    await fetchSummary({ showLoading: false });
+
+    if (expenseHistory.loaded) {
+      await fetchExpenseHistory();
+    }
+
+    setExpenseModalOpen(false);
+  };
+
+  const handleSettlementCreated = async () => {
+    await fetchSummary({ showLoading: false });
+
+    if (settlementHistory.loaded) {
+      await fetchSettlementHistory();
+    }
+
+    setSettlementModalOpen(false);
+    setSettlementDraft(null);
   };
 
   return (
@@ -342,21 +489,6 @@ const GroupSummary = () => {
           </div>
         )}
 
-        <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="Expenses" value={summary.expenseCount} />
-          <SummaryCard label="Settlements" value={summary.settlementCount} />
-          <SummaryCard
-            label="Total Expenses"
-            value={formatCurrency(summary.totalExpenses)}
-            tone="text-rose-600"
-          />
-          <SummaryCard
-            label="Net Balance"
-            value={formatCurrency(summary.netBalance)}
-            tone={getBalanceTone(summary.netBalance)}
-          />
-        </section>
-
         {selectableMembers.length <= 1 && (
           <p className="mb-8 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
             More selectable members will appear here once active group members
@@ -364,80 +496,52 @@ const GroupSummary = () => {
           </p>
         )}
 
-        <section>
-          <div className="min-w-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4 md:px-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900">
-                    Your Balance Breakdown
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Understand what you owe, what is owed to you, and other group balances.
-                  </p>
-                </div>
+        <GroupTabNav activeTab={activeTab} onChange={setActiveTab} />
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:min-w-80">
-                  <BalanceTotal
-                    label="You owe"
-                    value={summary.totalYouOwe}
-                    tone="text-rose-600"
-                  />
-                  <BalanceTotal
-                    label="You are owed"
-                    value={summary.totalYouAreOwed}
-                    tone="text-emerald-600"
-                  />
-                </div>
-              </div>
-            </div>
+        {activeTab === "summary" && (
+          <SummaryTab summary={summary} onOpenBalances={() => setActiveTab("balances")} />
+        )}
 
-            <div className="space-y-6 p-5 md:p-6">
-              {balances.length === 0 ? (
-                <div className="py-10 text-center text-slate-500">
-                  <p className="font-semibold text-slate-700">
-                    No outstanding balances yet.
-                  </p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Add a shared expense to start tracking.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setExpenseModalOpen(true)}
-                    className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
-                  >
-                    + Add Shared Expense
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <BalanceGroup
-                    title="You owe"
-                    emptyText="You do not owe anyone right now."
-                    balances={balancesYouOwe}
-                    currentUser={user}
-                    actionLabel="Settle"
-                    onAction={handleSettleBalance}
-                  />
+        {activeTab === "expenses" && (
+          <ExpensesTab
+            expenseHistory={expenseHistory}
+            onRefresh={fetchExpenseHistory}
+            onAddExpense={() => setExpenseModalOpen(true)}
+          />
+        )}
 
-                  <BalanceGroup
-                    title="You are owed"
-                    emptyText="No one owes you right now."
-                    balances={balancesOwedToYou}
-                    currentUser={user}
-                  />
+        {activeTab === "balances" && (
+          <BalancesTab
+            balances={balances}
+            balancesYouOwe={balancesYouOwe}
+            balancesOwedToYou={balancesOwedToYou}
+            otherBalances={otherBalances}
+            currentUser={user}
+            summary={summary}
+            onAddExpense={() => setExpenseModalOpen(true)}
+            onSettle={handleSettleBalance}
+          />
+        )}
 
-                  <BalanceGroup
-                    title="Other group balances"
-                    emptyText="No other member balances right now."
-                    balances={otherBalances}
-                    currentUser={user}
-                  />
-                </>
-              )}
-            </div>
-          </div>
-        </section>
+        {activeTab === "settlements" && (
+          <SettlementsTab
+            settlementHistory={settlementHistory}
+            onRefresh={fetchSettlementHistory}
+            onRecordSettlement={() => {
+              setSettlementDraft(null);
+              setSettlementModalOpen(true);
+            }}
+          />
+        )}
+
+        {activeTab === "members" && (
+          <MembersTab
+            activeMemberships={activeMemberships}
+            pendingInvites={pendingInvites}
+            membersError={membersError}
+            onInviteMember={() => setInviteModalOpen(true)}
+          />
+        )}
 
         <Modal
           open={inviteModalOpen}
@@ -457,10 +561,7 @@ const GroupSummary = () => {
           <SharedExpenseForm
             groupId={groupId}
             members={selectableMembers}
-            onCreated={async () => {
-              await fetchSummary({ showLoading: false });
-              setExpenseModalOpen(false);
-            }}
+            onCreated={handleSharedExpenseCreated}
           />
         </Modal>
 
@@ -474,17 +575,436 @@ const GroupSummary = () => {
             groupId={groupId}
             members={selectableMembers}
             settlementDraft={settlementDraft}
-            onCreated={async () => {
-              await fetchSummary({ showLoading: false });
-              setSettlementModalOpen(false);
-              setSettlementDraft(null);
-            }}
+            onCreated={handleSettlementCreated}
           />
         </Modal>
       </main>
     </div>
   );
 };
+
+const GroupTabNav = ({ activeTab, onChange }) => (
+  <div className="mb-6 overflow-x-auto rounded-2xl border border-slate-100 bg-white p-1 shadow-sm">
+    <div className="flex min-w-max gap-1">
+      {groupTabs.map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          onClick={() => onChange(tab)}
+          className={`rounded-xl px-4 py-2.5 text-sm font-black capitalize transition ${
+            activeTab === tab
+              ? "bg-slate-900 text-white"
+              : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          {tab}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const SummaryTab = ({ summary, onOpenBalances }) => (
+  <section className="space-y-6">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <SummaryCard label="Expenses" value={summary.expenseCount} />
+      <SummaryCard label="Settlements" value={summary.settlementCount} />
+      <SummaryCard
+        label="Total Expenses"
+        value={formatCurrency(summary.totalExpenses)}
+        tone="text-rose-600"
+      />
+      <SummaryCard
+        label="Net Balance"
+        value={formatCurrency(summary.netBalance)}
+        tone={getBalanceTone(summary.netBalance)}
+      />
+    </div>
+
+    <PanelShell
+      title="Shared Money Overview"
+      description="A quick view of how this group currently affects you."
+      action={
+        <button
+          type="button"
+          onClick={onOpenBalances}
+          className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+        >
+          View Balances
+        </button>
+      }
+    >
+      <div className="grid grid-cols-1 gap-3 p-5 md:grid-cols-3 md:p-6">
+        <BalanceTotal
+          label="You owe"
+          value={summary.totalYouOwe}
+          tone="text-rose-600"
+        />
+        <BalanceTotal
+          label="You are owed"
+          value={summary.totalYouAreOwed}
+          tone="text-emerald-600"
+        />
+        <BalanceTotal
+          label="Total settlements"
+          value={summary.totalSettlements}
+          tone="text-slate-900"
+        />
+      </div>
+    </PanelShell>
+  </section>
+);
+
+const ExpensesTab = ({ expenseHistory, onRefresh, onAddExpense }) => (
+  <PanelShell
+    title="Shared Expenses"
+    description="All shared expenses recorded for this group, newest first."
+    action={
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 sm:w-auto"
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          onClick={onAddExpense}
+          className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+        >
+          + Add Shared Expense
+        </button>
+      </div>
+    }
+  >
+    {expenseHistory.loading ? (
+      <EmptyPanel title="Loading shared expenses..." />
+    ) : expenseHistory.error ? (
+      <EmptyPanel title={expenseHistory.error} tone="error" />
+    ) : expenseHistory.items.length === 0 ? (
+      <EmptyPanel
+        title="No shared expenses yet."
+        description="Add a shared expense to start tracking who owes whom."
+        actionLabel="+ Add Shared Expense"
+        onAction={onAddExpense}
+      />
+    ) : (
+      <div className="divide-y divide-slate-100">
+        {expenseHistory.items.map((expense) => (
+          <div key={expense._id} className="px-5 py-4 md:px-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <p className="break-words font-bold text-slate-900">
+                  {expense.description || "Shared expense"}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Paid by {getHistoryUserLabel(expense.paidBy)}
+                </p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                  {formatDate(expense.createdAt)}
+                </p>
+              </div>
+              <p className="text-lg font-black text-slate-900">
+                {formatCurrency(expense.amount)}
+              </p>
+            </div>
+
+            {Array.isArray(expense.splits) && expense.splits.length > 0 && (
+              <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+                {expense.splits.map((split) => (
+                  <div
+                    key={split._id}
+                    className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    <span className="font-semibold text-slate-800">
+                      {getHistoryUserLabel(split.user)}
+                    </span>
+                    <span className="text-slate-500"> split </span>
+                    <span className="font-bold text-slate-900">
+                      {formatCurrency(split.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </PanelShell>
+);
+
+const BalancesTab = ({
+  balances,
+  balancesYouOwe,
+  balancesOwedToYou,
+  otherBalances,
+  currentUser,
+  summary,
+  onAddExpense,
+  onSettle,
+}) => (
+  <PanelShell
+    title="Balances"
+    description="Netted balances after shared expenses and settlements."
+  >
+    <div className="border-b border-slate-100 px-5 py-4 md:px-6">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <BalanceTotal
+          label="You owe"
+          value={summary.totalYouOwe}
+          tone="text-rose-600"
+        />
+        <BalanceTotal
+          label="You are owed"
+          value={summary.totalYouAreOwed}
+          tone="text-emerald-600"
+        />
+        <BalanceTotal
+          label="Net balance"
+          value={summary.netBalance}
+          tone={getBalanceTone(summary.netBalance)}
+        />
+      </div>
+    </div>
+
+    <div className="space-y-6 p-5 md:p-6">
+      {balances.length === 0 ? (
+        <EmptyPanel
+          title="No outstanding balances yet."
+          description="Add a shared expense to start tracking."
+          actionLabel="+ Add Shared Expense"
+          onAction={onAddExpense}
+        />
+      ) : (
+        <>
+          <BalanceGroup
+            title="You owe"
+            emptyText="You do not owe anyone right now."
+            balances={balancesYouOwe}
+            currentUser={currentUser}
+            actionLabel="Settle"
+            onAction={onSettle}
+          />
+
+          <BalanceGroup
+            title="You are owed"
+            emptyText="No one owes you right now."
+            balances={balancesOwedToYou}
+            currentUser={currentUser}
+          />
+
+          <BalanceGroup
+            title="Other group balances"
+            emptyText="No other member balances right now."
+            balances={otherBalances}
+            currentUser={currentUser}
+          />
+        </>
+      )}
+    </div>
+  </PanelShell>
+);
+
+const SettlementsTab = ({ settlementHistory, onRefresh, onRecordSettlement }) => (
+  <PanelShell
+    title="Settlements"
+    description="Payments recorded between group members, newest first."
+    action={
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 sm:w-auto"
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          onClick={onRecordSettlement}
+          className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 sm:w-auto"
+        >
+          + Record Settlement
+        </button>
+      </div>
+    }
+  >
+    {settlementHistory.loading ? (
+      <EmptyPanel title="Loading settlements..." />
+    ) : settlementHistory.error ? (
+      <EmptyPanel title={settlementHistory.error} tone="error" />
+    ) : settlementHistory.items.length === 0 ? (
+      <EmptyPanel
+        title="No settlements recorded yet."
+        description="Record a settlement when someone pays another member back."
+        actionLabel="+ Record Settlement"
+        onAction={onRecordSettlement}
+      />
+    ) : (
+      <div className="divide-y divide-slate-100">
+        {settlementHistory.items.map((settlement) => (
+          <div
+            key={settlement._id}
+            className="px-5 py-4 md:px-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
+          >
+            <div className="min-w-0">
+              <p className="break-words font-bold text-slate-900">
+                {getHistoryUserLabel(settlement.from)} paid{" "}
+                {getHistoryUserLabel(settlement.to)}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {settlement.note || "No note"}
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                {formatDate(settlement.createdAt)}
+              </p>
+            </div>
+            <p className="text-lg font-black text-emerald-600">
+              {formatCurrency(settlement.amount)}
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+  </PanelShell>
+);
+
+const MembersTab = ({
+  activeMemberships,
+  pendingInvites,
+  membersError,
+  onInviteMember,
+}) => (
+  <PanelShell
+    title="Members"
+    description="Active members can participate in shared expenses and settlements."
+    action={
+      <button
+        type="button"
+        onClick={onInviteMember}
+        className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+      >
+        + Invite Member
+      </button>
+    }
+  >
+    {membersError ? (
+      <EmptyPanel title={membersError} tone="warning" />
+    ) : activeMemberships.length === 0 && pendingInvites.length === 0 ? (
+      <EmptyPanel
+        title="No members found."
+        description="Invite registered Munmai users to start collaborating."
+        actionLabel="+ Invite Member"
+        onAction={onInviteMember}
+      />
+    ) : (
+      <div className="space-y-6 p-5 md:p-6">
+        <MemberList title="Active members" memberships={activeMemberships} />
+        <MemberList title="Pending invites" memberships={pendingInvites} />
+      </div>
+    )}
+  </PanelShell>
+);
+
+const MemberList = ({ title, memberships }) => (
+  <section>
+    <h3 className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
+      {title}
+    </h3>
+    {memberships.length === 0 ? (
+      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+        None right now.
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {memberships.map((membership) => {
+          const member = getMembershipUser(membership);
+          const memberId = getUserObjectId(member) || membership._id;
+
+          return (
+            <div
+              key={membership._id || memberId}
+              className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words font-bold text-slate-900">
+                    {getMemberName(member)}
+                  </p>
+                  {member?.email && (
+                    <p className="break-words text-sm text-slate-500">
+                      {member.email}
+                    </p>
+                  )}
+                  {!member?.email && membership?.invitedEmail && (
+                    <p className="break-words text-sm text-slate-500">
+                      {membership.invitedEmail}
+                    </p>
+                  )}
+                </div>
+                <StatusPill status={membership.status} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </section>
+);
+
+const PanelShell = ({ title, description, action, children }) => (
+  <section className="min-w-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+    <div className="border-b border-slate-100 px-5 py-4 md:px-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 className="text-xl font-black text-slate-900">{title}</h2>
+          {description && <p className="text-sm text-slate-500">{description}</p>}
+        </div>
+        {action}
+      </div>
+    </div>
+    {children}
+  </section>
+);
+
+const EmptyPanel = ({ title, description, tone = "default", actionLabel, onAction }) => (
+  <div
+    className={`p-8 text-center ${
+      tone === "error"
+        ? "text-rose-700"
+        : tone === "warning"
+        ? "text-amber-700"
+        : "text-slate-500"
+    }`}
+  >
+    <p className="font-semibold">{title}</p>
+    {description && <p className="mt-2 text-sm">{description}</p>}
+    {actionLabel && onAction && (
+      <button
+        type="button"
+        onClick={onAction}
+        className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+      >
+        {actionLabel}
+      </button>
+    )}
+  </div>
+);
+
+const StatusPill = ({ status }) => (
+  <span
+    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black uppercase tracking-widest ${
+      status === "active"
+        ? "bg-emerald-50 text-emerald-700"
+        : status === "pending"
+        ? "bg-amber-50 text-amber-700"
+        : "bg-slate-100 text-slate-600"
+    }`}
+  >
+    {status || "member"}
+  </span>
+);
 
 const SummaryCard = ({ label, value, tone = "text-slate-900" }) => (
   <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm md:p-5">

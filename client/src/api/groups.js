@@ -10,6 +10,16 @@ export const getGroupMembers = async (groupId) => {
   return response.data;
 };
 
+export const getGroupExpenseHistory = async (groupId) => {
+  const response = await api.get(`/groups/${groupId}/expenses`);
+  return response.data;
+};
+
+export const getGroupSettlementHistory = async (groupId) => {
+  const response = await api.get(`/groups/${groupId}/settlements`);
+  return response.data;
+};
+
 export const createSharedExpense = async (payload) => {
   const response = await api.post("/shared-expenses", payload);
   return response.data;

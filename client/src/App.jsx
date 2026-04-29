@@ -13,7 +13,6 @@ import MoneyReceipts from "./pages/MoneyReceipts";
 import MoneyTaxPack from "./pages/MoneyTaxPack";
 import Groups from "./pages/Groups";
 import GroupInvitations from "./pages/GroupInvitations";
-import GroupDetail from "./pages/GroupDetail";
 import GroupSummary from "./pages/GroupSummary";
 import Profile from "./pages/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -102,7 +101,7 @@ function App() {
               path="/groups/:groupId"
               element={
                 <ProtectedRoute>
-                  <GroupDetail />
+                  <GroupSummary />
                 </ProtectedRoute>
               }
             />
