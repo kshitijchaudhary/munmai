@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 
 const expenseCategories = [
@@ -68,6 +69,23 @@ const taxCategories = [
   "Other Deductible Expense",
 ];
 
+const transactionTypeOptions = [
+  {
+    value: "income",
+    label: "Income",
+    helper: "Money received",
+    selectedClasses: "border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-100",
+    iconClasses: "bg-emerald-600 text-white",
+  },
+  {
+    value: "expense",
+    label: "Expense",
+    helper: "Money spent",
+    selectedClasses: "border-rose-500 bg-rose-50 text-rose-900 ring-2 ring-rose-100",
+    iconClasses: "bg-rose-600 text-white",
+  },
+];
+
 const padNumber = (value) => String(value).padStart(2, "0");
 
 const formatDateInput = (dateValue) => {
@@ -104,7 +122,11 @@ const AddTransaction = ({
   onCancelEdit,
   onStatusMessage,
 }) => {
-  const [type, setType] = useState("expense");
+  const [searchParams] = useSearchParams();
+  const initialType = ["income", "expense"].includes(searchParams.get("type"))
+    ? searchParams.get("type")
+    : "expense";
+  const [type, setType] = useState(initialType);
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [openingCurrentReceipt, setOpeningCurrentReceipt] = useState(false);
@@ -124,7 +146,7 @@ const AddTransaction = ({
     taxCategory: "",
   });
 
-  const [formData, setFormData] = useState(getInitialFormData("expense"));
+  const [formData, setFormData] = useState(getInitialFormData(initialType));
 
   const minAllowedDate = getMinAllowedDate();
   const maxAllowedDate = getMaxAllowedDate();
@@ -184,7 +206,12 @@ const AddTransaction = ({
 
       resetFileInput();
     } else {
-      resetForm(type);
+      const nextType = ["income", "expense"].includes(searchParams.get("type"))
+        ? searchParams.get("type")
+        : type;
+
+      setType(nextType);
+      resetForm(nextType);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTransaction]);
@@ -443,32 +470,46 @@ const AddTransaction = ({
         )}
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => switchType("income")}
-          disabled={isEditing}
-          className={`rounded-lg px-4 py-2 font-medium transition ${
-            type === "income"
-              ? "bg-green-600 text-white"
-              : "bg-gray-200 text-gray-800"
-          } ${isEditing ? "opacity-60 cursor-not-allowed" : ""}`}
-        >
-          Income
-        </button>
+      <div className="mb-4">
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+          Transaction Type
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {transactionTypeOptions.map((option) => {
+            const selected = type === option.value;
 
-        <button
-          type="button"
-          onClick={() => switchType("expense")}
-          disabled={isEditing}
-          className={`rounded-lg px-4 py-2 font-medium transition ${
-            type === "expense"
-              ? "bg-red-600 text-white"
-              : "bg-gray-200 text-gray-800"
-          } ${isEditing ? "opacity-60 cursor-not-allowed" : ""}`}
-        >
-          Expense
-        </button>
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => switchType(option.value)}
+                disabled={isEditing}
+                aria-pressed={selected}
+                className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${
+                  selected
+                    ? option.selectedClasses
+                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                } ${isEditing ? "cursor-not-allowed opacity-60" : ""}`}
+              >
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                    selected
+                      ? option.iconClasses
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {option.value === "income" ? "+" : "-"}
+                </span>
+                <span>
+                  <span className="block font-black">{option.label}</span>
+                  <span className="text-sm font-medium opacity-75">
+                    {option.helper}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {formStatus?.message && (

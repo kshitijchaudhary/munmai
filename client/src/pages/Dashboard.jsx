@@ -87,9 +87,14 @@ const normalizeTransaction = (item, type) => {
 
 const quickActions = [
   {
-    title: "Add Transaction",
-    description: "Record income or expenses.",
-    to: "/money/transactions#add-transaction",
+    title: "Add Income",
+    description: "Record money coming in.",
+    to: "/money/transactions?type=income#add-transaction",
+  },
+  {
+    title: "Add Expense",
+    description: "Track spending quickly.",
+    to: "/money/transactions?type=expense#add-transaction",
   },
   {
     title: "View Transactions",
@@ -97,19 +102,9 @@ const quickActions = [
     to: "/money/transactions",
   },
   {
-    title: "Receipts",
-    description: "Check receipt coverage and missing proof.",
-    to: "/money/receipts",
-  },
-  {
     title: "Tax Pack",
     description: "Review deductible expenses and export CSV.",
     to: "/money/tax-pack",
-  },
-  {
-    title: "Groups",
-    description: "Manage shared balances and settlements.",
-    to: "/groups",
   },
 ];
 
@@ -321,9 +316,7 @@ const Dashboard = () => {
           <p className="mb-2 text-sm font-semibold text-indigo-600">
             {getGreeting()}, {displayName}
           </p>
-          <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
-            Financial Summary
-          </h1>
+          <h1 className="text-3xl font-black text-slate-900 md:text-4xl">Overview</h1>
           <p className="font-medium text-slate-500">
             {hasAnyTransactions
               ? `Tracking ${stats.allTransactions.length} transactions across your account.`
@@ -397,9 +390,13 @@ const Dashboard = () => {
           />
         )}
 
-        <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+        <SectionHeading
+          title="Overview"
+          description="Your all-time personal totals and shared money position."
+        />
+        <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Personal Balance"
+            label="Net Balance"
             value={dashboardSummary.balance}
             isBalance
           />
@@ -413,15 +410,6 @@ const Dashboard = () => {
             value={dashboardSummary.expenseTotal}
             type="expense"
           />
-        </section>
-
-        <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <MetricCard label="You Owe" value={sharedMoney.totalYouOwe} type="expense" />
-          <MetricCard
-            label="You Are Owed"
-            value={sharedMoney.totalYouAreOwed}
-            type="income"
-          />
           <MetricCard
             label="Shared Net Balance"
             value={sharedMoney.netBalance}
@@ -429,6 +417,45 @@ const Dashboard = () => {
           />
         </section>
 
+        <SectionHeading
+          title="Quick Actions"
+          description="Jump straight into the most common money tasks."
+        />
+        <section className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {quickActions.map((action) => (
+            <QuickActionCard key={action.title} action={action} />
+          ))}
+        </section>
+
+        <SectionHeading
+          title="Shared Money"
+          description="Your current shared balance across active groups."
+          action={
+            <Link
+              to="/groups"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+            >
+              View Groups
+            </Link>
+          }
+        />
+        <section className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-2">
+          <MiniMoneyCard
+            label="You owe"
+            value={sharedMoney.totalYouOwe}
+            tone="text-rose-600"
+          />
+          <MiniMoneyCard
+            label="You are owed"
+            value={sharedMoney.totalYouAreOwed}
+            tone="text-emerald-600"
+          />
+        </section>
+
+        <SectionHeading
+          title="Monthly Snapshot"
+          description="Choose a month to inspect income, expenses, and category mix."
+        />
         <section className="mb-10 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -439,7 +466,7 @@ const Dashboard = () => {
                 {stats.periodLabel}
               </h2>
               <p className="text-sm text-slate-500">
-                Monthly cards and spending breakdown reflect this selected period.
+                Snapshot cards and spending breakdown reflect this selected period.
               </p>
             </div>
 
@@ -495,12 +522,6 @@ const Dashboard = () => {
             value={stats.periodBalance}
             isBalance
           />
-        </section>
-
-        <section className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {quickActions.map((action) => (
-            <QuickActionCard key={action.title} action={action} />
-          ))}
         </section>
 
         <section className="grid grid-cols-1 gap-8 lg:grid-cols-12">
@@ -634,6 +655,25 @@ const QuickActionCard = ({ action }) => (
     <p className="font-black text-slate-900">{action.title}</p>
     <p className="mt-2 text-sm text-slate-500">{action.description}</p>
   </Link>
+);
+
+const SectionHeading = ({ title, description, action }) => (
+  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h2 className="text-xl font-black text-slate-900">{title}</h2>
+      {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+    </div>
+    {action}
+  </div>
+);
+
+const MiniMoneyCard = ({ label, value, tone }) => (
+  <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+    <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+      {label}
+    </p>
+    <p className={`text-2xl font-black ${tone}`}>{formatCurrency(value)}</p>
+  </div>
 );
 
 const GetStartedChecklist = ({ completion, completedCount }) => (

@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getGroupMembers, getGroupSummary } from "../api/groups";
 import GroupInvitationForm from "../components/GroupInvitationForm";
+import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
 import SettlementForm from "../components/SettlementForm";
 import SharedExpenseForm from "../components/SharedExpenseForm";
@@ -151,6 +152,8 @@ const GroupSummary = () => {
   const [activeMembers, setActiveMembers] = useState([]);
   const [membersError, setMembersError] = useState("");
   const [settlementDraft, setSettlementDraft] = useState(null);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -258,6 +261,7 @@ const GroupSummary = () => {
       amount: Number(balance.amount || 0).toFixed(2),
       note: "Settlement for shared expenses",
     });
+    setSettlementModalOpen(true);
   };
 
   return (
@@ -329,7 +333,7 @@ const GroupSummary = () => {
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-          <div className="xl:col-span-4 space-y-8">
+          <div className="space-y-6 xl:col-span-4">
             <GroupInvitationForm groupId={groupId} />
 
             {membersError && (
@@ -338,18 +342,32 @@ const GroupSummary = () => {
               </div>
             )}
 
-            <SharedExpenseForm
-              groupId={groupId}
-              members={selectableMembers}
-              onCreated={() => fetchSummary({ showLoading: false })}
-            />
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+              <h2 className="text-lg font-bold text-slate-900">Group Actions</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Add shared activity only when you need it.
+              </p>
 
-            <SettlementForm
-              groupId={groupId}
-              members={selectableMembers}
-              settlementDraft={settlementDraft}
-              onCreated={() => fetchSummary({ showLoading: false })}
-            />
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setExpenseModalOpen(true)}
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                >
+                  + Add Expense
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettlementDraft(null);
+                    setSettlementModalOpen(true);
+                  }}
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+                >
+                  + Record Settlement
+                </button>
+              </div>
+            </div>
 
             {selectableMembers.length <= 1 && (
               <p className="mt-3 text-sm text-slate-500">
@@ -408,6 +426,40 @@ const GroupSummary = () => {
             </div>
           </div>
         </section>
+
+        <Modal
+          open={expenseModalOpen}
+          onClose={() => setExpenseModalOpen(false)}
+          title="Add Shared Expense"
+          description="Create an equal split for active group members."
+        >
+          <SharedExpenseForm
+            groupId={groupId}
+            members={selectableMembers}
+            onCreated={async () => {
+              await fetchSummary({ showLoading: false });
+              setExpenseModalOpen(false);
+            }}
+          />
+        </Modal>
+
+        <Modal
+          open={settlementModalOpen}
+          onClose={() => setSettlementModalOpen(false)}
+          title="Record Settlement"
+          description="Log a payment between group members."
+        >
+          <SettlementForm
+            groupId={groupId}
+            members={selectableMembers}
+            settlementDraft={settlementDraft}
+            onCreated={async () => {
+              await fetchSummary({ showLoading: false });
+              setSettlementModalOpen(false);
+              setSettlementDraft(null);
+            }}
+          />
+        </Modal>
       </main>
     </div>
   );

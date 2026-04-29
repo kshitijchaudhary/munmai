@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import AddTransaction from "../components/AddTransaction";
 import ImportTransactions from "../components/ImportTransactions";
+import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
 import api from "../api/axios";
 
@@ -58,6 +59,7 @@ const normalizeTransaction = (item, type) => {
 const formatCurrency = (value) => `$${Number(value || 0).toLocaleString()}`;
 
 const MoneyTransactions = () => {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialType = ["income", "expense"].includes(searchParams.get("type"))
     ? searchParams.get("type")
@@ -68,6 +70,7 @@ const MoneyTransactions = () => {
   const [statusMessage, setStatusMessage] = useState(null);
   const [deletingId, setDeletingId] = useState("");
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [filter, setFilter] = useState(initialType);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
@@ -115,6 +118,13 @@ const MoneyTransactions = () => {
 
     setFilter(nextType);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (location.hash === "#add-transaction") {
+      setEditingTransaction(null);
+      setTransactionModalOpen(true);
+    }
+  }, [location.hash]);
 
   const pushStatusMessage = useCallback((type, message) => {
     setStatusMessage({ type, message });
@@ -225,21 +235,45 @@ const MoneyTransactions = () => {
 
   const handleEdit = (item) => {
     setEditingTransaction(item);
-    window.location.hash = "add-transaction";
+    setTransactionModalOpen(true);
+  };
+
+  const closeTransactionModal = () => {
+    setTransactionModalOpen(false);
+    setEditingTransaction(null);
+  };
+
+  const handleTransactionSaved = async () => {
+    await fetchTransactions();
+    setTransactionModalOpen(false);
+    setEditingTransaction(null);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <Sidebar />
       <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
-        <header className="mb-8">
-          <p className="mb-2 text-sm font-semibold text-indigo-600">Money</p>
-          <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
-            Transactions
-          </h1>
-          <p className="text-slate-500">
-            Add, import, search, and manage daily income and expenses.
-          </p>
+        <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="mb-2 text-sm font-semibold text-indigo-600">Money</p>
+            <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
+              Transactions
+            </h1>
+            <p className="text-slate-500">
+              Search and manage daily income and expenses.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingTransaction(null);
+              setTransactionModalOpen(true);
+            }}
+            className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+          >
+            + Add Transaction
+          </button>
         </header>
 
         {statusMessage?.message && (
@@ -260,25 +294,10 @@ const MoneyTransactions = () => {
           <SummaryCard label={`${stats.periodLabel} Balance`} value={formatCurrency(stats.balance)} tone={stats.balance >= 0 ? "text-slate-900" : "text-rose-600"} />
         </section>
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-          <div className="space-y-8 lg:col-span-4">
-            <div id="add-transaction" className="scroll-mt-28 lg:scroll-mt-8">
-              <AddTransaction
-                onTransactionAdded={fetchTransactions}
-                editingTransaction={editingTransaction}
-                onCancelEdit={() => setEditingTransaction(null)}
-                onStatusMessage={pushStatusMessage}
-              />
-            </div>
-
-            <div id="import" className="scroll-mt-28 lg:scroll-mt-8">
-              <ImportTransactions onImportComplete={fetchTransactions} />
-            </div>
-          </div>
-
+        <div className="space-y-8">
           <section
             id="transactions"
-            className="scroll-mt-28 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm lg:col-span-8 lg:scroll-mt-8"
+            className="scroll-mt-28 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm lg:scroll-mt-8"
           >
             <div className="border-b border-slate-50 p-5 md:p-6">
               <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -330,16 +349,16 @@ const MoneyTransactions = () => {
                 </select>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap rounded-2xl bg-slate-100 p-1">
                 {["all", "income", "expense"].map((type) => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => setTypeFilter(type)}
-                    className={`rounded-full px-3 py-1 text-sm capitalize ${
+                    className={`rounded-xl px-4 py-2 text-sm font-bold capitalize transition ${
                       filter === type
                         ? "bg-slate-900 text-white"
-                        : "bg-slate-100 text-slate-700"
+                        : "text-slate-600 hover:bg-white"
                     }`}
                   >
                     {type}
@@ -380,7 +399,25 @@ const MoneyTransactions = () => {
               )}
             </div>
           </section>
+
+          <section id="import" className="scroll-mt-28 lg:scroll-mt-8">
+            <ImportTransactions onImportComplete={fetchTransactions} />
+          </section>
         </div>
+
+        <Modal
+          open={transactionModalOpen}
+          onClose={closeTransactionModal}
+          title={editingTransaction ? "Edit Transaction" : "Add Transaction"}
+          description="Record income or expenses without leaving the transaction list."
+        >
+          <AddTransaction
+            onTransactionAdded={handleTransactionSaved}
+            editingTransaction={editingTransaction}
+            onCancelEdit={closeTransactionModal}
+            onStatusMessage={pushStatusMessage}
+          />
+        </Modal>
       </main>
     </div>
   );

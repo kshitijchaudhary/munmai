@@ -20,9 +20,7 @@ const getNavSections = (pathname) => [
   {
     label: "Money",
     items: [
-      { label: "Add Transaction", to: "/money/transactions#add-transaction" },
-      { label: "Expenses", to: "/money/transactions?type=expense" },
-      { label: "Income", to: "/money/transactions?type=income" },
+      { label: "Transactions", to: "/money/transactions" },
       { label: "Receipts", to: "/money/receipts" },
     ],
   },
