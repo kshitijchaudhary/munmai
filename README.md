@@ -1,62 +1,77 @@
-# 🚀 Munmai — Personal & Shared Finance OS
+# Munmai - Personal & Shared Finance OS
 
-Munmai is a modern finance tracking system designed for **individual and group money management** — combining transactions, receipts, tax insights, and shared expense tracking in one clean interface.
+Munmai is a modern finance tracking app for personal money management, receipts, tax readiness, and shared group expenses.
 
-👉 Live App: https://munmai.com
-
----
-
-## ✨ Current Version
-
-**v1.1.0 — Product Usability Release**
-
-Munmai is now a **fully usable MVP** with core financial workflows working end-to-end.
+Live App: https://munmai.com
 
 ---
 
-## 🧠 Core Features
+## Current Version
 
-### 💰 Personal Finance
-- Track **income and expenses**
-- Monthly summaries (In / Out / Net)
-- Transaction search, filters, and CSV import
+**v1.2.0 - Account, Collaboration & UX Polish Release**
 
-### 🧾 Receipts Management
-- Upload and store receipts
-- Track missing receipts
-- Open/view receipts securely
-
-### 📊 Tax Pack
-- Deductible expense tracking
-- Receipt coverage insights
-- CSV export for tax filing
-
-### 👥 Group & Shared Expenses
-- Create groups
-- Invite users via email
-- Track shared expenses
-- Automatic balance calculations
-- Settlement tracking
-
-### 🧭 Smart UX
-- Onboarding checklist
-- Empty states with guided actions
-- Clean dashboard overview
-- Mobile responsive UI
+Munmai v1.2.0 strengthens account management, group collaboration, password recovery, and the core money-management user experience.
 
 ---
 
-## 🏗️ Tech Stack
+## v1.2 Highlights
+
+- Required username during registration with duplicate username validation.
+- Forgot password and reset password flow.
+- Profile page for viewing and updating name and username.
+- Improved invitation inbox with inviter details.
+- Cleaner group invite, accept, and decline UX.
+- Quick-settle flow for shared balances.
+- Transaction modal flow with clearer income/expense selection.
+- Dashboard hierarchy cleanup with focused quick actions.
+- Group Summary action buttons and modal-based forms.
+
+---
+
+## Core Features
+
+### Personal Finance
+- Track income and expenses.
+- View dashboard totals, monthly snapshots, spending breakdowns, and recent transactions.
+- Manage transactions from a dedicated Money page.
+
+### Receipts
+- Attach receipts to expenses.
+- Track missing receipts.
+- Review receipt coverage.
+
+### Tax Pack
+- Track deductible expenses.
+- Review tax-ready totals.
+- Export tax CSV data.
+
+### Groups & Shared Money
+- Create groups.
+- Invite registered Munmai users by email.
+- Accept or decline group invitations.
+- Add shared expenses.
+- Record settlements.
+- View netted group balances.
+
+### Account
+- Register with email, password, name, and username.
+- Verify email.
+- Reset forgotten passwords.
+- View and update profile details.
+
+---
+
+## Tech Stack
 
 ### Frontend
-- React (Vite)
+- React + Vite
 - Tailwind CSS
 - Axios
 
 ### Backend
 - Node.js + Express
-- MongoDB (Mongoose)
-- JWT Authentication
+- MongoDB + Mongoose
+- JWT authentication
 
 ### Infrastructure
 - Frontend: Vercel
@@ -65,71 +80,68 @@ Munmai is now a **fully usable MVP** with core financial workflows working end-t
 
 ---
 
-## 🧪 What You Can Do (End-to-End)
+## End-to-End Flows
 
-- Register → Verify email → Login
-- Add income/expenses
-- Upload receipts
-- Create a group
-- Invite another user
-- Accept invitation
-- Add shared expense
-- Record settlement
-- View balances
-- Export Tax Pack
-
----
-
-## ⚠️ Current Limitations (v1.1)
-
-- Receipts stored on local disk (Render persistent disk required)
-- Invites only work for **registered users**
-- No real-time notifications yet
-- No liabilities / advanced financial insights yet
+- Register -> verify email -> login.
+- Add income and expenses.
+- Attach receipts.
+- Review tax pack data and export CSV.
+- Create a group.
+- Invite a user.
+- Accept or decline invitations.
+- Add shared expenses.
+- Quick-settle outstanding balances.
+- Update profile details.
+- Reset password securely.
 
 ---
 
-## 🚧 Roadmap (Next Versions)
+## Current Limitations
 
-### v1.2 (Next Focus)
-- Invite UX improvements (search users)
-- Notifications system
-- Better group activity visibility
-
-### v2.0 (Major Upgrade)
-- Opening balances
-- Liabilities tracking
-- Advanced analytics
-- Financial insights layer (AI-ready)
+- Receipts use local disk storage, so Render persistent disk configuration is required for production receipt retention.
+- Group invitations currently work for registered users only.
+- No real-time notifications yet.
+- No liabilities or opening balance module yet.
 
 ---
 
-## ⚙️ Local Development
+## Roadmap
 
-### Clone repo
-```bash
-git clone https://github.com/kshitijchaudhary/munmai.git
-cd munmai
-```
+### v1.x
+- Better group activity history.
+- Notification system.
+- Additional reporting views.
+
+### v2.0
+- Opening balances.
+- Liabilities tracking.
+- Advanced analytics.
+- AI-ready financial insights layer.
+
+---
+
+## Local Development
 
 ### Install dependencies
+
 ```bash
 npm install
 cd client && npm install
 cd ../server && npm install
 ```
 
-### Run app
+### Run locally
+
 ```bash
-# root
 npm run dev
 ```
 
 ---
 
-## 🔐 Environment Variables
+## Environment Variables
 
 ### Backend (`server/.env`)
+
 ```env
 MONGO_URI=
 JWT_SECRET=
@@ -139,37 +151,28 @@ UPLOAD_DIR=./uploads
 ```
 
 ### Frontend (`client/.env`)
+
 ```env
 VITE_API_URL=http://localhost:5000/api
 ```
 
 ---
 
-## 🚀 Deployment
+## Deployment
 
-See full guide: [`DEPLOYMENT.md`](./DEPLOYMENT.md)
-
----
-
-## 👤 Author
-
-**Kshitij Chaudhary**  
-Full Stack Developer (Canada)
+See [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 
 ---
 
-## 💡 Vision
+## Author
 
-Munmai is evolving into a **Financial Command Center** — combining:
-- personal finance
-- shared money tracking
-- tax readiness
-- insights & automation
+Kshitij Chaudhary  
+Full Stack Developer, Canada
 
 ---
 
-## ⭐ Status
+## Status
 
-🟢 Actively developed  
-🟢 Production deployed  
-🟢 Portfolio-ready project
+- Actively developed.
+- Production deployed.
+- Portfolio-ready.
