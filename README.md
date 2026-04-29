@@ -1,10 +1,13 @@
-# Munmai - Personal & Shared Finance OS
+## 🚀 Munmai — Financial Tracking System
 
-Munmai is a modern finance tracking app for personal money management, receipts, tax readiness, and shared group expenses.
+Production-ready full-stack application for personal and shared expense tracking.
 
-Live App: https://munmai.com
+### 🔗 Live
+Frontend: https://munmai.com  
+Backend: https://munmai-api.onrender.com
 
----
+### ⚠️ Note
+Backend root (/) returns a simple health message. Use API routes like /api/... for actual data.
 
 ## Current Version
 
