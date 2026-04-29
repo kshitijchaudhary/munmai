@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createGroupSettlement } from "../api/groups";
 
 const getMemberId = (member) => String(member?._id || member?.id || member || "");
@@ -16,7 +16,7 @@ const getMemberLabel = (member) => {
   return memberId ? `Member ${memberId.slice(-6)}` : "Unknown member";
 };
 
-const SettlementForm = ({ groupId, members = [], onCreated }) => {
+const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) => {
   const [formData, setFormData] = useState({
     from: "",
     to: "",
@@ -48,6 +48,23 @@ const SettlementForm = ({ groupId, members = [], onCreated }) => {
       memberOptions.filter((member) => member.value !== formData.from),
     [memberOptions, formData.from]
   );
+
+  useEffect(() => {
+    if (!settlementDraft) {
+      return;
+    }
+
+    setFormData({
+      from: settlementDraft.from || "",
+      to: settlementDraft.to || "",
+      amount:
+        settlementDraft.amount === undefined || settlementDraft.amount === null
+          ? ""
+          : String(settlementDraft.amount),
+      note: settlementDraft.note || "",
+    });
+    setStatusMessage(null);
+  }, [settlementDraft]);
 
   const resetForm = () => {
     setFormData({

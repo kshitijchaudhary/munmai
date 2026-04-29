@@ -150,6 +150,7 @@ const GroupSummary = () => {
   });
   const [activeMembers, setActiveMembers] = useState([]);
   const [membersError, setMembersError] = useState("");
+  const [settlementDraft, setSettlementDraft] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -235,6 +236,29 @@ const GroupSummary = () => {
   const { group, summary, balances } = groupSummary;
   const fallbackMembers = getSelectableMembers(balances, user);
   const selectableMembers = activeMembers.length > 0 ? activeMembers : fallbackMembers;
+  const currentUserId = getUserId(user);
+  const balancesYouOwe = balances.filter(
+    (balance) => getUserObjectId(balance.from) === currentUserId
+  );
+  const balancesOwedToYou = balances.filter(
+    (balance) => getUserObjectId(balance.to) === currentUserId
+  );
+  const otherBalances = balances.filter((balance) => {
+    const fromId = getUserObjectId(balance.from);
+    const toId = getUserObjectId(balance.to);
+
+    return fromId !== currentUserId && toId !== currentUserId;
+  });
+
+  const handleSettleBalance = (balance) => {
+    setSettlementDraft({
+      id: `${getUserObjectId(balance.from)}-${getUserObjectId(balance.to)}-${Date.now()}`,
+      from: currentUserId,
+      to: getUserObjectId(balance.to),
+      amount: Number(balance.amount || 0).toFixed(2),
+      note: "Settlement for shared expenses",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -323,6 +347,7 @@ const GroupSummary = () => {
             <SettlementForm
               groupId={groupId}
               members={selectableMembers}
+              settlementDraft={settlementDraft}
               onCreated={() => fetchSummary({ showLoading: false })}
             />
 
@@ -336,15 +361,17 @@ const GroupSummary = () => {
 
           <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm xl:col-span-8">
             <div className="border-b border-slate-100 px-5 py-4 md:px-6">
-              <h2 className="text-lg font-bold text-slate-900">Balances</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                Your Balance Breakdown
+              </h2>
               <p className="text-sm text-slate-500">
-                Netted balances across shared expenses and settlements.
+                Understand what you owe, what is owed to you, and other group balances.
               </p>
             </div>
 
-            <div className="divide-y divide-slate-100">
+            <div className="space-y-6 p-5 md:p-6">
               {balances.length === 0 ? (
-                <div className="px-6 py-10 text-center text-slate-500">
+                <div className="py-10 text-center text-slate-500">
                   <p className="font-semibold text-slate-700">
                     No outstanding balances.
                   </p>
@@ -353,25 +380,30 @@ const GroupSummary = () => {
                   </p>
                 </div>
               ) : (
-                balances.map((balance) => (
-                  <div
-                    key={`${getUserObjectId(balance.from)}-${getUserObjectId(balance.to)}`}
-                    className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-900 break-all">
-                        {getBalanceLabel(balance, user)}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        Balance after reverse netting and settlements.
-                      </p>
-                    </div>
+                <>
+                  <BalanceGroup
+                    title="You owe"
+                    emptyText="You do not owe anyone right now."
+                    balances={balancesYouOwe}
+                    currentUser={user}
+                    actionLabel="Settle"
+                    onAction={handleSettleBalance}
+                  />
 
-                    <p className="text-lg font-black text-slate-900">
-                      {formatCurrency(balance.amount)}
-                    </p>
-                  </div>
-                ))
+                  <BalanceGroup
+                    title="You are owed"
+                    emptyText="No one owes you right now."
+                    balances={balancesOwedToYou}
+                    currentUser={user}
+                  />
+
+                  <BalanceGroup
+                    title="Other group balances"
+                    emptyText="No other member balances right now."
+                    balances={otherBalances}
+                    currentUser={user}
+                  />
+                </>
               )}
             </div>
           </div>
@@ -388,6 +420,62 @@ const SummaryCard = ({ label, value, tone = "text-slate-900" }) => (
     </p>
     <p className={`break-words text-2xl font-black md:text-3xl ${tone}`}>{value}</p>
   </div>
+);
+
+const BalanceGroup = ({
+  title,
+  emptyText,
+  balances,
+  currentUser,
+  actionLabel,
+  onAction,
+}) => (
+  <section>
+    <h3 className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
+      {title}
+    </h3>
+
+    {balances.length === 0 ? (
+      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+        {emptyText}
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {balances.map((balance) => (
+          <div
+            key={`${getUserObjectId(balance.from)}-${getUserObjectId(balance.to)}`}
+            className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words font-bold text-slate-900">
+                  {getBalanceLabel(balance, currentUser)}
+                </p>
+                <p className="text-sm text-slate-500">
+                  Balance after reverse netting and settlements.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:items-end">
+                <p className="text-lg font-black text-slate-900">
+                  {formatCurrency(balance.amount)}
+                </p>
+                {actionLabel && onAction && (
+                  <button
+                    type="button"
+                    onClick={() => onAction(balance)}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 sm:w-auto"
+                  >
+                    {actionLabel}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </section>
 );
 
 export default GroupSummary;
