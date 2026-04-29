@@ -8,7 +8,7 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import { resolveStoredFilePath } from "../utils/uploadPaths.js";
 
-const usernamePattern = /^[a-z0-9_]{3,20}$/;
+const usernamePattern = /^[a-z0-9_]+$/;
 
 const createToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
@@ -188,8 +188,13 @@ export const registerUser = async (req, res) => {
 
     if (!isValidUsername(normalizedUsername)) {
       return res.status(400).json({
-        message:
-          "Username must be 3-20 characters and use only lowercase letters, numbers, and underscores",
+        message: "Username must use only letters, numbers, and underscores",
+      });
+    }
+
+    if (normalizedUsername.length < 3) {
+      return res.status(400).json({
+        message: "Username must be at least 3 characters",
       });
     }
 
@@ -284,6 +289,10 @@ export const registerUser = async (req, res) => {
       });
     }
   } catch (error) {
+    if (error?.code === 11000 && error?.keyPattern?.username) {
+      return res.status(400).json({ message: "Username is already taken" });
+    }
+
     return res.status(500).json({ message: error.message });
   }
 };
