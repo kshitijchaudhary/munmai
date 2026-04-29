@@ -97,6 +97,24 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    requestId: req.requestId,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+
+app.get("/", (req, res) => {
+  res
+    .status(200)
+    .type("text")
+    .send("Munmai API is running 🚀 Use /api/health for service health.");
+});
+
+app.use("/api/auth", authRoutes);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/income", incomeRoutes);
 app.use("/api/expenses", expenseRoutes);
