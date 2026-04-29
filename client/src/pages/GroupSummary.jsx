@@ -154,6 +154,7 @@ const GroupSummary = () => {
   const [settlementDraft, setSettlementDraft] = useState(null);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [settlementModalOpen, setSettlementModalOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -281,7 +282,7 @@ const GroupSummary = () => {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap md:justify-end">
             <Link
               to="/groups"
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
@@ -299,7 +300,49 @@ const GroupSummary = () => {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+        <section className="mb-8 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-black text-slate-900">Group Actions</h2>
+            <p className="text-sm text-slate-500">
+              Add activity when you need it, then return to the balance breakdown.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setExpenseModalOpen(true)}
+              className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+            >
+              + Add Shared Expense
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSettlementDraft(null);
+                setSettlementModalOpen(true);
+              }}
+              className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+            >
+              + Record Settlement
+            </button>
+            <button
+              type="button"
+              onClick={() => setInviteModalOpen(true)}
+              className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
+            >
+              + Invite Member
+            </button>
+          </div>
+        </section>
+
+        {membersError && (
+          <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            {membersError}
+          </div>
+        )}
+
+        <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="Expenses" value={summary.expenseCount} />
           <SummaryCard label="Settlements" value={summary.settlementCount} />
           <SummaryCard
@@ -308,94 +351,63 @@ const GroupSummary = () => {
             tone="text-rose-600"
           />
           <SummaryCard
-            label="Total Settlements"
-            value={formatCurrency(summary.totalSettlements)}
-            tone="text-emerald-600"
-          />
-        </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-          <SummaryCard
-            label="You Owe"
-            value={formatCurrency(summary.totalYouOwe)}
-            tone="text-rose-600"
-          />
-          <SummaryCard
-            label="You Are Owed"
-            value={formatCurrency(summary.totalYouAreOwed)}
-            tone="text-emerald-600"
-          />
-          <SummaryCard
             label="Net Balance"
             value={formatCurrency(summary.netBalance)}
             tone={getBalanceTone(summary.netBalance)}
           />
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-          <div className="space-y-6 xl:col-span-4">
-            <GroupInvitationForm groupId={groupId} />
+        {selectableMembers.length <= 1 && (
+          <p className="mb-8 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
+            More selectable members will appear here once active group members
+            accept invitations.
+          </p>
+        )}
 
-            {membersError && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-                {membersError}
-              </div>
-            )}
-
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
-              <h2 className="text-lg font-bold text-slate-900">Group Actions</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Add shared activity only when you need it.
-              </p>
-
-              <div className="mt-4 grid grid-cols-1 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setExpenseModalOpen(true)}
-                  className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
-                >
-                  + Add Expense
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSettlementDraft(null);
-                    setSettlementModalOpen(true);
-                  }}
-                  className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
-                >
-                  + Record Settlement
-                </button>
-              </div>
-            </div>
-
-            {selectableMembers.length <= 1 && (
-              <p className="mt-3 text-sm text-slate-500">
-                More selectable members will appear here once balances include
-                other group members.
-              </p>
-            )}
-          </div>
-
-          <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm xl:col-span-8">
+        <section>
+          <div className="min-w-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4 md:px-6">
-              <h2 className="text-lg font-bold text-slate-900">
-                Your Balance Breakdown
-              </h2>
-              <p className="text-sm text-slate-500">
-                Understand what you owe, what is owed to you, and other group balances.
-              </p>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">
+                    Your Balance Breakdown
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Understand what you owe, what is owed to you, and other group balances.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:min-w-80">
+                  <BalanceTotal
+                    label="You owe"
+                    value={summary.totalYouOwe}
+                    tone="text-rose-600"
+                  />
+                  <BalanceTotal
+                    label="You are owed"
+                    value={summary.totalYouAreOwed}
+                    tone="text-emerald-600"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-6 p-5 md:p-6">
               {balances.length === 0 ? (
                 <div className="py-10 text-center text-slate-500">
                   <p className="font-semibold text-slate-700">
-                    No outstanding balances.
+                    No outstanding balances yet.
                   </p>
                   <p className="mt-2 text-sm text-slate-500">
-                    Add a shared expense to start tracking who owes whom.
+                    Add a shared expense to start tracking.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setExpenseModalOpen(true)}
+                    className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                  >
+                    + Add Shared Expense
+                  </button>
                 </div>
               ) : (
                 <>
@@ -426,6 +438,15 @@ const GroupSummary = () => {
             </div>
           </div>
         </section>
+
+        <Modal
+          open={inviteModalOpen}
+          onClose={() => setInviteModalOpen(false)}
+          title="Invite Member"
+          description="Invite existing Munmai users by email."
+        >
+          <GroupInvitationForm groupId={groupId} />
+        </Modal>
 
         <Modal
           open={expenseModalOpen}
@@ -466,11 +487,22 @@ const GroupSummary = () => {
 };
 
 const SummaryCard = ({ label, value, tone = "text-slate-900" }) => (
-  <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-slate-100">
+  <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm md:p-5">
     <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">
       {label}
     </p>
-    <p className={`break-words text-2xl font-black md:text-3xl ${tone}`}>{value}</p>
+    <p className={`break-words text-xl font-black md:text-2xl ${tone}`}>{value}</p>
+  </div>
+);
+
+const BalanceTotal = ({ label, value, tone }) => (
+  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+      {label}
+    </p>
+    <p className={`mt-1 break-words text-lg font-black ${tone}`}>
+      {formatCurrency(value)}
+    </p>
   </div>
 );
 
