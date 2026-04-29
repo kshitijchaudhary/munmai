@@ -39,6 +39,16 @@ const createVerificationToken = () => {
   return { rawToken, hashedToken };
 };
 
+const createSecureToken = () => {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(rawToken)
+    .digest("hex");
+
+  return { rawToken, hashedToken };
+};
+
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 const extractEmailAddress = (value = "") => {
@@ -156,6 +166,36 @@ const sendVerificationEmail = async (email, name, rawToken) => {
         <p>${verifyUrl}</p>
         <p>This link expires in 24 hours. If you didn't request this verification, please ignore this email.</p>
         <p>Thanks for choosing Munmai.</p>
+      </div>
+    `,
+  });
+};
+
+const sendPasswordResetEmail = async (email, name, rawToken) => {
+  const clientUrl = String(process.env.CLIENT_URL || "").replace(/\/+$/, "");
+  const resetUrl = `${clientUrl}/reset-password/${rawToken}`;
+  const transporter = createMailTransporter();
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: email,
+    subject: "Reset your Munmai password",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Password reset requested</h2>
+        <p>Hello ${name},</p>
+        <p>Use the button below to reset your Munmai password. This link expires in 1 hour.</p>
+        <p>
+          <a
+            href="${resetUrl}"
+            style="display:inline-block;padding:10px 16px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;"
+          >
+            Reset Password
+          </a>
+        </p>
+        <p>If the button doesn't work, copy and paste this link:</p>
+        <p>${resetUrl}</p>
+        <p>If you did not request this reset, you can ignore this email.</p>
       </div>
     `,
   });
@@ -406,6 +446,98 @@ export const resendVerificationEmail = async (req, res) => {
       hint: buildEmailDeliveryHint(),
       details: error.message,
     });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  const genericMessage =
+    "If an account exists, a password reset email has been sent.";
+
+  try {
+    const email = String(req.body?.email || "").toLowerCase().trim();
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(200).json({ message: genericMessage });
+    }
+
+    const { rawToken, hashedToken } = createSecureToken();
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
+    await user.save();
+
+    try {
+      await sendPasswordResetEmail(user.email, user.name, rawToken);
+    } catch (error) {
+      console.warn("Password reset email failed", {
+        userId: String(user._id),
+        error: error?.message,
+      });
+    }
+
+    return res.status(200).json({ message: genericMessage });
+  } catch (error) {
+    return res.status(500).json({ message: "Password reset could not be requested" });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password, confirmPassword } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ message: "Reset token is required" });
+    }
+
+    if (!password || !confirmPassword) {
+      return res.status(400).json({
+        message: "Password and confirm password are required",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Password reset link is invalid or expired",
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    user.resetPasswordToken = "";
+    user.resetPasswordExpires = null;
+    await user.save();
+
+    return res.status(200).json({
+      message: "Password reset successful. You can now log in.",
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Password reset failed" });
   }
 };
 

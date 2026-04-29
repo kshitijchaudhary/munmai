@@ -11,6 +11,7 @@ const Register = () => {
 
   const [formData, setFormData] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -94,15 +95,36 @@ const Register = () => {
         <input
           type="text"
           placeholder="Full Name"
+          required
           className="w-full p-3 mb-4 border rounded-lg"
           value={formData.name}
           onChange={(e) => handleChange("name", e.target.value)}
           disabled={loading}
         />
 
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Username"
+            required
+            minLength="3"
+            pattern="[A-Za-z0-9_]+"
+            autoCapitalize="none"
+            autoComplete="username"
+            className="w-full p-3 border rounded-lg"
+            value={formData.username}
+            onChange={(e) => handleChange("username", e.target.value)}
+            disabled={loading}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Use letters, numbers, and underscores only.
+          </p>
+        </div>
+
         <input
           type="email"
           placeholder="Email"
+          required
           className="w-full p-3 mb-4 border rounded-lg"
           value={formData.email}
           onChange={(e) => handleChange("email", e.target.value)}
@@ -112,6 +134,7 @@ const Register = () => {
         <input
           type="password"
           placeholder="Password"
+          required
           className="w-full p-3 mb-4 border rounded-lg"
           value={formData.password}
           onChange={(e) => handleChange("password", e.target.value)}
@@ -121,6 +144,7 @@ const Register = () => {
         <input
           type="password"
           placeholder="Confirm Password"
+          required
           className="w-full p-3 mb-4 border rounded-lg"
           value={formData.confirmPassword}
           onChange={(e) => handleChange("confirmPassword", e.target.value)}

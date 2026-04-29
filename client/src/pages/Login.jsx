@@ -153,6 +153,7 @@ const Login = () => {
         <input
           type="email"
           placeholder="Email"
+          required
           className="w-full p-3 mb-4 border rounded-lg"
           value={formData.email}
           onChange={(e) =>
@@ -163,6 +164,7 @@ const Login = () => {
         <input
           type="password"
           placeholder="Password"
+          required
           className="w-full p-3 mb-4 border rounded-lg"
           value={formData.password}
           onChange={(e) =>
@@ -173,6 +175,15 @@ const Login = () => {
         <button className="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 font-semibold">
           Login
         </button>
+
+        <p className="mt-3 text-center text-sm">
+          <Link
+            to="/forgot-password"
+            className="font-semibold text-blue-600 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </p>
 
         <p className="mt-4 text-sm text-slate-600 text-center">
           Don&apos;t have an account?{" "}

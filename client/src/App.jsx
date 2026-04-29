@@ -5,6 +5,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import PageTracker from "./components/PageTracker";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import MoneyTransactions from "./pages/MoneyTransactions";
 import MoneyReceipts from "./pages/MoneyReceipts";
@@ -34,6 +36,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/what-we-store" element={<WhatWeStore />} />

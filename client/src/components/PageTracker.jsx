@@ -8,12 +8,17 @@ const PAGE_TITLES = {
   "/groups": "Munmai - Groups",
   "/login": "Munmai - Login",
   "/register": "Munmai - Register",
+  "/forgot-password": "Munmai - Forgot Password",
   "/privacy": "Munmai - Privacy Policy",
   "/terms": "Munmai - Terms of Use",
   "/what-we-store": "Munmai - What We Store",
 };
 
 const getPageTitle = (pathname) => {
+  if (pathname.startsWith("/reset-password/")) {
+    return "Munmai - Reset Password";
+  }
+
   if (pathname.startsWith("/groups/")) {
     return "Munmai - Group Detail";
   }

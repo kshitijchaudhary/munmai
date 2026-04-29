@@ -2,6 +2,16 @@ import { getApiBaseUrl } from "../api/baseUrl";
 
 const TELEMETRY_BASE_URL = getApiBaseUrl();
 
+const getSafeRoute = () => {
+  const pathname = window.location.pathname;
+
+  if (pathname.startsWith("/reset-password/")) {
+    return "/reset-password/:token";
+  }
+
+  return pathname;
+};
+
 const postTelemetry = async (path, payload) => {
   try {
     await fetch(`${TELEMETRY_BASE_URL}${path}`, {
@@ -20,7 +30,7 @@ const postTelemetry = async (path, payload) => {
 export const trackEvent = (name, metadata = {}) =>
   postTelemetry("/telemetry/event", {
     name,
-    route: window.location.pathname,
+    route: getSafeRoute(),
     metadata,
   });
 
@@ -28,6 +38,6 @@ export const trackError = (name, message, metadata = {}) =>
   postTelemetry("/telemetry/error", {
     name,
     message,
-    route: window.location.pathname,
+    route: getSafeRoute(),
     metadata,
   });
