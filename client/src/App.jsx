@@ -15,6 +15,7 @@ import Groups from "./pages/Groups";
 import GroupInvitations from "./pages/GroupInvitations";
 import GroupDetail from "./pages/GroupDetail";
 import GroupSummary from "./pages/GroupSummary";
+import Profile from "./pages/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsPage from "./pages/TermsPage";
 import WhatWeStore from "./pages/WhatWeStore";
@@ -102,6 +103,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <GroupDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               }
             />

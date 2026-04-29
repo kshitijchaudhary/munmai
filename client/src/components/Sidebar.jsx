@@ -51,7 +51,10 @@ const getNavSections = (pathname) => [
   },
   {
     label: "Settings",
-    items: [{ label: "Settings", status: "Coming Soon" }],
+    items: [
+      { label: "Profile", to: "/profile" },
+      { label: "Settings", status: "Coming Soon" },
+    ],
   },
 ];
 

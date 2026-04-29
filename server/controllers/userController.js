@@ -1,6 +1,6 @@
 import User from "../models/User.js";
 
-const usernamePattern = /^[a-z0-9_]{3,20}$/;
+const usernamePattern = /^[a-z0-9_]+$/;
 
 const normalizeUsername = (value) => String(value || "").trim().toLowerCase();
 
@@ -13,49 +13,79 @@ const buildUserResponse = (user) => ({
   username: user.username || "",
 });
 
-export const updateUserProfile = async (req, res) => {
-  try {
-    const nextName = String(req.body?.name || "").trim();
-    const rawUsername = req.body?.username;
+const validateProfileInput = async ({ name, username, currentUserId }) => {
+  const nextName = String(name || "").trim();
+  const normalizedUsername = normalizeUsername(username);
 
-    if (!nextName) {
-      return res.status(400).json({ message: "Name is required" });
-    }
+  if (!nextName) {
+    return { error: "Name is required" };
+  }
 
-    const updatePayload = {
-      name: nextName,
+  if (!normalizedUsername) {
+    return { error: "Username is required" };
+  }
+
+  if (!isValidUsername(normalizedUsername)) {
+    return {
+      error: "Username must use only letters, numbers, and underscores",
     };
+  }
 
-    if (rawUsername !== undefined) {
-      const normalizedUsername = normalizeUsername(rawUsername);
+  if (normalizedUsername.length < 3) {
+    return { error: "Username must be at least 3 characters" };
+  }
 
-      if (!normalizedUsername) {
-        return res.status(400).json({ message: "Username is required" });
-      }
+  const existingUsernameUser = await User.findOne({
+    username: normalizedUsername,
+    _id: { $ne: currentUserId },
+  }).lean();
 
-      if (!isValidUsername(normalizedUsername)) {
-        return res.status(400).json({
-          message:
-            "Username must be 3-20 characters and use only lowercase letters, numbers, and underscores",
-        });
-      }
+  if (existingUsernameUser) {
+    return { error: "Username is already taken" };
+  }
 
-      const existingUsernameUser = await User.findOne({
-        username: normalizedUsername,
-        _id: { $ne: req.user.id },
-      }).lean();
+  return {
+    value: {
+      name: nextName,
+      username: normalizedUsername,
+    },
+  };
+};
 
-      if (existingUsernameUser) {
-        return res.status(400).json({ message: "Username is already taken" });
-      }
+export const getCurrentUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("name email username");
 
-      updatePayload.username = normalizedUsername;
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(req.user.id, updatePayload, {
-      new: true,
-      runValidators: true,
-    }).select("-password");
+    return res.status(200).json(buildUserResponse(user));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateCurrentUserProfile = async (req, res) => {
+  try {
+    const validation = await validateProfileInput({
+      name: req.body?.name,
+      username: req.body?.username,
+      currentUserId: req.user.id,
+    });
+
+    if (validation.error) {
+      return res.status(400).json({ message: validation.error });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      validation.value,
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select("name email username");
 
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });
@@ -63,6 +93,12 @@ export const updateUserProfile = async (req, res) => {
 
     return res.status(200).json(buildUserResponse(updatedUser));
   } catch (error) {
+    if (error?.code === 11000 && error?.keyPattern?.username) {
+      return res.status(400).json({ message: "Username is already taken" });
+    }
+
     return res.status(500).json({ message: error.message });
   }
 };
+
+export const updateUserProfile = updateCurrentUserProfile;

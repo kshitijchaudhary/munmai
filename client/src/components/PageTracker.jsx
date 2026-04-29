@@ -9,6 +9,7 @@ const PAGE_TITLES = {
   "/login": "Munmai - Login",
   "/register": "Munmai - Register",
   "/forgot-password": "Munmai - Forgot Password",
+  "/profile": "Munmai - Profile",
   "/privacy": "Munmai - Privacy Policy",
   "/terms": "Munmai - Terms of Use",
   "/what-we-store": "Munmai - What We Store",
