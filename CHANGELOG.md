@@ -2,6 +2,23 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.3.2 - Budget Clarity Polish
+
+### Added
+- Monthly Control progress bar
+- Daily safe spend calculation
+- Days remaining in month calculation
+- Clearer budget status messages
+
+### Improved
+- Monthly Control card labels
+- Safe, warning, and over-budget feedback
+- Budget readability for real-life spending control scenarios
+
+### Notes
+- No group logic changed.
+- No AI, credit card, rewards, or category-budget logic added in this release.
+
 ## v1.3.1 - Group Join Code Hotfix
 
 ### Fixed
