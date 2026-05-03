@@ -62,6 +62,8 @@ const buildEmptyBudgetSummary = () => ({
   spentThisMonth: 0,
   remaining: 0,
   percentUsed: 0,
+  daysRemainingInMonth: 0,
+  dailySafeSpend: null,
   status: "no_budget",
   topCategory: null,
 });
@@ -74,10 +76,10 @@ const budgetStatusLabels = {
 };
 
 const budgetInsights = {
-  no_budget: "Set a budget to start tracking your monthly control.",
+  no_budget: "Set a monthly spending limit to start tracking your spending pace.",
   safe: "You are within your monthly spending limit.",
-  warning: "You are close to your monthly spending limit.",
-  over: "You are over your monthly spending limit.",
+  warning: "You are close to your monthly spending limit. Slow down to stay on track.",
+  over: "You are over your monthly spending limit. Review non-essential spending.",
 };
 
 const quickActions = [
@@ -814,9 +816,32 @@ const getBudgetStatusTone = (status) => {
   return "bg-slate-100 text-slate-600 ring-slate-200";
 };
 
+const getBudgetProgressTone = (status) => {
+  if (status === "safe") {
+    return "bg-emerald-500";
+  }
+
+  if (status === "warning") {
+    return "bg-amber-500";
+  }
+
+  if (status === "over") {
+    return "bg-rose-500";
+  }
+
+  return "bg-slate-300";
+};
+
 const MonthlyControlCard = ({ budget, onSetBudget }) => {
   const hasBudget = Number(budget.monthlySpendingLimit || 0) > 0;
   const status = budget.status || "no_budget";
+  const percentUsed = Number(budget.percentUsed || 0);
+  const progressPercent = Math.min(Math.max(percentUsed, 0), 100);
+  const remaining = Number(budget.remaining || 0);
+  const dailySafeSpend =
+    budget.dailySafeSpend === null || budget.dailySafeSpend === undefined
+      ? null
+      : Number(budget.dailySafeSpend || 0);
 
   return (
     <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
@@ -858,12 +883,58 @@ const MonthlyControlCard = ({ budget, onSetBudget }) => {
           Set a monthly spending limit to track your pace.
         </div>
       ) : (
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <BudgetStat label="Spending Limit" value={formatCurrency(budget.monthlySpendingLimit)} />
-          <BudgetStat label="Spent This Month" value={formatCurrency(budget.spentThisMonth)} />
-          <BudgetStat label="Remaining" value={formatCurrency(budget.remaining)} tone={Number(budget.remaining || 0) < 0 ? "text-rose-600" : "text-emerald-600"} />
-          <BudgetStat label="Used" value={`${Number(budget.percentUsed || 0).toFixed(2)}%`} />
-        </div>
+        <>
+          <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+              <span className="font-bold text-slate-700">Used</span>
+              <span className="font-black text-slate-900">
+                {percentUsed.toFixed(2)}%
+              </span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-white ring-1 ring-slate-100">
+              <div
+                className={`h-full rounded-full transition-all ${getBudgetProgressTone(
+                  status
+                )}`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            {status === "over" && (
+              <p className="mt-2 text-xs font-semibold text-rose-600">
+                You have passed this month's spending limit.
+              </p>
+            )}
+          </div>
+
+          {dailySafeSpend !== null && (
+            <p
+              className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-bold ${
+                status === "over" || remaining <= 0
+                  ? "border-rose-100 bg-rose-50 text-rose-700"
+                  : "border-emerald-100 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              Safe daily spend left: {formatCurrency(dailySafeSpend)}/day
+            </p>
+          )}
+
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <BudgetStat
+              label="Spending Limit"
+              value={formatCurrency(budget.monthlySpendingLimit)}
+            />
+            <BudgetStat
+              label="Spent This Month"
+              value={formatCurrency(budget.spentThisMonth)}
+            />
+            <BudgetStat
+              label="Remaining"
+              value={formatCurrency(budget.remaining)}
+              tone={remaining < 0 ? "text-rose-600" : "text-emerald-600"}
+            />
+            <BudgetStat label="Used" value={`${percentUsed.toFixed(2)}%`} />
+          </div>
+        </>
       )}
     </div>
   );

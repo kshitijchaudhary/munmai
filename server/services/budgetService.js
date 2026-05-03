@@ -8,10 +8,13 @@ const getCurrentMonthRange = () => {
   const now = new Date();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysRemainingInMonth = Math.max(daysInMonth - now.getDate() + 1, 1);
 
   return {
     month,
     year,
+    daysRemainingInMonth,
     startDate: new Date(year, month - 1, 1),
     endDate: new Date(year, month, 1),
   };
@@ -44,7 +47,8 @@ const getBudgetStatus = (monthlySpendingLimit, percentUsed) => {
 };
 
 export const getMonthlyBudgetSummary = async (userId) => {
-  const { month, year, startDate, endDate } = getCurrentMonthRange();
+  const { month, year, daysRemainingInMonth, startDate, endDate } =
+    getCurrentMonthRange();
   const aggregateUserId = getAggregateUserId(userId);
 
   const [setting, spendingResult, categoryResult] = await Promise.all([
@@ -78,14 +82,22 @@ export const getMonthlyBudgetSummary = async (userId) => {
     monthlySpendingLimit > 0
       ? roundMoney((spentThisMonth / monthlySpendingLimit) * 100)
       : 0;
+  const dailySafeSpend =
+    monthlySpendingLimit <= 0
+      ? null
+      : remaining <= 0
+      ? 0
+      : roundMoney(remaining / daysRemainingInMonth);
 
   return {
     monthlySpendingLimit,
     month,
     year,
+    daysRemainingInMonth,
     spentThisMonth,
     remaining,
     percentUsed,
+    dailySafeSpend,
     status: getBudgetStatus(monthlySpendingLimit, percentUsed),
     topCategory: categoryResult[0]?._id || null,
   };
