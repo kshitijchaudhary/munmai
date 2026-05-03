@@ -109,8 +109,8 @@ export const createSharedExpense = async (payload, currentUserId) => {
 
 export const getGroupExpenseHistory = async (groupId) => {
   const expenses = await SharedExpense.find({ group: groupId })
-    .populate("paidBy", "_id name email")
-    .populate("createdBy", "_id name email")
+    .populate("paidBy", "_id username name email")
+    .populate("createdBy", "_id username name email")
     .sort({ createdAt: -1 })
     .lean();
 
@@ -122,7 +122,7 @@ export const getGroupExpenseHistory = async (groupId) => {
   const splits = await ExpenseSplit.find({
     expense: { $in: expenseIds },
   })
-    .populate("user", "_id name email")
+    .populate("user", "_id username name email")
     .sort({ createdAt: 1 })
     .lean();
 

@@ -37,6 +37,11 @@ const groupMembershipSchema = new mongoose.Schema(
       enum: ["owner", "member"],
       default: "member",
     },
+    source: {
+      type: String,
+      enum: ["invite", "join_request"],
+      default: "invite",
+    },
     status: {
       type: String,
       enum: ["pending", "active", "declined"],

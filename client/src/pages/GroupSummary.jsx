@@ -1,11 +1,16 @@
 import { useCallback, useContext, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  approveGroupMembership,
+  deleteGroup,
   getGroupExpenseHistory,
   getGroupMembers,
   getGroupSettlementHistory,
   getGroupSummary,
+  rejectGroupMembership,
+  updateGroup,
 } from "../api/groups";
+import GroupManageModal from "../components/GroupManageModal";
 import GroupInvitationForm from "../components/GroupInvitationForm";
 import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
@@ -56,15 +61,7 @@ const getReadableUserName = (value, currentUser) => {
     return "You";
   }
 
-  if (value?.name) {
-    return value.name;
-  }
-
-  if (value?.email) {
-    return value.email;
-  }
-
-  return valueId ? `Member ${valueId.slice(-6)}` : "Unknown member";
+  return getUserDisplayName(value);
 };
 
 const getBalanceLabel = (balance, currentUser) => {
@@ -107,7 +104,8 @@ const getCurrentUserOption = (user) => {
 
   return {
     _id: userId,
-    name: user?.name || "You",
+    username: user?.username || "",
+    name: user?.username || user?.name || "You",
     email: user?.email || "",
   };
 };
@@ -156,7 +154,12 @@ const getActiveMemberOptions = (memberships = [], pendingInvites = []) => {
     if (memberId && !membersById.has(memberId)) {
       membersById.set(memberId, {
         _id: memberId,
-        name: member?.name || member?.email || `Member ${memberId.slice(-6)}`,
+        username: member?.username || "",
+        name:
+          member?.username ||
+          member?.name ||
+          member?.email ||
+          `Member ${memberId.slice(-6)}`,
         email: member?.email || "",
       });
     }
@@ -168,23 +171,24 @@ const getActiveMemberOptions = (memberships = [], pendingInvites = []) => {
 const getMembershipUser = (membership) => membership?.userId || membership?.user || null;
 
 const getMemberName = (member) => {
-  if (member?.name) return member.name;
-  if (member?.email) return member.email;
-
-  const memberId = getUserObjectId(member);
-  return memberId ? `Member ${memberId.slice(-6)}` : "Unknown member";
+  return getUserDisplayName(member);
 };
 
 const getHistoryUserLabel = (value) => {
+  return getUserDisplayName(value);
+};
+
+const getUserDisplayName = (value) => {
+  if (value?.username) return `@${value.username}`;
   if (value?.name) return value.name;
   if (value?.email) return value.email;
-
   const valueId = getUserObjectId(value);
   return valueId ? `Member ${valueId.slice(-6)}` : "Unknown member";
 };
 
 const GroupSummary = () => {
   const { groupId } = useParams();
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const [groupSummary, setGroupSummary] = useState({
     group: null,
@@ -195,6 +199,14 @@ const GroupSummary = () => {
   const [activeMembers, setActiveMembers] = useState([]);
   const [activeMemberships, setActiveMemberships] = useState([]);
   const [pendingInvites, setPendingInvites] = useState([]);
+  const [pendingJoinRequests, setPendingJoinRequests] = useState([]);
+  const [joinCode, setJoinCode] = useState("");
+  const [membershipAccess, setMembershipAccess] = useState({
+    isOwner: false,
+    currentUserRole: "member",
+  });
+  const [membershipActionMessage, setMembershipActionMessage] = useState(null);
+  const [membershipActionId, setMembershipActionId] = useState("");
   const [membersError, setMembersError] = useState("");
   const [expenseHistory, setExpenseHistory] = useState(getEmptyListState);
   const [settlementHistory, setSettlementHistory] = useState(getEmptyListState);
@@ -202,6 +214,11 @@ const GroupSummary = () => {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [manageGroupModalOpen, setManageGroupModalOpen] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [groupActionMessage, setGroupActionMessage] = useState(null);
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -236,12 +253,25 @@ const GroupSummary = () => {
         const nextActiveMemberships = Array.isArray(membersResult.value?.activeMembers)
           ? membersResult.value.activeMembers
           : [];
-        const nextPendingInvites = Array.isArray(membersResult.value?.pendingInvites)
+        const nextPendingInvites = Array.isArray(membersResult.value?.pendingInvitations)
+          ? membersResult.value.pendingInvitations
+          : Array.isArray(membersResult.value?.pendingInvites)
           ? membersResult.value.pendingInvites
+          : [];
+        const nextPendingJoinRequests = Array.isArray(
+          membersResult.value?.pendingJoinRequests
+        )
+          ? membersResult.value.pendingJoinRequests
           : [];
 
         setActiveMemberships(nextActiveMemberships);
         setPendingInvites(nextPendingInvites);
+        setPendingJoinRequests(nextPendingJoinRequests);
+        setJoinCode(membersResult.value?.joinCode || "");
+        setMembershipAccess({
+          isOwner: Boolean(membersResult.value?.isOwner),
+          currentUserRole: membersResult.value?.currentUserRole || "member",
+        });
         setActiveMembers(
           getActiveMemberOptions(
             nextActiveMemberships,
@@ -253,6 +283,9 @@ const GroupSummary = () => {
         setActiveMembers([]);
         setActiveMemberships([]);
         setPendingInvites([]);
+        setPendingJoinRequests([]);
+        setJoinCode("");
+        setMembershipAccess({ isOwner: false, currentUserRole: "member" });
         setMembersError("Could not load group members. Showing limited member options.");
       }
     } catch (fetchError) {
@@ -367,6 +400,13 @@ const GroupSummary = () => {
   const fallbackMembers = getSelectableMembers(balances, user);
   const selectableMembers = activeMembers.length > 0 ? activeMembers : fallbackMembers;
   const currentUserId = getUserId(user);
+  const isCurrentUserOwner =
+    membershipAccess.isOwner ||
+    activeMemberships.some(
+      (membership) =>
+        membership?.role === "owner" &&
+        getUserObjectId(getMembershipUser(membership)) === currentUserId
+    );
   const balancesYouOwe = balances.filter(
     (balance) => getUserObjectId(balance.from) === currentUserId
   );
@@ -412,6 +452,94 @@ const GroupSummary = () => {
     setSettlementDraft(null);
   };
 
+  const handleMembershipDecision = async (membershipId, decision) => {
+    try {
+      setMembershipActionId(`${decision}-${membershipId}`);
+      setMembershipActionMessage(null);
+
+      if (decision === "approve") {
+        await approveGroupMembership(groupId, membershipId);
+        setMembershipActionMessage({
+          type: "success",
+          text: "Join request approved.",
+        });
+      } else {
+        await rejectGroupMembership(groupId, membershipId);
+        setMembershipActionMessage({
+          type: "success",
+          text: "Join request rejected.",
+        });
+      }
+
+      await fetchSummary({ showLoading: false });
+    } catch (actionError) {
+      setMembershipActionMessage({
+        type: "error",
+        text:
+          actionError.response?.data?.message ||
+          "Could not update join request.",
+      });
+    } finally {
+      setMembershipActionId("");
+    }
+  };
+
+  const openManageGroup = () => {
+    setGroupNameDraft(groupSummary.group?.name || "");
+    setGroupActionMessage(null);
+    setManageGroupModalOpen(true);
+  };
+
+  const handleUpdateGroup = async (event) => {
+    event.preventDefault();
+
+    const nextName = groupNameDraft.trim();
+
+    if (!nextName) {
+      setGroupActionMessage({ type: "error", text: "Group name is required." });
+      return;
+    }
+
+    try {
+      setSavingGroup(true);
+      setGroupActionMessage(null);
+      const updatedGroup = await updateGroup(groupId, { name: nextName });
+
+      setGroupSummary((prev) => ({
+        ...prev,
+        group: {
+          ...(prev.group || {}),
+          ...(updatedGroup || {}),
+          name: updatedGroup?.name || nextName,
+        },
+      }));
+      setManageGroupModalOpen(false);
+    } catch (actionError) {
+      setGroupActionMessage({
+        type: "error",
+        text: actionError.response?.data?.message || "Failed to update group.",
+      });
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    try {
+      setDeletingGroup(true);
+      setGroupActionMessage(null);
+      await deleteGroup(groupId);
+      navigate("/groups");
+    } catch (actionError) {
+      setGroupActionMessage({
+        type: "error",
+        text: actionError.response?.data?.message || "Failed to delete group.",
+      });
+    } finally {
+      setDeletingGroup(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
@@ -430,6 +558,16 @@ const GroupSummary = () => {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap md:justify-end">
+            {isCurrentUserOwner && (
+              <button
+                type="button"
+                onClick={openManageGroup}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
+              >
+                Manage
+              </button>
+            )}
+
             <Link
               to="/groups"
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
@@ -538,7 +676,18 @@ const GroupSummary = () => {
           <MembersTab
             activeMemberships={activeMemberships}
             pendingInvites={pendingInvites}
+            pendingJoinRequests={pendingJoinRequests}
+            joinCode={joinCode}
+            isOwner={isCurrentUserOwner}
             membersError={membersError}
+            actionMessage={membershipActionMessage}
+            actionId={membershipActionId}
+            onApproveJoinRequest={(membershipId) =>
+              handleMembershipDecision(membershipId, "approve")
+            }
+            onRejectJoinRequest={(membershipId) =>
+              handleMembershipDecision(membershipId, "reject")
+            }
             onInviteMember={() => setInviteModalOpen(true)}
           />
         )}
@@ -578,6 +727,19 @@ const GroupSummary = () => {
             onCreated={handleSettlementCreated}
           />
         </Modal>
+
+        <GroupManageModal
+          open={manageGroupModalOpen}
+          onClose={() => setManageGroupModalOpen(false)}
+          group={group}
+          groupNameDraft={groupNameDraft}
+          onGroupNameDraftChange={setGroupNameDraft}
+          onRename={handleUpdateGroup}
+          onDelete={handleDeleteGroup}
+          saving={savingGroup}
+          deleting={deletingGroup}
+          message={groupActionMessage}
+        />
       </main>
     </div>
   );
@@ -873,7 +1035,14 @@ const SettlementsTab = ({ settlementHistory, onRefresh, onRecordSettlement }) =>
 const MembersTab = ({
   activeMemberships,
   pendingInvites,
+  pendingJoinRequests,
+  joinCode,
+  isOwner,
   membersError,
+  actionMessage,
+  actionId,
+  onApproveJoinRequest,
+  onRejectJoinRequest,
   onInviteMember,
 }) => (
   <PanelShell
@@ -900,14 +1069,100 @@ const MembersTab = ({
       />
     ) : (
       <div className="space-y-6 p-5 md:p-6">
+        {joinCode && <JoinCodeCard joinCode={joinCode} />}
+
+        {actionMessage?.text && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+              actionMessage.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-800"
+            }`}
+          >
+            {actionMessage.text}
+          </div>
+        )}
+
         <MemberList title="Active members" memberships={activeMemberships} />
-        <MemberList title="Pending invites" memberships={pendingInvites} />
+
+        {isOwner && (
+          <>
+            <MemberList
+              title="Pending join requests"
+              memberships={pendingJoinRequests}
+              actionRenderer={(membership) => (
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => onApproveJoinRequest(membership._id)}
+                    disabled={Boolean(actionId)}
+                    className="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+                  >
+                    {actionId === `approve-${membership._id}`
+                      ? "Approving..."
+                      : "Approve"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRejectJoinRequest(membership._id)}
+                    disabled={Boolean(actionId)}
+                    className="inline-flex flex-1 items-center justify-center rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300"
+                  >
+                    {actionId === `reject-${membership._id}`
+                      ? "Rejecting..."
+                      : "Reject"}
+                  </button>
+                </div>
+              )}
+            />
+            <MemberList title="Pending invitations" memberships={pendingInvites} />
+          </>
+        )}
       </div>
     )}
   </PanelShell>
 );
 
-const MemberList = ({ title, memberships }) => (
+const JoinCodeCard = ({ joinCode }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(joinCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <section className="rounded-3xl border border-slate-100 bg-slate-50 p-4 md:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+            Group join code
+          </p>
+          <p className="mt-1 text-xl font-black tracking-wide text-slate-900">
+            {joinCode}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Share this code so others can request to join this group.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 sm:w-auto"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </section>
+  );
+};
+
+const MemberList = ({ title, memberships, actionRenderer }) => (
   <section>
     <h3 className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
       {title}
@@ -932,7 +1187,7 @@ const MemberList = ({ title, memberships }) => (
                   <p className="break-words font-bold text-slate-900">
                     {getMemberName(member)}
                   </p>
-                  {member?.email && (
+                  {!member?.username && !member?.name && member?.email && (
                     <p className="break-words text-sm text-slate-500">
                       {member.email}
                     </p>
@@ -945,6 +1200,7 @@ const MemberList = ({ title, memberships }) => (
                 </div>
                 <StatusPill status={membership.status} />
               </div>
+              {actionRenderer?.(membership)}
             </div>
           );
         })}

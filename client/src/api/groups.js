@@ -10,6 +10,16 @@ export const getGroupMembers = async (groupId) => {
   return response.data;
 };
 
+export const updateGroup = async (groupId, payload) => {
+  const response = await api.put(`/groups/${groupId}`, payload);
+  return response.data;
+};
+
+export const deleteGroup = async (groupId) => {
+  const response = await api.delete(`/groups/${groupId}`);
+  return response.data;
+};
+
 export const getGroupExpenseHistory = async (groupId) => {
   const response = await api.get(`/groups/${groupId}/expenses`);
   return response.data;
@@ -32,6 +42,25 @@ export const createGroupSettlement = async (groupId, payload) => {
 
 export const createGroupInvitation = async (groupId, email) => {
   const response = await api.post(`/groups/${groupId}/invitations`, { email });
+  return response.data;
+};
+
+export const requestGroupJoin = async (joinCode) => {
+  const response = await api.post("/groups/join", { joinCode });
+  return response.data;
+};
+
+export const approveGroupMembership = async (groupId, membershipId) => {
+  const response = await api.post(
+    `/groups/${groupId}/memberships/${membershipId}/approve`
+  );
+  return response.data;
+};
+
+export const rejectGroupMembership = async (groupId, membershipId) => {
+  const response = await api.post(
+    `/groups/${groupId}/memberships/${membershipId}/reject`
+  );
   return response.data;
 };
 

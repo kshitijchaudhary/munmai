@@ -18,6 +18,14 @@ const groupSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    joinCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
     members: {
       type: [
         {

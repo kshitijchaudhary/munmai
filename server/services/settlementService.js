@@ -79,9 +79,9 @@ export const createSettlement = async (groupId, payload, currentUserId) => {
 
 export const getGroupSettlementHistory = async (groupId) => {
   const settlements = await Settlement.find({ group: groupId })
-    .populate("from", "_id name email")
-    .populate("to", "_id name email")
-    .populate("recordedBy", "_id name email")
+    .populate("from", "_id username name email")
+    .populate("to", "_id username name email")
+    .populate("recordedBy", "_id username name email")
     .sort({ createdAt: -1 })
     .lean();
 

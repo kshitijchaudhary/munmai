@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import Group from "../models/Group.js";
 import GroupMembership from "../models/GroupMembership.js";
+import ExpenseSplit from "../models/ExpenseSplit.js";
+import Settlement from "../models/Settlement.js";
+import SharedExpense from "../models/SharedExpense.js";
 import User from "../models/User.js";
 import { getGroupSummary as getGroupSummaryService } from "../services/groupSummaryService.js";
 
@@ -23,6 +26,30 @@ const normalizeUniqueObjectIds = (values = []) => [
 const validateUsersExist = async (userIds) => {
   const count = await User.countDocuments({ _id: { $in: userIds } });
   return count === userIds.length;
+};
+
+const generateJoinCode = () => {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+
+  for (let index = 0; index < 6; index += 1) {
+    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return `MUN-${suffix}`;
+};
+
+const generateUniqueJoinCode = async () => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const joinCode = generateJoinCode();
+    const exists = await Group.exists({ joinCode });
+
+    if (!exists) {
+      return joinCode;
+    }
+  }
+
+  throw new Error("Unable to generate group join code");
 };
 
 const findAccessibleGroup = (groupId, userId) =>
@@ -143,6 +170,7 @@ export const createGroup = asyncHandler(async (req, res) => {
     group = await Group.create({
       name,
       createdBy: req.user.id,
+      joinCode: await generateUniqueJoinCode(),
       members: normalizedMemberIds,
     });
 
@@ -186,6 +214,62 @@ export const getGroupSummary = asyncHandler(async (req, res) => {
       message: error.message || "Server Error",
     });
   }
+});
+
+export const updateGroup = asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.groupId)) {
+    return res.status(400).json({ message: "Invalid group ID" });
+  }
+
+  const name = String(req.body?.name || "").trim();
+
+  if (!name) {
+    return res.status(400).json({ message: "Group name is required" });
+  }
+
+  const group = await findOwnedGroup(req.params.groupId, req.user.id);
+
+  if (!group) {
+    const exists = await Group.exists({ _id: req.params.groupId });
+    return res
+      .status(exists ? 403 : 404)
+      .json({ message: exists ? "Only the group owner can update this group" : "Group not found" });
+  }
+
+  group.name = name;
+  await group.save();
+
+  return res.status(200).json(group);
+});
+
+export const deleteGroup = asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.groupId)) {
+    return res.status(400).json({ message: "Invalid group ID" });
+  }
+
+  const group = await findOwnedGroup(req.params.groupId, req.user.id);
+
+  if (!group) {
+    const exists = await Group.exists({ _id: req.params.groupId });
+    return res
+      .status(exists ? 403 : 404)
+      .json({ message: exists ? "Only the group owner can delete this group" : "Group not found" });
+  }
+
+  const sharedExpenses = await SharedExpense.find({ group: group._id })
+    .select("_id")
+    .lean();
+  const sharedExpenseIds = sharedExpenses.map((expense) => expense._id);
+
+  await Promise.all([
+    ExpenseSplit.deleteMany({ expense: { $in: sharedExpenseIds } }),
+    SharedExpense.deleteMany({ group: group._id }),
+    Settlement.deleteMany({ group: group._id }),
+    GroupMembership.deleteMany({ groupId: group._id }),
+    Group.deleteOne({ _id: group._id }),
+  ]);
+
+  return res.status(200).json({ message: "Group deleted" });
 });
 
 export const addGroupMembers = asyncHandler(async (req, res) => {

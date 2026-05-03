@@ -16,6 +16,8 @@ import {
   getGroupInvites,
   getMyPendingGroupInvites,
   getGroupSummary,
+  updateGroup,
+  deleteGroup,
 } from "../controllers/groupController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -30,6 +32,7 @@ router.post("/invitations/:invitationId/decline", declineGroupInvite);
 router.get("/:groupId/summary", getGroupSummary);
 router.get("/:groupId/balances", getGroupBalance);
 router.get("/:groupId/expenses", getGroupExpenseHistory);
+router.route("/:groupId").put(updateGroup).delete(deleteGroup);
 router
   .route("/:groupId/settlements")
   .get(getGroupSettlementHistory)
