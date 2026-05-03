@@ -74,7 +74,7 @@ const hydrateBalanceUsers = async (balances) => {
   ];
 
   const users = await User.find({ _id: { $in: userIds } })
-    .select("_id name email")
+    .select("_id username name email")
     .lean();
 
   const usersById = new Map(users.map((user) => [String(user._id), user]));
@@ -82,11 +82,13 @@ const hydrateBalanceUsers = async (balances) => {
   return balances.map((balance) => ({
     from: usersById.get(String(balance.from)) || {
       _id: balance.from,
+      username: "",
       name: "",
       email: "",
     },
     to: usersById.get(String(balance.to)) || {
       _id: balance.to,
+      username: "",
       name: "",
       email: "",
     },

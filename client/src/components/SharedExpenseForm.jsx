@@ -4,6 +4,10 @@ import { createSharedExpense } from "../api/groups";
 const getMemberId = (member) => String(member?._id || member?.id || member || "");
 
 const getMemberLabel = (member) => {
+  if (member?.username) {
+    return `@${member.username}`;
+  }
+
   if (member?.name) {
     return member.name;
   }

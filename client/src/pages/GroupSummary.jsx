@@ -1,12 +1,15 @@
 import { useCallback, useContext, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  deleteGroup,
   getGroupExpenseHistory,
   getGroupMembers,
   getGroupSettlementHistory,
   getGroupSummary,
+  updateGroup,
 } from "../api/groups";
 import GroupInvitationForm from "../components/GroupInvitationForm";
+import GroupManageModal from "../components/GroupManageModal";
 import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
 import SettlementForm from "../components/SettlementForm";
@@ -56,14 +59,15 @@ const getReadableUserName = (value, currentUser) => {
     return "You";
   }
 
-  if (value?.name) {
-    return value.name;
-  }
+  return getUserDisplayName(value);
+};
 
-  if (value?.email) {
-    return value.email;
-  }
+const getUserDisplayName = (value) => {
+  if (value?.username) return `@${value.username}`;
+  if (value?.name) return value.name;
+  if (value?.email) return value.email;
 
+  const valueId = getUserObjectId(value);
   return valueId ? `Member ${valueId.slice(-6)}` : "Unknown member";
 };
 
@@ -107,7 +111,8 @@ const getCurrentUserOption = (user) => {
 
   return {
     _id: userId,
-    name: user?.name || "You",
+    username: user?.username || "",
+    name: user?.username || user?.name || "You",
     email: user?.email || "",
   };
 };
@@ -156,7 +161,12 @@ const getActiveMemberOptions = (memberships = [], pendingInvites = []) => {
     if (memberId && !membersById.has(memberId)) {
       membersById.set(memberId, {
         _id: memberId,
-        name: member?.name || member?.email || `Member ${memberId.slice(-6)}`,
+        username: member?.username || "",
+        name:
+          member?.username ||
+          member?.name ||
+          member?.email ||
+          `Member ${memberId.slice(-6)}`,
         email: member?.email || "",
       });
     }
@@ -168,23 +178,21 @@ const getActiveMemberOptions = (memberships = [], pendingInvites = []) => {
 const getMembershipUser = (membership) => membership?.userId || membership?.user || null;
 
 const getMemberName = (member) => {
-  if (member?.name) return member.name;
-  if (member?.email) return member.email;
-
-  const memberId = getUserObjectId(member);
-  return memberId ? `Member ${memberId.slice(-6)}` : "Unknown member";
+  return getUserDisplayName(member);
 };
 
 const getHistoryUserLabel = (value) => {
-  if (value?.name) return value.name;
-  if (value?.email) return value.email;
+  return getUserDisplayName(value);
+};
 
-  const valueId = getUserObjectId(value);
-  return valueId ? `Member ${valueId.slice(-6)}` : "Unknown member";
+const formatTitle = (value, fallback = "Shared expense") => {
+  const title = String(value || fallback).trim();
+  return title.charAt(0).toUpperCase() + title.slice(1);
 };
 
 const GroupSummary = () => {
   const { groupId } = useParams();
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const [groupSummary, setGroupSummary] = useState({
     group: null,
@@ -202,6 +210,12 @@ const GroupSummary = () => {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [manageGroupModalOpen, setManageGroupModalOpen] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [groupActionMessage, setGroupActionMessage] = useState(null);
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
+  const [activeAction, setActiveAction] = useState("expense");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -367,6 +381,14 @@ const GroupSummary = () => {
   const fallbackMembers = getSelectableMembers(balances, user);
   const selectableMembers = activeMembers.length > 0 ? activeMembers : fallbackMembers;
   const currentUserId = getUserId(user);
+  const activeMemberCount = activeMemberships.filter(
+    (membership) => membership?.status === "active"
+  ).length;
+  const isCurrentUserOwner = activeMemberships.some(
+    (membership) =>
+      membership?.role === "owner" &&
+      getUserObjectId(getMembershipUser(membership)) === currentUserId
+  );
   const balancesYouOwe = balances.filter(
     (balance) => getUserObjectId(balance.from) === currentUserId
   );
@@ -381,6 +403,7 @@ const GroupSummary = () => {
   });
 
   const handleSettleBalance = (balance) => {
+    setActiveAction("settlement");
     setSettlementDraft({
       id: `${getUserObjectId(balance.from)}-${getUserObjectId(balance.to)}-${Date.now()}`,
       from: currentUserId,
@@ -412,6 +435,56 @@ const GroupSummary = () => {
     setSettlementDraft(null);
   };
 
+  const openManageGroup = () => {
+    setGroupNameDraft(group.name || "");
+    setGroupActionMessage(null);
+    setManageGroupModalOpen(true);
+  };
+
+  const handleUpdateGroup = async (event) => {
+    event.preventDefault();
+
+    const nextName = groupNameDraft.trim();
+
+    if (!nextName) {
+      setGroupActionMessage({ type: "error", text: "Group name is required." });
+      return;
+    }
+
+    try {
+      setSavingGroup(true);
+      setGroupActionMessage(null);
+      const updatedGroup = await updateGroup(groupId, { name: nextName });
+      setGroupSummary((prev) => ({
+        ...prev,
+        group: updatedGroup || { ...prev.group, name: nextName },
+      }));
+      setManageGroupModalOpen(false);
+    } catch (actionError) {
+      setGroupActionMessage({
+        type: "error",
+        text: actionError.response?.data?.message || "Failed to update group.",
+      });
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    try {
+      setDeletingGroup(true);
+      setGroupActionMessage(null);
+      await deleteGroup(groupId);
+      navigate("/groups");
+    } catch (actionError) {
+      setGroupActionMessage({
+        type: "error",
+        text: actionError.response?.data?.message || "Failed to delete group.",
+      });
+      setDeletingGroup(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
@@ -425,17 +498,22 @@ const GroupSummary = () => {
               {group.name}
             </h1>
             <p className="mt-2 text-slate-500">
-              Review group totals, settlements, and netted balances.
+              {activeMemberCount || selectableMembers.length} member
+              {(activeMemberCount || selectableMembers.length) === 1 ? "" : "s"}
+              {isCurrentUserOwner ? " - You own this group" : " - Shared money workspace"}
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap md:justify-end">
-            <Link
-              to="/groups"
-              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
-            >
-              Back to groups
-            </Link>
+            {isCurrentUserOwner && (
+              <button
+                type="button"
+                onClick={openManageGroup}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
+              >
+                Manage
+              </button>
+            )}
 
             <button
               type="button"
@@ -444,42 +522,46 @@ const GroupSummary = () => {
             >
               Refresh
             </button>
+
+            <Link
+              to="/groups"
+              className="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-white hover:text-slate-800"
+            >
+              Back to groups
+            </Link>
           </div>
         </header>
 
-        <section className="mb-8 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-black text-slate-900">Group Actions</h2>
-            <p className="text-sm text-slate-500">
-              Add activity when you need it, then return to the balance breakdown.
-            </p>
-          </div>
-
+        <section className="mb-8 rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm md:p-6">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => setExpenseModalOpen(true)}
-              className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
-            >
-              + Add Shared Expense
-            </button>
-            <button
-              type="button"
+            <GroupActionCard
+              title="Add Expense"
+              description="Split a cost between members"
+              active={activeAction === "expense"}
               onClick={() => {
+                setActiveAction("expense");
+                setExpenseModalOpen(true);
+              }}
+            />
+            <GroupActionCard
+              title="Record Settlement"
+              description="Mark money as paid back"
+              active={activeAction === "settlement"}
+              onClick={() => {
+                setActiveAction("settlement");
                 setSettlementDraft(null);
                 setSettlementModalOpen(true);
               }}
-              className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
-            >
-              + Record Settlement
-            </button>
-            <button
-              type="button"
-              onClick={() => setInviteModalOpen(true)}
-              className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
-            >
-              + Invite Member
-            </button>
+            />
+            <GroupActionCard
+              title="Invite Member"
+              description="Add someone to this group"
+              active={activeAction === "invite"}
+              onClick={() => {
+                setActiveAction("invite");
+                setInviteModalOpen(true);
+              }}
+            />
           </div>
         </section>
 
@@ -552,6 +634,19 @@ const GroupSummary = () => {
           <GroupInvitationForm groupId={groupId} />
         </Modal>
 
+        <GroupManageModal
+          open={manageGroupModalOpen}
+          onClose={() => setManageGroupModalOpen(false)}
+          group={group}
+          groupNameDraft={groupNameDraft}
+          onGroupNameDraftChange={setGroupNameDraft}
+          onRename={handleUpdateGroup}
+          onDelete={handleDeleteGroup}
+          saving={savingGroup}
+          deleting={deletingGroup}
+          message={groupActionMessage}
+        />
+
         <Modal
           open={expenseModalOpen}
           onClose={() => setExpenseModalOpen(false)}
@@ -584,17 +679,17 @@ const GroupSummary = () => {
 };
 
 const GroupTabNav = ({ activeTab, onChange }) => (
-  <div className="mb-6 overflow-x-auto rounded-2xl border border-slate-100 bg-white p-1 shadow-sm">
-    <div className="flex min-w-max gap-1">
+  <div className="mb-6 overflow-x-auto rounded-full border border-slate-100 bg-white p-1.5 shadow-sm">
+    <div className="flex min-w-max gap-1.5">
       {groupTabs.map((tab) => (
         <button
           key={tab}
           type="button"
           onClick={() => onChange(tab)}
-          className={`rounded-xl px-4 py-2.5 text-sm font-black capitalize transition ${
+          className={`rounded-full px-4 py-2.5 text-sm font-black capitalize transition ${
             activeTab === tab
-              ? "bg-slate-900 text-white"
-              : "text-slate-600 hover:bg-slate-100"
+              ? "bg-slate-900 text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
           }`}
         >
           {tab}
@@ -602,6 +697,27 @@ const GroupTabNav = ({ activeTab, onChange }) => (
       ))}
     </div>
   </div>
+);
+
+const GroupActionCard = ({ title, description, onClick, active = false }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`min-h-28 rounded-2xl px-5 py-4 text-left transition ${
+      active
+        ? "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
+        : "border border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
+    }`}
+  >
+    <span className="block text-base font-black">{title}</span>
+    <span
+      className={`mt-2 block text-sm ${
+        active ? "text-slate-300" : "text-slate-500"
+      }`}
+    >
+      {description}
+    </span>
+  </button>
 );
 
 const SummaryTab = ({ summary, onOpenBalances }) => (
@@ -673,7 +789,7 @@ const ExpensesTab = ({ expenseHistory, onRefresh, onAddExpense }) => (
           onClick={onAddExpense}
           className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
         >
-          + Add Shared Expense
+          Add Expense
         </button>
       </div>
     }
@@ -684,24 +800,25 @@ const ExpensesTab = ({ expenseHistory, onRefresh, onAddExpense }) => (
       <EmptyPanel title={expenseHistory.error} tone="error" />
     ) : expenseHistory.items.length === 0 ? (
       <EmptyPanel
-        title="No shared expenses yet."
-        description="Add a shared expense to start tracking who owes whom."
-        actionLabel="+ Add Shared Expense"
+        title="No expenses yet"
+        description="Start by adding your first shared expense."
+        actionLabel="Add Expense"
         onAction={onAddExpense}
       />
     ) : (
-      <div className="divide-y divide-slate-100">
+      <div className="space-y-4 bg-slate-50/50 p-4 md:p-5">
         {expenseHistory.items.map((expense) => (
-          <div key={expense._id} className="px-5 py-4 md:px-6">
+          <div
+            key={expense._id}
+            className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6"
+          >
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0">
-                <p className="break-words font-bold text-slate-900">
-                  {expense.description || "Shared expense"}
+                <p className="break-words text-lg font-black text-slate-900">
+                  {formatTitle(expense.description)}
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Paid by {getHistoryUserLabel(expense.paidBy)}
-                </p>
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                  Paid by {getHistoryUserLabel(expense.paidBy)} -{" "}
                   {formatDate(expense.createdAt)}
                 </p>
               </div>
@@ -711,16 +828,15 @@ const ExpensesTab = ({ expenseHistory, onRefresh, onAddExpense }) => (
             </div>
 
             {Array.isArray(expense.splits) && expense.splits.length > 0 && (
-              <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+              <div className="mt-5 space-y-2 rounded-2xl border border-slate-100 bg-slate-50 p-3">
                 {expense.splits.map((split) => (
                   <div
                     key={split._id}
-                    className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-4 rounded-xl bg-white px-3 py-2.5 text-sm"
                   >
-                    <span className="font-semibold text-slate-800">
-                      {getHistoryUserLabel(split.user)}
+                    <span className="min-w-0 break-words font-semibold text-slate-800">
+                      {getHistoryUserLabel(split.user)} -&gt;
                     </span>
-                    <span className="text-slate-500"> split </span>
                     <span className="font-bold text-slate-900">
                       {formatCurrency(split.amount)}
                     </span>
@@ -772,9 +888,9 @@ const BalancesTab = ({
     <div className="space-y-6 p-5 md:p-6">
       {balances.length === 0 ? (
         <EmptyPanel
-          title="No outstanding balances yet."
-          description="Add a shared expense to start tracking."
-          actionLabel="+ Add Shared Expense"
+          title="No balances yet"
+          description="Add a shared expense to see who owes whom."
+          actionLabel="Add Expense"
           onAction={onAddExpense}
         />
       ) : (
@@ -825,7 +941,7 @@ const SettlementsTab = ({ settlementHistory, onRefresh, onRecordSettlement }) =>
           onClick={onRecordSettlement}
           className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 sm:w-auto"
         >
-          + Record Settlement
+          Record Settlement
         </button>
       </div>
     }
@@ -836,9 +952,9 @@ const SettlementsTab = ({ settlementHistory, onRefresh, onRecordSettlement }) =>
       <EmptyPanel title={settlementHistory.error} tone="error" />
     ) : settlementHistory.items.length === 0 ? (
       <EmptyPanel
-        title="No settlements recorded yet."
-        description="Record a settlement when someone pays another member back."
-        actionLabel="+ Record Settlement"
+        title="No settlements yet"
+        description="Record a payment when someone pays another member back."
+        actionLabel="Record Settlement"
         onAction={onRecordSettlement}
       />
     ) : (
@@ -885,17 +1001,17 @@ const MembersTab = ({
         onClick={onInviteMember}
         className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
       >
-        + Invite Member
+        Invite Member
       </button>
     }
   >
     {membersError ? (
       <EmptyPanel title={membersError} tone="warning" />
-    ) : activeMemberships.length === 0 && pendingInvites.length === 0 ? (
+    ) : activeMemberships.length === 0 ? (
       <EmptyPanel
-        title="No members found."
-        description="Invite registered Munmai users to start collaborating."
-        actionLabel="+ Invite Member"
+        title="No members yet"
+        description="Invite friends to start tracking together."
+        actionLabel="Invite Member"
         onAction={onInviteMember}
       />
     ) : (
@@ -932,12 +1048,15 @@ const MemberList = ({ title, memberships }) => (
                   <p className="break-words font-bold text-slate-900">
                     {getMemberName(member)}
                   </p>
-                  {member?.email && (
+                  {!member?.username && !member?.name && member?.email && (
                     <p className="break-words text-sm text-slate-500">
                       {member.email}
                     </p>
                   )}
-                  {!member?.email && membership?.invitedEmail && (
+                  {!member?.username &&
+                    !member?.name &&
+                    !member?.email &&
+                    membership?.invitedEmail && (
                     <p className="break-words text-sm text-slate-500">
                       {membership.invitedEmail}
                     </p>
@@ -954,8 +1073,8 @@ const MemberList = ({ title, memberships }) => (
 );
 
 const PanelShell = ({ title, description, action, children }) => (
-  <section className="min-w-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-    <div className="border-b border-slate-100 px-5 py-4 md:px-6">
+  <section className="min-w-0 overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white shadow-sm">
+    <div className="border-b border-slate-100 px-5 py-5 md:px-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-xl font-black text-slate-900">{title}</h2>
@@ -970,7 +1089,7 @@ const PanelShell = ({ title, description, action, children }) => (
 
 const EmptyPanel = ({ title, description, tone = "default", actionLabel, onAction }) => (
   <div
-    className={`p-8 text-center ${
+    className={`p-8 text-center md:p-10 ${
       tone === "error"
         ? "text-rose-700"
         : tone === "warning"
@@ -978,8 +1097,8 @@ const EmptyPanel = ({ title, description, tone = "default", actionLabel, onActio
         : "text-slate-500"
     }`}
   >
-    <p className="font-semibold">{title}</p>
-    {description && <p className="mt-2 text-sm">{description}</p>}
+    <p className="text-lg font-black">{title}</p>
+    {description && <p className="mx-auto mt-2 max-w-md text-sm">{description}</p>}
     {actionLabel && onAction && (
       <button
         type="button"

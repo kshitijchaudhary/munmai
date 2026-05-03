@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
+import ExpenseSplit from "../models/ExpenseSplit.js";
 import Group from "../models/Group.js";
 import GroupMembership from "../models/GroupMembership.js";
+import Settlement from "../models/Settlement.js";
+import SharedExpense from "../models/SharedExpense.js";
 import User from "../models/User.js";
 import { getGroupSummary as getGroupSummaryService } from "../services/groupSummaryService.js";
 
@@ -175,6 +178,57 @@ export const getGroupById = asyncHandler(async (req, res) => {
   }
 
   return res.status(200).json(group);
+});
+
+export const updateGroup = asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid group ID" });
+  }
+
+  const group = await findOwnedGroup(req.params.id, req.user.id);
+
+  if (!group) {
+    return res.status(404).json({ message: "Group not found" });
+  }
+
+  const name = String(req.body.name || "").trim();
+
+  if (!name) {
+    return res.status(400).json({ message: "Group name is required" });
+  }
+
+  group.name = name;
+  await group.save();
+
+  return res.status(200).json(group);
+});
+
+export const deleteGroup = asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid group ID" });
+  }
+
+  const group = await findOwnedGroup(req.params.id, req.user.id);
+
+  if (!group) {
+    return res.status(404).json({ message: "Group not found" });
+  }
+
+  const sharedExpenses = await SharedExpense.find({ group: group._id })
+    .select("_id")
+    .lean();
+  const sharedExpenseIds = sharedExpenses.map((expense) => expense._id);
+
+  await Promise.all([
+    ExpenseSplit.deleteMany({ expense: { $in: sharedExpenseIds } }),
+    SharedExpense.deleteMany({ group: group._id }),
+    Settlement.deleteMany({ group: group._id }),
+    GroupMembership.deleteMany({ groupId: group._id }),
+  ]);
+
+  await Group.findByIdAndDelete(group._id);
+
+  return res.status(200).json({ message: "Group deleted" });
 });
 
 export const getGroupSummary = asyncHandler(async (req, res) => {

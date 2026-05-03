@@ -5,6 +5,16 @@ export const getGroupSummary = async (groupId) => {
   return response.data;
 };
 
+export const updateGroup = async (groupId, payload) => {
+  const response = await api.put(`/groups/${groupId}`, payload);
+  return response.data;
+};
+
+export const deleteGroup = async (groupId) => {
+  const response = await api.delete(`/groups/${groupId}`);
+  return response.data;
+};
+
 export const getGroupMembers = async (groupId) => {
   const response = await api.get(`/groups/${groupId}/memberships`);
   return response.data;

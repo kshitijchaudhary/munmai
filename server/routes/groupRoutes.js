@@ -11,11 +11,13 @@ import {
   createGroupInvite,
   createGroup,
   declineGroupInvite,
+  deleteGroup,
   getGroupById,
   getGroups,
   getGroupInvites,
   getMyPendingGroupInvites,
   getGroupSummary,
+  updateGroup,
 } from "../controllers/groupController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -34,7 +36,7 @@ router
   .route("/:groupId/settlements")
   .get(getGroupSettlementHistory)
   .post(createGroupSettlement);
-router.get("/:id", getGroupById);
+router.route("/:id").get(getGroupById).put(updateGroup).delete(deleteGroup);
 router.post("/:id/members", addGroupMembers);
 router.route("/:id/invitations").post(createGroupInvite).get(getGroupInvites);
 
