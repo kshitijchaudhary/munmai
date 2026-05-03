@@ -2,6 +2,26 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.3.0 - Monthly Control Budget MVP
+
+### Added
+- Monthly Control budget card on Dashboard
+- Per-user monthly spending limit
+- Budget status tracking: no budget, safe, warning, over
+- Current-month spending calculation from existing expenses
+- Remaining budget and percent-used indicators
+- Top spending category insight
+- Set/Edit Budget modal
+
+### Improved
+- Dashboard now helps users understand spending pace, not only totals
+- Budget wording clarified from "Budget" to "Spending Limit"
+- Monthly spending visibility supports real-life student/worker budgeting cases
+
+### Notes
+- This is a simple budget control MVP.
+- Category budgets, AI suggestions, notifications, rewards, and credit-card optimization are planned for later phases.
+
 ## v1.2.0 - Account, Collaboration & UX Polish Release
 
 ### Added
