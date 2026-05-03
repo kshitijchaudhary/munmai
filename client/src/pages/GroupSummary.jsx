@@ -1,11 +1,13 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  approveGroupMembership,
   deleteGroup,
   getGroupExpenseHistory,
   getGroupMembers,
   getGroupSettlementHistory,
   getGroupSummary,
+  rejectGroupMembership,
   updateGroup,
 } from "../api/groups";
 import GroupInvitationForm from "../components/GroupInvitationForm";
@@ -203,6 +205,14 @@ const GroupSummary = () => {
   const [activeMembers, setActiveMembers] = useState([]);
   const [activeMemberships, setActiveMemberships] = useState([]);
   const [pendingInvites, setPendingInvites] = useState([]);
+  const [pendingJoinRequests, setPendingJoinRequests] = useState([]);
+  const [joinCode, setJoinCode] = useState("");
+  const [membershipAccess, setMembershipAccess] = useState({
+    isOwner: false,
+    currentUserRole: "member",
+  });
+  const [membershipActionMessage, setMembershipActionMessage] = useState(null);
+  const [membershipActionId, setMembershipActionId] = useState("");
   const [membersError, setMembersError] = useState("");
   const [expenseHistory, setExpenseHistory] = useState(getEmptyListState);
   const [settlementHistory, setSettlementHistory] = useState(getEmptyListState);
@@ -250,12 +260,25 @@ const GroupSummary = () => {
         const nextActiveMemberships = Array.isArray(membersResult.value?.activeMembers)
           ? membersResult.value.activeMembers
           : [];
-        const nextPendingInvites = Array.isArray(membersResult.value?.pendingInvites)
+        const nextPendingInvites = Array.isArray(membersResult.value?.pendingInvitations)
+          ? membersResult.value.pendingInvitations
+          : Array.isArray(membersResult.value?.pendingInvites)
           ? membersResult.value.pendingInvites
+          : [];
+        const nextPendingJoinRequests = Array.isArray(
+          membersResult.value?.pendingJoinRequests
+        )
+          ? membersResult.value.pendingJoinRequests
           : [];
 
         setActiveMemberships(nextActiveMemberships);
         setPendingInvites(nextPendingInvites);
+        setPendingJoinRequests(nextPendingJoinRequests);
+        setJoinCode(membersResult.value?.joinCode || "");
+        setMembershipAccess({
+          isOwner: Boolean(membersResult.value?.isOwner),
+          currentUserRole: membersResult.value?.currentUserRole || "member",
+        });
         setActiveMembers(
           getActiveMemberOptions(
             nextActiveMemberships,
@@ -267,6 +290,9 @@ const GroupSummary = () => {
         setActiveMembers([]);
         setActiveMemberships([]);
         setPendingInvites([]);
+        setPendingJoinRequests([]);
+        setJoinCode("");
+        setMembershipAccess({ isOwner: false, currentUserRole: "member" });
         setMembersError("Could not load group members. Showing limited member options.");
       }
     } catch (fetchError) {
@@ -388,7 +414,7 @@ const GroupSummary = () => {
     (membership) =>
       membership?.role === "owner" &&
       getUserObjectId(getMembershipUser(membership)) === currentUserId
-  );
+  ) || membershipAccess.isOwner;
   const balancesYouOwe = balances.filter(
     (balance) => getUserObjectId(balance.from) === currentUserId
   );
@@ -482,6 +508,38 @@ const GroupSummary = () => {
         text: actionError.response?.data?.message || "Failed to delete group.",
       });
       setDeletingGroup(false);
+    }
+  };
+
+  const handleMembershipDecision = async (membershipId, decision) => {
+    try {
+      setMembershipActionId(`${decision}-${membershipId}`);
+      setMembershipActionMessage(null);
+
+      if (decision === "approve") {
+        await approveGroupMembership(groupId, membershipId);
+        setMembershipActionMessage({
+          type: "success",
+          text: "Join request approved.",
+        });
+      } else {
+        await rejectGroupMembership(groupId, membershipId);
+        setMembershipActionMessage({
+          type: "success",
+          text: "Join request rejected.",
+        });
+      }
+
+      await fetchSummary({ showLoading: false });
+    } catch (actionError) {
+      setMembershipActionMessage({
+        type: "error",
+        text:
+          actionError.response?.data?.message ||
+          "Could not update join request.",
+      });
+    } finally {
+      setMembershipActionId("");
     }
   };
 
@@ -620,7 +678,18 @@ const GroupSummary = () => {
           <MembersTab
             activeMemberships={activeMemberships}
             pendingInvites={pendingInvites}
+            pendingJoinRequests={pendingJoinRequests}
+            joinCode={joinCode}
+            isOwner={isCurrentUserOwner}
             membersError={membersError}
+            actionMessage={membershipActionMessage}
+            actionId={membershipActionId}
+            onApproveJoinRequest={(membershipId) =>
+              handleMembershipDecision(membershipId, "approve")
+            }
+            onRejectJoinRequest={(membershipId) =>
+              handleMembershipDecision(membershipId, "reject")
+            }
             onInviteMember={() => setInviteModalOpen(true)}
           />
         )}
@@ -989,7 +1058,14 @@ const SettlementsTab = ({ settlementHistory, onRefresh, onRecordSettlement }) =>
 const MembersTab = ({
   activeMemberships,
   pendingInvites,
+  pendingJoinRequests,
+  joinCode,
+  isOwner,
   membersError,
+  actionMessage,
+  actionId,
+  onApproveJoinRequest,
+  onRejectJoinRequest,
   onInviteMember,
 }) => (
   <PanelShell
@@ -1016,14 +1092,100 @@ const MembersTab = ({
       />
     ) : (
       <div className="space-y-6 p-5 md:p-6">
+        {joinCode && <JoinCodeCard joinCode={joinCode} />}
+
+        {actionMessage?.text && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+              actionMessage.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-800"
+            }`}
+          >
+            {actionMessage.text}
+          </div>
+        )}
+
         <MemberList title="Active members" memberships={activeMemberships} />
-        <MemberList title="Pending invites" memberships={pendingInvites} />
+
+        {isOwner && (
+          <>
+            <MemberList
+              title="Pending join requests"
+              memberships={pendingJoinRequests}
+              actionRenderer={(membership) => (
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => onApproveJoinRequest(membership._id)}
+                    disabled={Boolean(actionId)}
+                    className="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+                  >
+                    {actionId === `approve-${membership._id}`
+                      ? "Approving..."
+                      : "Approve"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRejectJoinRequest(membership._id)}
+                    disabled={Boolean(actionId)}
+                    className="inline-flex flex-1 items-center justify-center rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300"
+                  >
+                    {actionId === `reject-${membership._id}`
+                      ? "Rejecting..."
+                      : "Reject"}
+                  </button>
+                </div>
+              )}
+            />
+            <MemberList title="Pending invitations" memberships={pendingInvites} />
+          </>
+        )}
       </div>
     )}
   </PanelShell>
 );
 
-const MemberList = ({ title, memberships }) => (
+const JoinCodeCard = ({ joinCode }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(joinCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <section className="rounded-3xl border border-slate-100 bg-slate-50 p-4 md:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+            Group join code
+          </p>
+          <p className="mt-1 text-xl font-black tracking-wide text-slate-900">
+            {joinCode}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Share this code so others can request to join this group.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 sm:w-auto"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </section>
+  );
+};
+
+const MemberList = ({ title, memberships, actionRenderer }) => (
   <section>
     <h3 className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
       {title}
@@ -1064,6 +1226,7 @@ const MemberList = ({ title, memberships }) => (
                 </div>
                 <StatusPill status={membership.status} />
               </div>
+              {actionRenderer?.(membership)}
             </div>
           );
         })}

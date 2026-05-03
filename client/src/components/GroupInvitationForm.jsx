@@ -21,7 +21,10 @@ const GroupInvitationForm = ({ groupId }) => {
       setMessage(null);
       await createGroupInvitation(groupId, nextEmail);
       setEmail("");
-      setMessage({ type: "success", text: "Invite sent." });
+      setMessage({
+        type: "success",
+        text: "Invitation created. Ask them to check their Invitations tab.",
+      });
     } catch (error) {
       const statusCode = error.response?.status;
       const serverMessage = error.response?.data?.message || "";
@@ -47,7 +50,8 @@ const GroupInvitationForm = ({ groupId }) => {
       <div className="mb-4">
         <h2 className="text-lg font-bold text-slate-900">Invite Member</h2>
         <p className="text-sm text-slate-500">
-          Invite existing Munmai users by email.
+          Invite a registered Munmai user by email. They will see this
+          invitation inside their Invitations tab.
         </p>
       </div>
 

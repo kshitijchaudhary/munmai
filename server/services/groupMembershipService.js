@@ -15,6 +15,58 @@ const createError = (message, statusCode) => {
 
 const toIdString = (value) => String(value || "");
 
+const normalizeJoinCode = (value) => String(value || "").trim().toUpperCase();
+
+const generateJoinCode = () => {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+
+  for (let index = 0; index < 6; index += 1) {
+    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return `MUN-${suffix}`;
+};
+
+const ensureGroupJoinCode = async (group) => {
+  if (group.joinCode) {
+    return group.joinCode;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const joinCode = generateJoinCode();
+    let updatedGroup = null;
+
+    try {
+      updatedGroup = await Group.findOneAndUpdate(
+        { _id: group._id, $or: [{ joinCode: { $exists: false } }, { joinCode: "" }] },
+        { $set: { joinCode } },
+        { new: true }
+      )
+        .select("_id joinCode")
+        .lean();
+    } catch (error) {
+      if (error?.code !== 11000) {
+        throw error;
+      }
+
+      continue;
+    }
+
+    if (updatedGroup?.joinCode) {
+      return updatedGroup.joinCode;
+    }
+
+    const existingGroup = await Group.findById(group._id).select("_id joinCode").lean();
+
+    if (existingGroup?.joinCode) {
+      return existingGroup.joinCode;
+    }
+  }
+
+  throw createError("Unable to generate group join code", 500);
+};
+
 const buildIdentityClauses = (userId, email) => {
   const clauses = [];
   const normalizedEmail = normalizeEmail(email);
@@ -316,6 +368,7 @@ export const createEmailInvitation = async (groupId, invitedEmail, invitedBy) =>
       invitedEmail: normalizedEmail,
       invitedBy,
       role: "member",
+      source: "invite",
       status: "pending",
     });
   } catch (error) {
@@ -332,6 +385,7 @@ export const getUserInvitations = async (user) => {
 
   return GroupMembership.find({
     status: { $in: OPEN_INVITATION_STATUSES },
+    source: { $ne: "join_request" },
     $or: [{ userId: user._id }, { invitedEmail: normalizedEmail }],
   })
     .populate("groupId", "_id name")
@@ -345,6 +399,7 @@ const findInvitationForUser = async (invitationId, user) => {
   return GroupMembership.findOne({
     _id: invitationId,
     status: { $in: OPEN_INVITATION_STATUSES },
+    source: { $ne: "join_request" },
     $or: [{ userId: user._id }, { invitedEmail: normalizedEmail }],
   });
 };
@@ -406,9 +461,127 @@ export const declineMembershipInvitation = async (invitationId, user) => {
   return invitation;
 };
 
-export const getGroupedMemberships = async (groupId) => {
+export const requestToJoinGroupByCode = async (joinCode, user) => {
+  const normalizedJoinCode = normalizeJoinCode(joinCode);
+
+  if (!normalizedJoinCode) {
+    throw createError("Join code is required", 400);
+  }
+
+  const [group, currentUser] = await Promise.all([
+    Group.findOne({ joinCode: normalizedJoinCode }).select("_id createdBy members joinCode"),
+    User.findById(user._id || user.id).select("_id email username name"),
+  ]);
+
+  if (!group) {
+    throw createError("Invalid join code", 404);
+  }
+
+  if (!currentUser) {
+    throw createError("User not found", 404);
+  }
+
+  const normalizedEmail = normalizeEmail(currentUser.email);
+  const identityMatch = buildIdentityMatch(currentUser._id, normalizedEmail);
+
+  if ((group.members || []).some((memberId) => toIdString(memberId) === toIdString(currentUser._id))) {
+    throw createError("This user is already a group member.", 409);
+  }
+
+  const duplicateMembership = await GroupMembership.findOne({
+    groupId: group._id,
+    status: { $in: OPEN_OR_ACTIVE_STATUSES },
+    ...identityMatch,
+  }).lean();
+
+  if (duplicateMembership?.status === "active") {
+    throw createError("This user is already a group member.", 409);
+  }
+
+  if (duplicateMembership?.source === "join_request") {
+    throw createError("This user already has a pending join request.", 409);
+  }
+
+  if (duplicateMembership) {
+    throw createError("Invitation already pending for this user.", 409);
+  }
+
+  return GroupMembership.create({
+    groupId: group._id,
+    userId: currentUser._id,
+    invitedEmail: normalizedEmail,
+    invitedBy: group.createdBy,
+    role: "member",
+    source: "join_request",
+    status: "pending",
+  });
+};
+
+export const approveJoinRequest = async (groupId, membershipId, currentUserId) => {
+  const owner = await isGroupOwner(groupId, currentUserId);
+
+  if (!owner) {
+    throw createError("Only the group owner can approve join requests", 403);
+  }
+
+  const membership = await GroupMembership.findOne({
+    _id: membershipId,
+    groupId,
+    status: "pending",
+    source: "join_request",
+  });
+
+  if (!membership) {
+    throw createError("Join request not found", 404);
+  }
+
+  const user = await User.findById(membership.userId).select("_id email username name");
+
+  if (!user) {
+    throw createError("User not found", 404);
+  }
+
+  await Group.findByIdAndUpdate(groupId, {
+    $addToSet: { members: user._id },
+  });
+
+  return upsertActiveMembership({
+    groupId,
+    user,
+    invitedBy: currentUserId,
+    role: "member",
+    preferredMembershipId: membership._id,
+  });
+};
+
+export const rejectJoinRequest = async (groupId, membershipId, currentUserId) => {
+  const owner = await isGroupOwner(groupId, currentUserId);
+
+  if (!owner) {
+    throw createError("Only the group owner can reject join requests", 403);
+  }
+
+  const membership = await GroupMembership.findOne({
+    _id: membershipId,
+    groupId,
+    status: "pending",
+    source: "join_request",
+  });
+
+  if (!membership) {
+    throw createError("Join request not found", 404);
+  }
+
+  membership.status = "declined";
+  membership.respondedAt = new Date();
+  await membership.save();
+
+  return membership;
+};
+
+export const getGroupedMemberships = async (groupId, currentUserId) => {
   const [group, memberships] = await Promise.all([
-    Group.findById(groupId).select("_id createdBy members").lean(),
+    Group.findById(groupId).select("_id createdBy members joinCode").lean(),
     GroupMembership.find({
       groupId,
       status: { $in: OPEN_OR_ACTIVE_STATUSES },
@@ -423,9 +596,25 @@ export const getGroupedMemberships = async (groupId) => {
     throw createError("Group not found", 404);
   }
 
+  const isOwner =
+    toIdString(group.createdBy) === toIdString(currentUserId) ||
+    memberships.some(
+      (membership) =>
+        membership.role === "owner" &&
+        membership.status === "active" &&
+        toIdString(membership.userId?._id || membership.userId) === toIdString(currentUserId)
+    );
+
   const activeMembers = memberships.filter((membership) => membership.status === "active");
-  const pendingInvites = memberships.filter((membership) =>
-    OPEN_INVITATION_STATUSES.includes(membership.status)
+  const pendingInvites = memberships.filter(
+    (membership) =>
+      OPEN_INVITATION_STATUSES.includes(membership.status) &&
+      (membership.source || "invite") !== "join_request"
+  );
+  const pendingJoinRequests = memberships.filter(
+    (membership) =>
+      OPEN_INVITATION_STATUSES.includes(membership.status) &&
+      membership.source === "join_request"
   );
   const activeUserIds = new Set(
     activeMembers
@@ -472,8 +661,13 @@ export const getGroupedMemberships = async (groupId) => {
 
   return {
     groupId: toIdString(groupId),
+    currentUserRole: isOwner ? "owner" : "member",
+    isOwner,
+    joinCode: await ensureGroupJoinCode(group),
     activeMembers: [...activeMembers, ...legacyActiveMembers],
-    pendingInvites,
+    pendingInvites: isOwner ? pendingInvites : [],
+    pendingInvitations: isOwner ? pendingInvites : [],
+    pendingJoinRequests: isOwner ? pendingJoinRequests : [],
   };
 };
 
@@ -486,5 +680,8 @@ export default {
   getUserInvitations,
   acceptMembershipInvitation,
   declineMembershipInvitation,
+  requestToJoinGroupByCode,
+  approveJoinRequest,
+  rejectJoinRequest,
   getGroupedMemberships,
 };

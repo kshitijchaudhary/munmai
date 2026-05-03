@@ -45,6 +45,25 @@ export const createGroupInvitation = async (groupId, email) => {
   return response.data;
 };
 
+export const requestGroupJoin = async (joinCode) => {
+  const response = await api.post("/groups/join", { joinCode });
+  return response.data;
+};
+
+export const approveGroupMembership = async (groupId, membershipId) => {
+  const response = await api.post(
+    `/groups/${groupId}/memberships/${membershipId}/approve`
+  );
+  return response.data;
+};
+
+export const rejectGroupMembership = async (groupId, membershipId) => {
+  const response = await api.post(
+    `/groups/${groupId}/memberships/${membershipId}/reject`
+  );
+  return response.data;
+};
+
 export const getMyGroupInvitations = async () => {
   const response = await api.get("/group-invitations");
   return response.data;

@@ -28,6 +28,30 @@ const validateUsersExist = async (userIds) => {
   return count === userIds.length;
 };
 
+const generateJoinCode = () => {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+
+  for (let index = 0; index < 6; index += 1) {
+    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return `MUN-${suffix}`;
+};
+
+const generateUniqueJoinCode = async () => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const joinCode = generateJoinCode();
+    const exists = await Group.exists({ joinCode });
+
+    if (!exists) {
+      return joinCode;
+    }
+  }
+
+  throw new Error("Unable to generate group join code");
+};
+
 const findAccessibleGroup = (groupId, userId) =>
   Group.findOne({
     _id: groupId,
@@ -146,6 +170,7 @@ export const createGroup = asyncHandler(async (req, res) => {
     group = await Group.create({
       name,
       createdBy: req.user.id,
+      joinCode: await generateUniqueJoinCode(),
       members: normalizedMemberIds,
     });
 

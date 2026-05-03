@@ -4,6 +4,7 @@ import api from "../api/axios";
 import { deleteGroup, updateGroup } from "../api/groups";
 import GroupForm from "../components/GroupForm";
 import GroupManageModal from "../components/GroupManageModal";
+import JoinGroupModal from "../components/JoinGroupModal";
 import Sidebar from "../components/Sidebar";
 import { AuthContext } from "../context/AuthContext";
 
@@ -24,6 +25,7 @@ const Groups = () => {
   const [groupActionMessage, setGroupActionMessage] = useState(null);
   const [savingGroup, setSavingGroup] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
+  const [joinGroupModalOpen, setJoinGroupModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -119,12 +121,22 @@ const Groups = () => {
             </p>
           </div>
 
-          <Link
-            to="/dashboard"
-            className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100 sm:w-auto"
-          >
-            Back to dashboard
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setJoinGroupModalOpen(true)}
+              className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800 sm:w-auto"
+            >
+              Join Group
+            </button>
+
+            <Link
+              to="/dashboard"
+              className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100 sm:w-auto"
+            >
+              Back to dashboard
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -246,6 +258,12 @@ const Groups = () => {
           saving={savingGroup}
           deleting={deletingGroup}
           message={groupActionMessage}
+        />
+
+        <JoinGroupModal
+          open={joinGroupModalOpen}
+          onClose={() => setJoinGroupModalOpen(false)}
+          onJoined={fetchGroups}
         />
       </main>
     </div>
