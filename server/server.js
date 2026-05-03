@@ -18,6 +18,7 @@ import sharedExpenseRoutes from "./routes/sharedExpenseRoutes.js";
 import openingBalanceRoutes from "./routes/openingBalanceRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import groupMembershipRoutes from "./routes/groupMembershipRoutes.js";
+import budgetRoutes from "./routes/budgetRoutes.js";
 import { ensureUploadDir } from "./utils/uploadPaths.js";
 
 dotenv.config();
@@ -127,6 +128,7 @@ app.use("/api/telemetry", telemetryRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/shared-expenses", sharedExpenseRoutes);
 app.use("/api/opening-balances", openingBalanceRoutes);
+app.use("/api/budget", budgetRoutes);
 
 app.get("/api/test/protected", protect, (req, res) => {
   res.json({

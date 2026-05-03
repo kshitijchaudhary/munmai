@@ -9,7 +9,9 @@ import {
   Tooltip,
 } from "recharts";
 import api from "../api/axios";
+import { getBudgetSummary, updateBudgetLimit } from "../api/budget";
 import { getDashboardSummary } from "../api/dashboard";
+import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
 import { AuthContext } from "../context/AuthContext";
 
@@ -53,36 +55,29 @@ const buildEmptyDashboardSummary = () => ({
   },
 });
 
-const getGreeting = () => {
-  const hour = new Date().getHours();
+const buildEmptyBudgetSummary = () => ({
+  monthlySpendingLimit: 0,
+  month: CURRENT_MONTH + 1,
+  year: CURRENT_YEAR,
+  spentThisMonth: 0,
+  remaining: 0,
+  percentUsed: 0,
+  status: "no_budget",
+  topCategory: null,
+});
 
-  if (hour < 12) return "Good Morning";
-  if (hour < 17) return "Good Afternoon";
-  return "Good Evening";
+const budgetStatusLabels = {
+  no_budget: "No budget",
+  safe: "Safe",
+  warning: "Warning",
+  over: "Over budget",
 };
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-  }).format(Number(value || 0));
-
-const normalizeTransaction = (item, type) => {
-  const isIncome = type === "income";
-  const cleanRecipient = item.recipient?.trim();
-
-  return {
-    ...item,
-    transactionType: type,
-    isIncome,
-    displayTitle: isIncome
-      ? item.source || item.category || "Income"
-      : cleanRecipient || item.category || "Expense",
-    displaySubLabel: isIncome
-      ? item.category || "Income"
-      : item.category || "Expense",
-    displaySubtitle: item.notes || "",
-  };
+const budgetInsights = {
+  no_budget: "Set a budget to start tracking your monthly control.",
+  safe: "You are within your monthly spending limit.",
+  warning: "You are close to your monthly spending limit.",
+  over: "You are over your monthly spending limit.",
 };
 
 const quickActions = [
@@ -135,6 +130,38 @@ const getStartedItems = [
   },
 ];
 
+const getGreeting = () => {
+  const hour = new Date().getHours();
+
+  if (hour < 12) return "Good Morning";
+  if (hour < 17) return "Good Afternoon";
+  return "Good Evening";
+};
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: "CAD",
+  }).format(Number(value || 0));
+
+const normalizeTransaction = (item, type) => {
+  const isIncome = type === "income";
+  const cleanRecipient = item.recipient?.trim();
+
+  return {
+    ...item,
+    transactionType: type,
+    isIncome,
+    displayTitle: isIncome
+      ? item.source || item.category || "Income"
+      : cleanRecipient || item.category || "Expense",
+    displaySubLabel: isIncome
+      ? item.category || "Income"
+      : item.category || "Expense",
+    displaySubtitle: item.notes || "",
+  };
+};
+
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
   const [data, setData] = useState({ income: [], expenses: [] });
@@ -142,15 +169,24 @@ const Dashboard = () => {
   const [dashboardSummary, setDashboardSummary] = useState(
     buildEmptyDashboardSummary
   );
+  const [budgetSummary, setBudgetSummary] = useState(buildEmptyBudgetSummary);
+  const [budgetModalOpen, setBudgetModalOpen] = useState(false);
+  const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
+  const [budgetMessage, setBudgetMessage] = useState(null);
+  const [savingBudget, setSavingBudget] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
   const [transactionError, setTransactionError] = useState("");
   const [groupError, setGroupError] = useState("");
+  const [budgetError, setBudgetError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
   const displayName =
-    user?.name?.split(" ")[0] || user?.email?.split("@")[0] || "User";
+    user?.username ||
+    user?.name?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
+    "User";
 
   const yearOptions = useMemo(() => {
     const current = new Date().getFullYear();
@@ -160,12 +196,13 @@ const Dashboard = () => {
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
 
-    const [summaryResult, incomeResult, expenseResult, groupResult] =
+    const [summaryResult, incomeResult, expenseResult, groupResult, budgetResult] =
       await Promise.allSettled([
         getDashboardSummary(),
         api.get("/income"),
         api.get("/expenses"),
         api.get("/groups"),
+        getBudgetSummary(),
       ]);
 
     if (summaryResult.status === "fulfilled") {
@@ -203,6 +240,20 @@ const Dashboard = () => {
     } else {
       setGroups([]);
       setGroupError("Failed to load group preview.");
+    }
+
+    if (budgetResult.status === "fulfilled") {
+      setBudgetSummary({
+        ...buildEmptyBudgetSummary(),
+        ...(budgetResult.value || {}),
+      });
+      setBudgetError("");
+    } else {
+      setBudgetSummary(buildEmptyBudgetSummary());
+      setBudgetError(
+        budgetResult.reason?.response?.data?.message ||
+          "Failed to load monthly control."
+      );
     }
 
     setLoading(false);
@@ -276,6 +327,60 @@ const Dashboard = () => {
     };
   }, [data, selectedMonth, selectedYear]);
 
+  const openBudgetModal = () => {
+    setBudgetLimitDraft(
+      budgetSummary.monthlySpendingLimit > 0
+        ? String(budgetSummary.monthlySpendingLimit)
+        : ""
+    );
+    setBudgetMessage(null);
+    setBudgetModalOpen(true);
+  };
+
+  const handleBudgetSubmit = async (event) => {
+    event.preventDefault();
+
+    if (budgetLimitDraft === "") {
+      setBudgetMessage({
+        type: "error",
+        text: "Monthly spending limit is required.",
+      });
+      return;
+    }
+
+    const nextLimit = Number(budgetLimitDraft);
+
+    if (!Number.isFinite(nextLimit) || nextLimit < 0) {
+      setBudgetMessage({
+        type: "error",
+        text: "Monthly spending limit must be greater than or equal to 0.",
+      });
+      return;
+    }
+
+    try {
+      setSavingBudget(true);
+      setBudgetMessage(null);
+      const nextBudgetSummary = await updateBudgetLimit(nextLimit);
+      setBudgetSummary({
+        ...buildEmptyBudgetSummary(),
+        ...(nextBudgetSummary || {}),
+      });
+      setBudgetError("");
+      setBudgetMessage({
+        type: "success",
+        text: "Monthly spending limit saved.",
+      });
+    } catch (error) {
+      setBudgetMessage({
+        type: "error",
+        text: error.response?.data?.message || "Failed to save budget.",
+      });
+    } finally {
+      setSavingBudget(false);
+    }
+  };
+
   const sharedMoney =
     dashboardSummary.sharedMoney ?? buildEmptyDashboardSummary().sharedMoney;
   const hasAnyTransactions = stats.allTransactions.length > 0;
@@ -324,9 +429,9 @@ const Dashboard = () => {
           </p>
         </header>
 
-        {(dashboardError || transactionError || groupError) && (
+        {(dashboardError || transactionError || groupError || budgetError) && (
           <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
-            {dashboardError || transactionError || groupError}
+            {dashboardError || transactionError || groupError || budgetError}
           </div>
         )}
 
@@ -335,7 +440,7 @@ const Dashboard = () => {
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-xl font-black text-slate-900">
-                  Welcome to Munmai 👋
+                  Welcome to Munmai
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
                   Start tracking your money in seconds.
@@ -395,26 +500,18 @@ const Dashboard = () => {
           description="Your all-time personal totals and shared money position."
         />
         <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Net Balance"
-            value={dashboardSummary.balance}
-            isBalance
-          />
-          <MetricCard
-            label="Income Total"
-            value={dashboardSummary.incomeTotal}
-            type="income"
-          />
-          <MetricCard
-            label="Expense Total"
-            value={dashboardSummary.expenseTotal}
-            type="expense"
-          />
-          <MetricCard
-            label="Shared Net Balance"
-            value={sharedMoney.netBalance}
-            isBalance
-          />
+          <MetricCard label="Net Balance" value={dashboardSummary.balance} isBalance />
+          <MetricCard label="Income Total" value={dashboardSummary.incomeTotal} type="income" />
+          <MetricCard label="Expense Total" value={dashboardSummary.expenseTotal} type="expense" />
+          <MetricCard label="Shared Net Balance" value={sharedMoney.netBalance} isBalance />
+        </section>
+
+        <SectionHeading
+          title="Monthly Control"
+          description="Track this month against a simple spending limit."
+        />
+        <section className="mb-10">
+          <MonthlyControlCard budget={budgetSummary} onSetBudget={openBudgetModal} />
         </section>
 
         <SectionHeading
@@ -440,16 +537,8 @@ const Dashboard = () => {
           }
         />
         <section className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-2">
-          <MiniMoneyCard
-            label="You owe"
-            value={sharedMoney.totalYouOwe}
-            tone="text-rose-600"
-          />
-          <MiniMoneyCard
-            label="You are owed"
-            value={sharedMoney.totalYouAreOwed}
-            tone="text-emerald-600"
-          />
+          <MiniMoneyCard label="You owe" value={sharedMoney.totalYouOwe} tone="text-rose-600" />
+          <MiniMoneyCard label="You are owed" value={sharedMoney.totalYouAreOwed} tone="text-emerald-600" />
         </section>
 
         <SectionHeading
@@ -507,21 +596,9 @@ const Dashboard = () => {
         </section>
 
         <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <MetricCard
-            label={`${stats.periodLabel} Income`}
-            value={stats.periodIncomeTotal}
-            type="income"
-          />
-          <MetricCard
-            label={`${stats.periodLabel} Expense`}
-            value={stats.periodExpenseTotal}
-            type="expense"
-          />
-          <MetricCard
-            label={`${stats.periodLabel} Balance`}
-            value={stats.periodBalance}
-            isBalance
-          />
+          <MetricCard label={`${stats.periodLabel} Income`} value={stats.periodIncomeTotal} type="income" />
+          <MetricCard label={`${stats.periodLabel} Expense`} value={stats.periodExpenseTotal} type="expense" />
+          <MetricCard label={`${stats.periodLabel} Balance`} value={stats.periodBalance} isBalance />
         </section>
 
         <section className="grid grid-cols-1 gap-8 lg:grid-cols-12">
@@ -613,6 +690,51 @@ const Dashboard = () => {
             </div>
           </div>
         </section>
+
+        <Modal
+          open={budgetModalOpen}
+          onClose={() => setBudgetModalOpen(false)}
+          title="Set Spending Limit"
+          description="Set a monthly spending limit for personal expenses."
+        >
+          <form onSubmit={handleBudgetSubmit} className="space-y-4">
+            {budgetMessage?.text && (
+              <div
+                className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+                  budgetMessage.type === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-rose-200 bg-rose-50 text-rose-800"
+                }`}
+              >
+                {budgetMessage.text}
+              </div>
+            )}
+
+            <label className="block">
+              <span className="mb-1 block text-sm font-semibold text-slate-700">
+                Monthly spending limit
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={budgetLimitDraft}
+                onChange={(event) => setBudgetLimitDraft(event.target.value)}
+                disabled={savingBudget}
+                placeholder="1200"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={savingBudget}
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+            >
+              {savingBudget ? "Saving..." : "Save Spending Limit"}
+            </button>
+          </form>
+        </Modal>
       </main>
     </div>
   );
@@ -647,16 +769,6 @@ const MetricCard = ({ label, value, type, isBalance }) => (
   </div>
 );
 
-const QuickActionCard = ({ action }) => (
-  <Link
-    to={action.to}
-    className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-100 hover:shadow-md"
-  >
-    <p className="font-black text-slate-900">{action.title}</p>
-    <p className="mt-2 text-sm text-slate-500">{action.description}</p>
-  </Link>
-);
-
 const SectionHeading = ({ title, description, action }) => (
   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
@@ -667,12 +779,102 @@ const SectionHeading = ({ title, description, action }) => (
   </div>
 );
 
+const QuickActionCard = ({ action }) => (
+  <Link
+    to={action.to}
+    className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-100 hover:shadow-md"
+  >
+    <p className="font-black text-slate-900">{action.title}</p>
+    <p className="mt-2 text-sm text-slate-500">{action.description}</p>
+  </Link>
+);
+
 const MiniMoneyCard = ({ label, value, tone }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
     <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
       {label}
     </p>
     <p className={`text-2xl font-black ${tone}`}>{formatCurrency(value)}</p>
+  </div>
+);
+
+const getBudgetStatusTone = (status) => {
+  if (status === "safe") {
+    return "bg-emerald-50 text-emerald-700 ring-emerald-100";
+  }
+
+  if (status === "warning") {
+    return "bg-amber-50 text-amber-700 ring-amber-100";
+  }
+
+  if (status === "over") {
+    return "bg-rose-50 text-rose-700 ring-rose-100";
+  }
+
+  return "bg-slate-100 text-slate-600 ring-slate-200";
+};
+
+const MonthlyControlCard = ({ budget, onSetBudget }) => {
+  const hasBudget = Number(budget.monthlySpendingLimit || 0) > 0;
+  const status = budget.status || "no_budget";
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h3 className="text-xl font-black text-slate-900">
+              Monthly Control
+            </h3>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-widest ring-1 ${getBudgetStatusTone(
+                status
+              )}`}
+            >
+              {budgetStatusLabels[status] || status}
+            </span>
+          </div>
+          <p className="text-sm text-slate-500">
+            {budgetInsights[status] || budgetInsights.no_budget}
+          </p>
+          {budget.topCategory && (
+            <p className="mt-2 text-sm font-semibold text-slate-700">
+              Top spending category: {budget.topCategory}
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onSetBudget}
+          className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+        >
+          {hasBudget ? "Edit Spending Limit" : "Set Spending Limit"}
+        </button>
+      </div>
+
+      {!hasBudget ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+          Set a monthly spending limit to track your pace.
+        </div>
+      ) : (
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <BudgetStat label="Spending Limit" value={formatCurrency(budget.monthlySpendingLimit)} />
+          <BudgetStat label="Spent This Month" value={formatCurrency(budget.spentThisMonth)} />
+          <BudgetStat label="Remaining" value={formatCurrency(budget.remaining)} tone={Number(budget.remaining || 0) < 0 ? "text-rose-600" : "text-emerald-600"} />
+          <BudgetStat label="Used" value={`${Number(budget.percentUsed || 0).toFixed(2)}%`} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const BudgetStat = ({ label, value, tone = "text-slate-900" }) => (
+  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+    <p className="mb-1 text-xs font-black uppercase tracking-widest text-slate-400">
+      {label}
+    </p>
+    <p className={`break-words text-lg font-black ${tone}`}>{value}</p>
   </div>
 );
 
@@ -713,7 +915,7 @@ const GetStartedChecklist = ({ completion, completedCount }) => (
                     : "bg-white text-slate-400 ring-1 ring-slate-200"
                 }`}
               >
-                {completed ? "✓" : "•"}
+                {completed ? "Done" : ""}
               </span>
               <p
                 className={`font-bold ${
