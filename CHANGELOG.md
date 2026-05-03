@@ -2,6 +2,18 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.3.1 - Group Join Code Hotfix
+
+### Fixed
+- Restored Join Group button on Groups page
+- Restored join code visibility in Members tab
+- Restored join request flow after v1.3 UI changes
+- Confirmed owner approve/reject flow works
+
+### Notes
+- No budget logic changed.
+- Monthly Control from v1.3.0 remains unchanged.
+
 ## v1.3.0 - Monthly Control Budget MVP
 
 ### Added
