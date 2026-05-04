@@ -11,6 +11,7 @@ import {
 import api from "../api/axios";
 import { getBudgetSummary, updateBudgetLimit } from "../api/budget";
 import { getDashboardSummary } from "../api/dashboard";
+import { getLiabilitySummary } from "../api/liabilities";
 import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
 import { AuthContext } from "../context/AuthContext";
@@ -66,6 +67,12 @@ const buildEmptyBudgetSummary = () => ({
   dailySafeSpend: null,
   status: "no_budget",
   topCategory: null,
+});
+
+const buildEmptyDebtRealitySummary = () => ({
+  totalActiveDebt: 0,
+  monthlyDebtPressure: 0,
+  dueSoonCount: 0,
 });
 
 const budgetStatusLabels = {
@@ -172,6 +179,9 @@ const Dashboard = () => {
     buildEmptyDashboardSummary
   );
   const [budgetSummary, setBudgetSummary] = useState(buildEmptyBudgetSummary);
+  const [debtRealitySummary, setDebtRealitySummary] = useState(
+    buildEmptyDebtRealitySummary
+  );
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
   const [budgetMessage, setBudgetMessage] = useState(null);
@@ -181,6 +191,7 @@ const Dashboard = () => {
   const [transactionError, setTransactionError] = useState("");
   const [groupError, setGroupError] = useState("");
   const [budgetError, setBudgetError] = useState("");
+  const [debtRealityError, setDebtRealityError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
@@ -198,13 +209,21 @@ const Dashboard = () => {
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
 
-    const [summaryResult, incomeResult, expenseResult, groupResult, budgetResult] =
+    const [
+      summaryResult,
+      incomeResult,
+      expenseResult,
+      groupResult,
+      budgetResult,
+      debtRealityResult,
+    ] =
       await Promise.allSettled([
         getDashboardSummary(),
         api.get("/income"),
         api.get("/expenses"),
         api.get("/groups"),
         getBudgetSummary(),
+        getLiabilitySummary(),
       ]);
 
     if (summaryResult.status === "fulfilled") {
@@ -255,6 +274,20 @@ const Dashboard = () => {
       setBudgetError(
         budgetResult.reason?.response?.data?.message ||
           "Failed to load monthly control."
+      );
+    }
+
+    if (debtRealityResult.status === "fulfilled") {
+      setDebtRealitySummary({
+        ...buildEmptyDebtRealitySummary(),
+        ...(debtRealityResult.value || {}),
+      });
+      setDebtRealityError("");
+    } else {
+      setDebtRealitySummary(buildEmptyDebtRealitySummary());
+      setDebtRealityError(
+        debtRealityResult.reason?.response?.data?.message ||
+          "Failed to load Debt Reality."
       );
     }
 
@@ -431,9 +464,17 @@ const Dashboard = () => {
           </p>
         </header>
 
-        {(dashboardError || transactionError || groupError || budgetError) && (
+        {(dashboardError ||
+          transactionError ||
+          groupError ||
+          budgetError ||
+          debtRealityError) && (
           <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
-            {dashboardError || transactionError || groupError || budgetError}
+            {dashboardError ||
+              transactionError ||
+              groupError ||
+              budgetError ||
+              debtRealityError}
           </div>
         )}
 
@@ -514,6 +555,22 @@ const Dashboard = () => {
         />
         <section className="mb-10">
           <MonthlyControlCard budget={budgetSummary} onSetBudget={openBudgetModal} />
+        </section>
+
+        <SectionHeading
+          title="Debt Reality"
+          description="Understand what you owe and your monthly debt pressure."
+          action={
+            <Link
+              to="/debt-reality"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+            >
+              View Debt Reality
+            </Link>
+          }
+        />
+        <section className="mb-10">
+          <DebtRealityCard summary={debtRealitySummary} />
         </section>
 
         <SectionHeading
@@ -939,6 +996,29 @@ const MonthlyControlCard = ({ budget, onSetBudget }) => {
     </div>
   );
 };
+
+const DebtRealityCard = ({ summary }) => (
+  <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <BudgetStat
+        label="Total Active Debt"
+        value={formatCurrency(summary.totalActiveDebt)}
+        tone="text-rose-600"
+      />
+      <BudgetStat
+        label="Monthly Debt Pressure"
+        value={formatCurrency(summary.monthlyDebtPressure)}
+      />
+      <BudgetStat
+        label="Due Soon"
+        value={`${Number(summary.dueSoonCount || 0)} payment${
+          Number(summary.dueSoonCount || 0) === 1 ? "" : "s"
+        }`}
+        tone={Number(summary.dueSoonCount || 0) > 0 ? "text-amber-600" : "text-slate-900"}
+      />
+    </div>
+  </div>
+);
 
 const BudgetStat = ({ label, value, tone = "text-slate-900" }) => (
   <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">

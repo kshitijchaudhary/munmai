@@ -5,7 +5,6 @@ import { AuthContext } from "../context/AuthContext";
 const futureItems = new Set([
   "Monthly Summary",
   "Opening Balance",
-  "Liabilities",
   "Settings",
 ]);
 
@@ -44,7 +43,7 @@ const getNavSections = (pathname) => [
     label: "Financial Life",
     items: [
       { label: "Opening Balance", status: "Coming Soon" },
-      { label: "Liabilities", status: "Coming Soon" },
+      { label: "Debt Reality", to: "/debt-reality" },
     ],
   },
   {

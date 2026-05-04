@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import MoneyTransactions from "./pages/MoneyTransactions";
 import MoneyReceipts from "./pages/MoneyReceipts";
 import MoneyTaxPack from "./pages/MoneyTaxPack";
+import Liabilities from "./pages/Liabilities";
 import Groups from "./pages/Groups";
 import GroupInvitations from "./pages/GroupInvitations";
 import GroupSummary from "./pages/GroupSummary";
@@ -70,6 +71,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MoneyTaxPack />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/debt-reality"
+              element={
+                <ProtectedRoute>
+                  <Liabilities />
                 </ProtectedRoute>
               }
             />
