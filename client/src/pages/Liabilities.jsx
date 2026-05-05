@@ -121,6 +121,7 @@ const getFormConfig = (type) => {
   if (type === "friend") {
     return {
       creditorLabel: "Friend name",
+      creditorPlaceholder: "Alex, Sam, roommate",
       currentBalanceLabel: "Amount owed",
       dueDateLabel: "Payback date optional",
       plannedPaymentLabel: "Planned payback amount",
@@ -134,6 +135,7 @@ const getFormConfig = (type) => {
   if (type === "credit_card") {
     return {
       creditorLabel: "Card / bank name",
+      creditorPlaceholder: "RBC Visa, TD Credit Card",
       currentBalanceLabel: "Current card balance",
       dueDateLabel: "Payment due date",
       minimumPaymentLabel: "Minimum payment",
@@ -147,6 +149,7 @@ const getFormConfig = (type) => {
   if (type === "loan") {
     return {
       creditorLabel: "Lender name",
+      creditorPlaceholder: "Hyundai Finance, Student Loan",
       originalAmountLabel: "Original loan amount",
       currentBalanceLabel: "Current loan balance",
       dueDateLabel: "Next payment date",
@@ -161,6 +164,7 @@ const getFormConfig = (type) => {
   if (type === "bill") {
     return {
       creditorLabel: "Provider name",
+      creditorPlaceholder: "Phone bill, rent, utility provider",
       currentBalanceLabel: "Amount due",
       dueDateLabel: "Due date",
       minimumPaymentLabel: "Expected payment",
@@ -173,6 +177,7 @@ const getFormConfig = (type) => {
 
   return {
     creditorLabel: "Creditor name",
+    creditorPlaceholder: "Creditor or source",
     originalAmountLabel: "Original amount",
     currentBalanceLabel: "Current balance",
     dueDateLabel: "Due date",
@@ -183,6 +188,144 @@ const getFormConfig = (type) => {
     showPlannedPayment: true,
     showPaymentFrequency: true,
   };
+};
+
+const hasAmount = (value) => Number(value || 0) > 0;
+
+const buildDebtStats = (liability) => {
+  const stats = [];
+  const dueDateLabel =
+    liability.liabilityType === "loan" ? "Next payment date" : "Due date";
+
+  if (liability.status === "paid") {
+    stats.push({
+      label: "Status",
+      value: "Paid off",
+      tone: "text-emerald-600",
+      calm: true,
+    });
+
+    if (
+      liability.liabilityType === "friend" ||
+      hasAmount(liability.originalAmount)
+    ) {
+      stats.push({
+        label: "Original amount",
+        value: formatCurrency(liability.originalAmount),
+        calm: true,
+      });
+    }
+
+    return stats;
+  }
+
+  if (liability.liabilityType === "credit_card") {
+    stats.push({
+      label: "Current card balance",
+      value: formatCurrency(liability.currentBalance),
+      tone: "text-rose-600",
+    });
+
+    if (hasAmount(liability.minimumPayment)) {
+      stats.push({
+        label: "Minimum payment",
+        value: formatCurrency(liability.minimumPayment),
+      });
+    }
+
+    if (liability.dueDate) {
+      stats.push({ label: "Payment due date", value: formatDate(liability.dueDate) });
+    }
+
+    return stats;
+  }
+
+  if (liability.liabilityType === "loan") {
+    stats.push({
+      label: "Current loan balance",
+      value: formatCurrency(liability.currentBalance),
+      tone: "text-rose-600",
+    });
+
+    if (hasAmount(liability.plannedMonthlyPayment)) {
+      stats.push({
+        label: "Regular payment",
+        value: formatCurrency(liability.plannedMonthlyPayment),
+      });
+    }
+
+    stats.push({
+      label: "Original loan amount",
+      value: formatCurrency(liability.originalAmount),
+    });
+
+    if (liability.paymentFrequency && liability.paymentFrequency !== "irregular") {
+      stats.push({
+        label: "Payment frequency",
+        value: getFrequencyLabel(liability.paymentFrequency),
+      });
+    }
+
+    return stats;
+  }
+
+  if (liability.liabilityType === "friend") {
+    stats.push({
+      label: "Amount owed",
+      value: formatCurrency(liability.currentBalance),
+      tone: "text-rose-600",
+    });
+
+    if (hasAmount(liability.plannedMonthlyPayment)) {
+      stats.push({
+        label: "Planned payback",
+        value: formatCurrency(liability.plannedMonthlyPayment),
+      });
+    }
+
+    if (liability.dueDate) {
+      stats.push({ label: "Payback date", value: formatDate(liability.dueDate) });
+    }
+
+    return stats;
+  }
+
+  if (liability.liabilityType === "bill") {
+    stats.push({
+      label: "Amount due",
+      value: formatCurrency(liability.currentBalance),
+      tone: "text-rose-600",
+    });
+
+    if (hasAmount(liability.minimumPayment)) {
+      stats.push({
+        label: "Expected payment",
+        value: formatCurrency(liability.minimumPayment),
+      });
+    }
+
+    if (liability.dueDate) {
+      stats.push({ label: "Due date", value: formatDate(liability.dueDate) });
+    }
+
+    return stats;
+  }
+
+  stats.push({
+    label: "Current balance",
+    value: formatCurrency(liability.currentBalance),
+    tone: "text-rose-600",
+  });
+
+  if (hasAmount(liability.plannedMonthlyPayment) || hasAmount(liability.minimumPayment)) {
+    stats.push({ label: "Payment", value: getPaymentLabel(liability) });
+  }
+
+  if (liability.dueDate) {
+    stats.push({ label: dueDateLabel, value: formatDate(liability.dueDate) });
+  }
+
+  return stats;
 };
 
 const Liabilities = () => {
@@ -587,7 +730,7 @@ const DebtForm = ({ formData, saving, editing, onChange, onSubmit }) => {
             required
             disabled={saving}
             className={inputClass}
-            placeholder="Visa, Alex, Student loan"
+            placeholder={config.creditorPlaceholder}
           />
         </FormField>
 
@@ -802,69 +945,81 @@ const PaymentForm = ({
   </form>
 );
 
-const DebtRow = ({ liability, actionId, onEdit, onRecordPayment, onDelete }) => (
-  <article className="px-5 py-5 md:px-6">
-    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="break-words text-lg font-black text-slate-900">
-            {liability.creditorName}
-          </h3>
-          <StatusPill status={liability.status} />
-        </div>
-        <p className="mt-1 text-sm text-slate-500">
-          {getTypeLabel(liability.liabilityType)} - Due {formatDate(liability.dueDate)}
-        </p>
-        {liability.notes && (
-          <p className="mt-2 max-w-2xl break-words text-sm text-slate-500">
-            {liability.notes}
+const DebtRow = ({ liability, actionId, onEdit, onRecordPayment, onDelete }) => {
+  const stats = buildDebtStats(liability);
+  const paid = liability.status === "paid";
+
+  return (
+    <article className={`px-5 py-5 md:px-6 ${paid ? "bg-slate-50/60" : ""}`}>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="break-words text-lg font-black text-slate-900">
+              {liability.creditorName}
+            </h3>
+            <StatusPill status={liability.status} />
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            {getTypeLabel(liability.liabilityType)}
+            {liability.dueDate && liability.status !== "paid"
+              ? ` - Due ${formatDate(liability.dueDate)}`
+              : ""}
           </p>
-        )}
-      </div>
+          {paid && (
+            <p className="mt-2 text-sm font-semibold text-emerald-700">
+              This debt has been paid off.
+            </p>
+          )}
+          {liability.notes && (
+            <p className="mt-2 max-w-2xl break-words text-sm text-slate-500">
+              {liability.notes}
+            </p>
+          )}
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:min-w-[34rem]">
-        <DebtMiniStat
-          label="Current balance"
-          value={formatCurrency(liability.currentBalance)}
-          tone={liability.status === "paid" ? "text-emerald-600" : "text-rose-600"}
-        />
-        <DebtMiniStat label="Payment" value={getPaymentLabel(liability)} />
-        <DebtMiniStat
-          label="Original amount"
-          value={formatCurrency(liability.originalAmount)}
-        />
-      </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:min-w-[34rem] xl:grid-cols-3">
+          {stats.map((stat) => (
+            <DebtMiniStat
+              key={`${liability._id}-${stat.label}`}
+              label={stat.label}
+              value={stat.value}
+              tone={stat.tone}
+              calm={stat.calm || paid}
+            />
+          ))}
+        </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
-        <button
-          type="button"
-          onClick={() => onEdit(liability)}
-          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
-        >
-          Edit
-        </button>
-        {liability.status !== "paid" && (
+        <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
           <button
             type="button"
-            onClick={() => onRecordPayment(liability)}
-            disabled={Boolean(actionId)}
-            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:text-emerald-300"
+            onClick={() => onEdit(liability)}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
           >
-            Record Payment
+            Edit
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onDelete(liability)}
-          disabled={Boolean(actionId)}
-          className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300"
-        >
-          {actionId === `delete-${liability._id}` ? "Deleting..." : "Delete"}
-        </button>
+          {!paid && (
+            <button
+              type="button"
+              onClick={() => onRecordPayment(liability)}
+              disabled={Boolean(actionId)}
+              className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:text-emerald-300"
+            >
+              Record Payment
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(liability)}
+            disabled={Boolean(actionId)}
+            className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300"
+          >
+            {actionId === `delete-${liability._id}` ? "Deleting..." : "Delete"}
+          </button>
+        </div>
       </div>
-    </div>
-  </article>
-);
+    </article>
+  );
+};
 
 const SummaryCard = ({ label, value, helper, tone = "text-slate-900" }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
@@ -876,8 +1031,12 @@ const SummaryCard = ({ label, value, helper, tone = "text-slate-900" }) => (
   </div>
 );
 
-const DebtMiniStat = ({ label, value, tone = "text-slate-900" }) => (
-  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+const DebtMiniStat = ({ label, value, tone = "text-slate-900", calm = false }) => (
+  <div
+    className={`rounded-2xl border px-4 py-3 ${
+      calm ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50"
+    }`}
+  >
     <p className="text-xs font-black uppercase tracking-widest text-slate-400">
       {label}
     </p>
