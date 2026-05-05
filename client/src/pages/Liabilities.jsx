@@ -4,6 +4,7 @@ import {
   deleteLiability,
   getLiabilities,
   getLiabilitySummary,
+  recordLiabilityPayment,
   updateLiability,
 } from "../api/liabilities";
 import Modal from "../components/Modal";
@@ -17,6 +18,13 @@ const liabilityTypes = [
   { value: "other", label: "Other" },
 ];
 
+const paymentFrequencies = [
+  { value: "irregular", label: "Irregular" },
+  { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "Biweekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
 const emptyForm = {
   creditorName: "",
   liabilityType: "friend",
@@ -25,7 +33,14 @@ const emptyForm = {
   dueDate: "",
   minimumPayment: "",
   plannedMonthlyPayment: "",
+  paymentFrequency: "irregular",
   notes: "",
+};
+
+const emptyPaymentForm = {
+  amount: "",
+  paymentDate: new Date().toISOString().slice(0, 10),
+  note: "",
 };
 
 const emptySummary = {
@@ -79,12 +94,20 @@ const toDateInputValue = (value) => {
 const getTypeLabel = (type) =>
   liabilityTypes.find((item) => item.value === type)?.label || "Other";
 
+const getFrequencyLabel = (frequency) =>
+  paymentFrequencies.find((item) => item.value === frequency)?.label ||
+  "Irregular";
+
 const getPaymentLabel = (liability) => {
   const plannedPayment = Number(liability.plannedMonthlyPayment || 0);
   const minimumPayment = Number(liability.minimumPayment || 0);
+  const frequency =
+    liability.paymentFrequency && liability.paymentFrequency !== "irregular"
+      ? ` ${getFrequencyLabel(liability.paymentFrequency).toLowerCase()}`
+      : "";
 
   if (plannedPayment > 0) {
-    return `Planned: ${formatCurrency(plannedPayment)}`;
+    return `Planned: ${formatCurrency(plannedPayment)}${frequency}`;
   }
 
   if (minimumPayment > 0) {
@@ -92,6 +115,74 @@ const getPaymentLabel = (liability) => {
   }
 
   return "No payment set";
+};
+
+const getFormConfig = (type) => {
+  if (type === "friend") {
+    return {
+      creditorLabel: "Friend name",
+      currentBalanceLabel: "Amount owed",
+      dueDateLabel: "Payback date optional",
+      plannedPaymentLabel: "Planned payback amount",
+      showOriginalAmount: false,
+      showMinimumPayment: false,
+      showPlannedPayment: true,
+      showPaymentFrequency: false,
+    };
+  }
+
+  if (type === "credit_card") {
+    return {
+      creditorLabel: "Card / bank name",
+      currentBalanceLabel: "Current card balance",
+      dueDateLabel: "Payment due date",
+      minimumPaymentLabel: "Minimum payment",
+      showOriginalAmount: false,
+      showMinimumPayment: true,
+      showPlannedPayment: false,
+      showPaymentFrequency: false,
+    };
+  }
+
+  if (type === "loan") {
+    return {
+      creditorLabel: "Lender name",
+      originalAmountLabel: "Original loan amount",
+      currentBalanceLabel: "Current loan balance",
+      dueDateLabel: "Next payment date",
+      plannedPaymentLabel: "Regular payment amount",
+      showOriginalAmount: true,
+      showMinimumPayment: false,
+      showPlannedPayment: true,
+      showPaymentFrequency: true,
+    };
+  }
+
+  if (type === "bill") {
+    return {
+      creditorLabel: "Provider name",
+      currentBalanceLabel: "Amount due",
+      dueDateLabel: "Due date",
+      minimumPaymentLabel: "Expected payment",
+      showOriginalAmount: false,
+      showMinimumPayment: true,
+      showPlannedPayment: false,
+      showPaymentFrequency: false,
+    };
+  }
+
+  return {
+    creditorLabel: "Creditor name",
+    originalAmountLabel: "Original amount",
+    currentBalanceLabel: "Current balance",
+    dueDateLabel: "Due date",
+    minimumPaymentLabel: "Minimum payment",
+    plannedPaymentLabel: "Planned monthly payment",
+    showOriginalAmount: true,
+    showMinimumPayment: true,
+    showPlannedPayment: true,
+    showPaymentFrequency: true,
+  };
 };
 
 const Liabilities = () => {
@@ -104,7 +195,11 @@ const Liabilities = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLiability, setEditingLiability] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentLiability, setPaymentLiability] = useState(null);
+  const [paymentForm, setPaymentForm] = useState(emptyPaymentForm);
   const [saving, setSaving] = useState(false);
+  const [recordingPayment, setRecordingPayment] = useState(false);
   const [actionId, setActionId] = useState("");
 
   const filters = useMemo(
@@ -156,6 +251,7 @@ const Liabilities = () => {
       dueDate: toDateInputValue(liability.dueDate),
       minimumPayment: String(liability.minimumPayment || ""),
       plannedMonthlyPayment: String(liability.plannedMonthlyPayment || ""),
+      paymentFrequency: liability.paymentFrequency || "irregular",
       notes: liability.notes || "",
     });
     setMessage(null);
@@ -167,6 +263,31 @@ const Liabilities = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handlePaymentFormChange = (event) => {
+    const { name, value } = event.target;
+    setPaymentForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const buildLiabilityPayload = () => {
+    const config = getFormConfig(formData.liabilityType);
+    const originalAmount =
+      config.showOriginalAmount || editingLiability
+        ? formData.originalAmount || formData.currentBalance
+        : formData.currentBalance;
+
+    return {
+      ...formData,
+      originalAmount,
+      minimumPayment: config.showMinimumPayment ? formData.minimumPayment : "",
+      plannedMonthlyPayment: config.showPlannedPayment
+        ? formData.plannedMonthlyPayment
+        : "",
+      paymentFrequency: config.showPaymentFrequency
+        ? formData.paymentFrequency
+        : "irregular",
+    };
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -175,10 +296,10 @@ const Liabilities = () => {
       setMessage(null);
 
       if (editingLiability) {
-        await updateLiability(editingLiability._id, formData);
+        await updateLiability(editingLiability._id, buildLiabilityPayload());
         setMessage({ type: "success", text: "Debt updated." });
       } else {
-        await createLiability(formData);
+        await createLiability(buildLiabilityPayload());
         setMessage({ type: "success", text: "Debt added." });
       }
 
@@ -196,24 +317,40 @@ const Liabilities = () => {
     }
   };
 
-  const handleMarkPaid = async (liability) => {
+  const openPaymentModal = (liability) => {
+    setPaymentLiability(liability);
+    setPaymentForm({
+      ...emptyPaymentForm,
+      amount: "",
+      paymentDate: new Date().toISOString().slice(0, 10),
+    });
+    setMessage(null);
+    setPaymentModalOpen(true);
+  };
+
+  const handleRecordPayment = async (event) => {
+    event.preventDefault();
+
+    if (!paymentLiability) {
+      return;
+    }
+
     try {
-      setActionId(`paid-${liability._id}`);
+      setRecordingPayment(true);
       setMessage(null);
-      await updateLiability(liability._id, {
-        ...liability,
-        status: "paid",
-        currentBalance: 0,
-      });
-      setMessage({ type: "success", text: "Debt marked as paid." });
+      await recordLiabilityPayment(paymentLiability._id, paymentForm);
+      setMessage({ type: "success", text: "Payment recorded." });
+      setPaymentModalOpen(false);
+      setPaymentLiability(null);
+      setPaymentForm(emptyPaymentForm);
       await fetchDebtReality();
     } catch (actionError) {
       setMessage({
         type: "error",
-        text: actionError.response?.data?.message || "Failed to mark debt paid.",
+        text: actionError.response?.data?.message || "Failed to record payment.",
       });
     } finally {
-      setActionId("");
+      setRecordingPayment(false);
     }
   };
 
@@ -239,14 +376,30 @@ const Liabilities = () => {
   };
 
   const hasLiabilities = liabilities.length > 0;
+  const emptyStateCopy = {
+    all: {
+      title: "No debts yet.",
+      description:
+        "No debts yet. Add debts, credit cards, bills, or borrowed money to understand your monthly pressure.",
+    },
+    active: {
+      title: "No active debts.",
+      description: "No active debts. You have no current debt pressure.",
+    },
+    paid: {
+      title: "No paid debts yet.",
+      description:
+        "No paid debts yet. Paid debts will appear here after balances are cleared.",
+    },
+  }[statusFilter];
   const insightText =
     summary.dueSoonCount > 0
-      ? `You have ${summary.dueSoonCount} liability payment(s) due soon.`
+      ? `You have ${summary.dueSoonCount} debt payment(s) due soon.`
       : Number(summary.monthlyDebtPressure || 0) > 0
       ? `Your current monthly debt pressure is ${formatCurrency(
           summary.monthlyDebtPressure
         )}.`
-      : "No liabilities yet. Add debts, credit cards, or borrowed money to understand your monthly pressure.";
+      : "No debts yet. Add debts, credit cards, or borrowed money to understand your monthly pressure.";
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -345,7 +498,7 @@ const Liabilities = () => {
           <div className="border-b border-slate-100 px-5 py-4 md:px-6">
             <h2 className="text-xl font-black text-slate-900">What You Owe</h2>
             <p className="text-sm text-slate-500">
-              Track personal debts, bills, credit cards, loans, and borrowed money.
+              Track debts, bills, credit cards, loans, and borrowed money.
             </p>
           </div>
 
@@ -353,9 +506,9 @@ const Liabilities = () => {
             <EmptyState title="Loading Debt Reality..." />
           ) : !hasLiabilities ? (
             <EmptyState
-              title="No debts yet."
-              description="No liabilities yet. Add debts, credit cards, or borrowed money to understand your monthly pressure."
-              actionLabel="Add Debt"
+              title={emptyStateCopy.title}
+              description={emptyStateCopy.description}
+              actionLabel={statusFilter === "paid" ? "" : "Add Debt"}
               onAction={openCreateModal}
             />
           ) : (
@@ -366,7 +519,7 @@ const Liabilities = () => {
                   liability={liability}
                   actionId={actionId}
                   onEdit={openEditModal}
-                  onMarkPaid={handleMarkPaid}
+                  onRecordPayment={openPaymentModal}
                   onDelete={handleDelete}
                 />
               ))}
@@ -392,129 +545,186 @@ const Liabilities = () => {
             onSubmit={handleSubmit}
           />
         </Modal>
+
+        <Modal
+          open={paymentModalOpen}
+          onClose={() => {
+            setPaymentModalOpen(false);
+            setPaymentLiability(null);
+            setPaymentForm(emptyPaymentForm);
+          }}
+          title="Record Payment"
+          description={
+            paymentLiability
+              ? `Reduce the balance for ${paymentLiability.creditorName}.`
+              : "Record a debt payment."
+          }
+        >
+          <PaymentForm
+            paymentForm={paymentForm}
+            liability={paymentLiability}
+            recording={recordingPayment}
+            onChange={handlePaymentFormChange}
+            onSubmit={handleRecordPayment}
+          />
+        </Modal>
       </main>
     </div>
   );
 };
 
-const DebtForm = ({ formData, saving, editing, onChange, onSubmit }) => (
-  <form onSubmit={onSubmit} className="space-y-4">
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <FormField label="Creditor name">
-        <input
-          name="creditorName"
-          value={formData.creditorName}
+const DebtForm = ({ formData, saving, editing, onChange, onSubmit }) => {
+  const config = getFormConfig(formData.liabilityType);
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <FormField label={config.creditorLabel}>
+          <input
+            name="creditorName"
+            value={formData.creditorName}
+            onChange={onChange}
+            required
+            disabled={saving}
+            className={inputClass}
+            placeholder="Visa, Alex, Student loan"
+          />
+        </FormField>
+
+        <FormField label="Debt type">
+          <select
+            name="liabilityType"
+            value={formData.liabilityType}
+            onChange={onChange}
+            disabled={saving}
+            className={inputClass}
+          >
+            {liabilityTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
+        {config.showOriginalAmount && (
+          <FormField label={config.originalAmountLabel}>
+            <input
+              name="originalAmount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.originalAmount}
+              onChange={onChange}
+              required
+              disabled={saving}
+              className={inputClass}
+            />
+          </FormField>
+        )}
+
+        <FormField label={config.currentBalanceLabel}>
+          <input
+            name="currentBalance"
+            type="number"
+            min="0"
+            step="0.01"
+            value={formData.currentBalance}
+            onChange={onChange}
+            required
+            disabled={saving}
+            className={inputClass}
+          />
+        </FormField>
+
+        <FormField label={config.dueDateLabel}>
+          <input
+            name="dueDate"
+            type="date"
+            value={formData.dueDate}
+            onChange={onChange}
+            disabled={saving}
+            className={inputClass}
+          />
+        </FormField>
+
+        {config.showMinimumPayment && (
+          <FormField label={config.minimumPaymentLabel}>
+            <input
+              name="minimumPayment"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.minimumPayment}
+              onChange={onChange}
+              disabled={saving}
+              className={inputClass}
+            />
+          </FormField>
+        )}
+
+        {config.showPlannedPayment && (
+          <FormField label={config.plannedPaymentLabel}>
+            <input
+              name="plannedMonthlyPayment"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.plannedMonthlyPayment}
+              onChange={onChange}
+              disabled={saving}
+              className={inputClass}
+            />
+          </FormField>
+        )}
+
+        {config.showPaymentFrequency && (
+          <FormField label="Payment frequency">
+            <select
+              name="paymentFrequency"
+              value={formData.paymentFrequency}
+              onChange={onChange}
+              disabled={saving}
+              className={inputClass}
+            >
+              {paymentFrequencies.map((frequency) => (
+                <option key={frequency.value} value={frequency.value}>
+                  {frequency.label}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        )}
+      </div>
+
+      {!config.showOriginalAmount && (
+        <p className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          Original amount will default to the current balance for this debt type.
+        </p>
+      )}
+
+      <FormField label="Notes">
+        <textarea
+          name="notes"
+          value={formData.notes}
           onChange={onChange}
-          required
           disabled={saving}
+          rows={3}
           className={inputClass}
-          placeholder="Visa, Alex, Student loan"
+          placeholder="Optional notes"
         />
       </FormField>
 
-      <FormField label="Debt type">
-        <select
-          name="liabilityType"
-          value={formData.liabilityType}
-          onChange={onChange}
-          disabled={saving}
-          className={inputClass}
-        >
-          {liabilityTypes.map((type) => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </select>
-      </FormField>
-
-      <FormField label="Original amount">
-        <input
-          name="originalAmount"
-          type="number"
-          min="0"
-          step="0.01"
-          value={formData.originalAmount}
-          onChange={onChange}
-          required
-          disabled={saving}
-          className={inputClass}
-        />
-      </FormField>
-
-      <FormField label="Current balance">
-        <input
-          name="currentBalance"
-          type="number"
-          min="0"
-          step="0.01"
-          value={formData.currentBalance}
-          onChange={onChange}
-          required
-          disabled={saving}
-          className={inputClass}
-        />
-      </FormField>
-
-      <FormField label="Due date">
-        <input
-          name="dueDate"
-          type="date"
-          value={formData.dueDate}
-          onChange={onChange}
-          disabled={saving}
-          className={inputClass}
-        />
-      </FormField>
-
-      <FormField label="Minimum payment">
-        <input
-          name="minimumPayment"
-          type="number"
-          min="0"
-          step="0.01"
-          value={formData.minimumPayment}
-          onChange={onChange}
-          disabled={saving}
-          className={inputClass}
-        />
-      </FormField>
-
-      <FormField label="Planned monthly payment">
-        <input
-          name="plannedMonthlyPayment"
-          type="number"
-          min="0"
-          step="0.01"
-          value={formData.plannedMonthlyPayment}
-          onChange={onChange}
-          disabled={saving}
-          className={inputClass}
-        />
-      </FormField>
-    </div>
-
-    <FormField label="Notes">
-      <textarea
-        name="notes"
-        value={formData.notes}
-        onChange={onChange}
+      <button
+        type="submit"
         disabled={saving}
-        rows={3}
-        className={inputClass}
-        placeholder="Optional notes"
-      />
-    </FormField>
-
-    <button
-      type="submit"
-      disabled={saving}
-      className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
-    >
-      {saving ? "Saving..." : editing ? "Save Debt" : "Add Debt"}
-    </button>
-  </form>
-);
+        className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+      >
+        {saving ? "Saving..." : editing ? "Save Debt" : "Add Debt"}
+      </button>
+    </form>
+  );
+};
 
 const FormField = ({ label, children }) => (
   <label className="block">
@@ -523,7 +733,76 @@ const FormField = ({ label, children }) => (
   </label>
 );
 
-const DebtRow = ({ liability, actionId, onEdit, onMarkPaid, onDelete }) => (
+const PaymentForm = ({
+  paymentForm,
+  liability,
+  recording,
+  onChange,
+  onSubmit,
+}) => (
+  <form onSubmit={onSubmit} className="space-y-4">
+    {liability && (
+      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+        <p className="text-sm font-bold text-slate-900">
+          Current balance: {formatCurrency(liability.currentBalance)}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          Payments reduce this balance. The debt becomes paid only when the
+          balance reaches zero.
+        </p>
+      </div>
+    )}
+
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <FormField label="Payment amount">
+        <input
+          name="amount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          value={paymentForm.amount}
+          onChange={onChange}
+          required
+          disabled={recording}
+          className={inputClass}
+        />
+      </FormField>
+
+      <FormField label="Payment date">
+        <input
+          name="paymentDate"
+          type="date"
+          value={paymentForm.paymentDate}
+          onChange={onChange}
+          disabled={recording}
+          className={inputClass}
+        />
+      </FormField>
+    </div>
+
+    <FormField label="Note">
+      <textarea
+        name="note"
+        value={paymentForm.note}
+        onChange={onChange}
+        disabled={recording}
+        rows={3}
+        className={inputClass}
+        placeholder="Optional payment note"
+      />
+    </FormField>
+
+    <button
+      type="submit"
+      disabled={recording}
+      className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+    >
+      {recording ? "Recording..." : "Record Payment"}
+    </button>
+  </form>
+);
+
+const DebtRow = ({ liability, actionId, onEdit, onRecordPayment, onDelete }) => (
   <article className="px-5 py-5 md:px-6">
     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
       <div className="min-w-0">
@@ -567,11 +846,11 @@ const DebtRow = ({ liability, actionId, onEdit, onMarkPaid, onDelete }) => (
         {liability.status !== "paid" && (
           <button
             type="button"
-            onClick={() => onMarkPaid(liability)}
+            onClick={() => onRecordPayment(liability)}
             disabled={Boolean(actionId)}
             className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:text-emerald-300"
           >
-            {actionId === `paid-${liability._id}` ? "Updating..." : "Mark Paid"}
+            Record Payment
           </button>
         )}
         <button

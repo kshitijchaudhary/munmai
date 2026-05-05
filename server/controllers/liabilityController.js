@@ -2,7 +2,9 @@ import {
   createLiability,
   deleteLiability,
   getLiabilitySummary,
+  listLiabilityPayments,
   listLiabilities,
+  recordLiabilityPayment,
   updateLiability,
 } from "../services/liabilityService.js";
 
@@ -52,4 +54,19 @@ export const deleteUserLiability = asyncHandler(async (req, res) => {
 export const getUserLiabilitySummary = asyncHandler(async (req, res) => {
   const summary = await getLiabilitySummary(getUserId(req));
   return res.status(200).json(summary);
+});
+
+export const getUserLiabilityPayments = asyncHandler(async (req, res) => {
+  const payments = await listLiabilityPayments(getUserId(req), req.params.id);
+  return res.status(200).json(payments);
+});
+
+export const createUserLiabilityPayment = asyncHandler(async (req, res) => {
+  const result = await recordLiabilityPayment(
+    getUserId(req),
+    req.params.id,
+    req.body || {}
+  );
+
+  return res.status(201).json(result);
 });

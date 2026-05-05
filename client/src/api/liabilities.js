@@ -24,3 +24,13 @@ export const deleteLiability = async (id) => {
   const response = await api.delete(`/liabilities/${id}`);
   return response.data;
 };
+
+export const getLiabilityPayments = async (id) => {
+  const response = await api.get(`/liabilities/${id}/payments`);
+  return response.data;
+};
+
+export const recordLiabilityPayment = async (id, payload) => {
+  const response = await api.post(`/liabilities/${id}/payments`, payload);
+  return response.data;
+};

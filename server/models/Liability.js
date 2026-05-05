@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 export const liabilityTypes = ["friend", "credit_card", "loan", "bill", "other"];
 export const liabilityStatuses = ["active", "paid"];
+export const paymentFrequencies = ["weekly", "biweekly", "monthly", "irregular"];
 
 const liabilitySchema = new mongoose.Schema(
   {
@@ -45,6 +46,11 @@ const liabilitySchema = new mongoose.Schema(
       type: Number,
       min: [0, "Planned monthly payment cannot be negative"],
       default: 0,
+    },
+    paymentFrequency: {
+      type: String,
+      enum: paymentFrequencies,
+      default: "irregular",
     },
     status: {
       type: String,

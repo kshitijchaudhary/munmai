@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
-import Liability, { liabilityStatuses, liabilityTypes } from "../models/Liability.js";
+import Liability, {
+  liabilityStatuses,
+  liabilityTypes,
+  paymentFrequencies,
+} from "../models/Liability.js";
+import LiabilityPayment from "../models/LiabilityPayment.js";
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -46,6 +51,20 @@ const normalizeDueDate = (value) => {
 
   if (Number.isNaN(date.getTime())) {
     throw createError("Due date must be a valid date", 400);
+  }
+
+  return date;
+};
+
+const normalizePaymentDate = (value) => {
+  if (!value) {
+    return new Date();
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw createError("Payment date must be a valid date", 400);
   }
 
   return date;
@@ -111,6 +130,18 @@ const normalizeLiabilityPayload = (payload, { partial = false } = {}) => {
     );
   } else if (!partial) {
     updates.plannedMonthlyPayment = 0;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "paymentFrequency")) {
+    const paymentFrequency = String(payload.paymentFrequency || "irregular").trim();
+
+    if (!paymentFrequencies.includes(paymentFrequency)) {
+      throw createError("Payment frequency is invalid", 400);
+    }
+
+    updates.paymentFrequency = paymentFrequency;
+  } else if (!partial) {
+    updates.paymentFrequency = "irregular";
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, "dueDate")) {
@@ -207,7 +238,64 @@ export const deleteLiability = async (userId, liabilityId) => {
     throw createError("Debt not found", 404);
   }
 
+  await LiabilityPayment.deleteMany({ liability: liability._id, user: userId });
+
   return { message: "Debt deleted" };
+};
+
+export const listLiabilityPayments = async (userId, liabilityId) => {
+  assertValidObjectId(liabilityId);
+
+  const liability = await Liability.exists({ _id: liabilityId, user: userId });
+
+  if (!liability) {
+    throw createError("Debt not found", 404);
+  }
+
+  return LiabilityPayment.find({ liability: liabilityId, user: userId }).sort({
+    paymentDate: -1,
+    createdAt: -1,
+  });
+};
+
+export const recordLiabilityPayment = async (userId, liabilityId, payload = {}) => {
+  assertValidObjectId(liabilityId);
+
+  const amount = normalizeRequiredAmount(payload.amount, "Payment amount");
+
+  if (amount <= 0) {
+    throw createError("Payment amount must be greater than 0", 400);
+  }
+
+  const liability = await Liability.findOne({ _id: liabilityId, user: userId });
+
+  if (!liability) {
+    throw createError("Debt not found", 404);
+  }
+
+  if (Number(liability.currentBalance || 0) <= 0) {
+    throw createError("This debt is already paid", 400);
+  }
+
+  const payment = await LiabilityPayment.create({
+    user: userId,
+    liability: liability._id,
+    amount,
+    paymentDate: normalizePaymentDate(payload.paymentDate),
+    note: String(payload.note || "").trim(),
+  });
+
+  liability.currentBalance = roundMoney(
+    Math.max(Number(liability.currentBalance || 0) - amount, 0)
+  );
+
+  if (liability.currentBalance === 0) {
+    liability.status = "paid";
+  }
+
+  await liability.save();
+
+  return { liability, payment };
 };
 
 export const getLiabilitySummary = async (userId) => {
