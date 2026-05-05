@@ -2,6 +2,28 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.4.0 - Debt Reality MVP
+
+### Added
+- Debt Reality page for tracking personal debts, bills, loans, credit cards, and borrowed money
+- Debt summary cards: Total Debt, Monthly Debt Pressure, Due Soon, and Active Debts
+- Type-aware debt forms for friend debt, credit cards, loans, bills, and other debt types
+- Record Payment flow that reduces debt balance over time
+- Payment history backend support
+- Debt filters: All, Active, Paid
+- Dashboard Debt Reality card
+
+### Improved
+- User-facing naming uses “Debt Reality” instead of “Liabilities”
+- Debt cards now show type-specific labels
+- Paid debts use calmer completed-state UI
+- Monthly debt pressure now reflects active debts only
+
+### Notes
+- No group logic changed.
+- No Monthly Control logic changed.
+- CSV import, credit optimization, rewards, and AI suggestions are planned for future phases.
+
 ## v1.3.2 - Budget Clarity Polish
 
 ### Added
