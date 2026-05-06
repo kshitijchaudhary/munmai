@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import MoneyTransactions from "./pages/MoneyTransactions";
 import MoneyReceipts from "./pages/MoneyReceipts";
 import MoneyTaxPack from "./pages/MoneyTaxPack";
+import ImportReview from "./pages/ImportReview";
 import Liabilities from "./pages/Liabilities";
 import Groups from "./pages/Groups";
 import GroupInvitations from "./pages/GroupInvitations";
@@ -71,6 +72,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MoneyTaxPack />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/imports"
+              element={
+                <ProtectedRoute>
+                  <ImportReview />
                 </ProtectedRoute>
               }
             />

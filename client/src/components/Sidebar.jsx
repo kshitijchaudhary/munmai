@@ -21,6 +21,7 @@ const getNavSections = (pathname) => [
     items: [
       { label: "Transactions", to: "/money/transactions" },
       { label: "Receipts", to: "/money/receipts" },
+      { label: "Import CSV", to: "/imports" },
     ],
   },
   {
