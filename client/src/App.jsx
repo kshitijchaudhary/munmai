@@ -12,11 +12,14 @@ import MoneyTransactions from "./pages/MoneyTransactions";
 import MoneyReceipts from "./pages/MoneyReceipts";
 import MoneyTaxPack from "./pages/MoneyTaxPack";
 import ImportReview from "./pages/ImportReview";
+import MonthlySummary from "./pages/MonthlySummary";
+import OpeningBalance from "./pages/OpeningBalance";
 import Liabilities from "./pages/Liabilities";
 import Groups from "./pages/Groups";
 import GroupInvitations from "./pages/GroupInvitations";
 import GroupSummary from "./pages/GroupSummary";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsPage from "./pages/TermsPage";
 import WhatWeStore from "./pages/WhatWeStore";
@@ -84,6 +87,22 @@ function App() {
               }
             />
             <Route
+              path="/monthly-summary"
+              element={
+                <ProtectedRoute>
+                  <MonthlySummary />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/opening-balance"
+              element={
+                <ProtectedRoute>
+                  <OpeningBalance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/debt-reality"
               element={
                 <ProtectedRoute>
@@ -128,6 +147,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />

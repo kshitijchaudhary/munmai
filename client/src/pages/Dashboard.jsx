@@ -12,6 +12,7 @@ import api from "../api/axios";
 import { getBudgetSummary, updateBudgetLimit } from "../api/budget";
 import { getDashboardSummary } from "../api/dashboard";
 import { getLiabilitySummary } from "../api/liabilities";
+import { getOpeningBalance } from "../api/openingBalance";
 import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
 import { AuthContext } from "../context/AuthContext";
@@ -73,6 +74,12 @@ const buildEmptyDebtRealitySummary = () => ({
   totalActiveDebt: 0,
   monthlyDebtPressure: 0,
   dueSoonCount: 0,
+});
+
+const buildEmptyOpeningBalance = () => ({
+  amount: 0,
+  asOfDate: null,
+  notes: "",
 });
 
 const budgetStatusLabels = {
@@ -182,6 +189,7 @@ const Dashboard = () => {
   const [debtRealitySummary, setDebtRealitySummary] = useState(
     buildEmptyDebtRealitySummary
   );
+  const [openingBalance, setOpeningBalance] = useState(buildEmptyOpeningBalance);
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
   const [budgetMessage, setBudgetMessage] = useState(null);
@@ -192,6 +200,7 @@ const Dashboard = () => {
   const [groupError, setGroupError] = useState("");
   const [budgetError, setBudgetError] = useState("");
   const [debtRealityError, setDebtRealityError] = useState("");
+  const [openingBalanceError, setOpeningBalanceError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
@@ -216,6 +225,7 @@ const Dashboard = () => {
       groupResult,
       budgetResult,
       debtRealityResult,
+      openingBalanceResult,
     ] =
       await Promise.allSettled([
         getDashboardSummary(),
@@ -224,6 +234,7 @@ const Dashboard = () => {
         api.get("/groups"),
         getBudgetSummary(),
         getLiabilitySummary(),
+        getOpeningBalance(),
       ]);
 
     if (summaryResult.status === "fulfilled") {
@@ -287,7 +298,21 @@ const Dashboard = () => {
       setDebtRealitySummary(buildEmptyDebtRealitySummary());
       setDebtRealityError(
         debtRealityResult.reason?.response?.data?.message ||
-          "Failed to load Debt Reality."
+        "Failed to load Debt Reality."
+      );
+    }
+
+    if (openingBalanceResult.status === "fulfilled") {
+      setOpeningBalance({
+        ...buildEmptyOpeningBalance(),
+        ...(openingBalanceResult.value?.openingBalance || {}),
+      });
+      setOpeningBalanceError("");
+    } else {
+      setOpeningBalance(buildEmptyOpeningBalance());
+      setOpeningBalanceError(
+        openingBalanceResult.reason?.response?.data?.message ||
+          "Failed to load opening balance."
       );
     }
 
@@ -418,6 +443,8 @@ const Dashboard = () => {
 
   const sharedMoney =
     dashboardSummary.sharedMoney ?? buildEmptyDashboardSummary().sharedMoney;
+  const personalBalance =
+    Number(openingBalance.amount || 0) + Number(dashboardSummary.balance || 0);
   const hasAnyTransactions = stats.allTransactions.length > 0;
   const hasAnyGroups = groups.length > 0;
   const showOnboarding = !hasAnyTransactions && !hasAnyGroups && !groupError;
@@ -468,13 +495,15 @@ const Dashboard = () => {
           transactionError ||
           groupError ||
           budgetError ||
-          debtRealityError) && (
+          debtRealityError ||
+          openingBalanceError) && (
           <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
             {dashboardError ||
               transactionError ||
               groupError ||
               budgetError ||
-              debtRealityError}
+              debtRealityError ||
+              openingBalanceError}
           </div>
         )}
 
@@ -543,7 +572,7 @@ const Dashboard = () => {
           description="Your all-time personal totals and shared money position."
         />
         <section className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Net Balance" value={dashboardSummary.balance} isBalance />
+          <MetricCard label="Net Balance" value={personalBalance} isBalance />
           <MetricCard label="Income Total" value={dashboardSummary.incomeTotal} type="income" />
           <MetricCard label="Expense Total" value={dashboardSummary.expenseTotal} type="expense" />
           <MetricCard label="Shared Net Balance" value={sharedMoney.netBalance} isBalance />

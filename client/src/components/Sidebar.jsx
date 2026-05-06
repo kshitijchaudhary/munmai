@@ -2,11 +2,7 @@ import { useContext, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
-const futureItems = new Set([
-  "Monthly Summary",
-  "Opening Balance",
-  "Settings",
-]);
+const futureItems = new Set();
 
 const getGroupDestination = (pathname) =>
   /^\/groups\/[^/]+\/summary$/.test(pathname) ? pathname : "/groups";
@@ -29,21 +25,21 @@ const getNavSections = (pathname) => [
     items: [
       { label: "My Groups", to: "/groups" },
       { label: "Invitations", to: "/group-invitations" },
-      { label: "Shared Expenses", to: getGroupDestination(pathname), status: "In Group" },
-      { label: "Settlements", to: getGroupDestination(pathname), status: "In Group" },
+      { label: "Shared Expenses", to: getGroupDestination(pathname), groupScoped: true },
+      { label: "Settlements", to: getGroupDestination(pathname), groupScoped: true },
     ],
   },
   {
     label: "Reports",
     items: [
       { label: "Tax Pack", to: "/money/tax-pack" },
-      { label: "Monthly Summary", status: "Coming Soon" },
+      { label: "Monthly Summary", to: "/monthly-summary" },
     ],
   },
   {
     label: "Financial Life",
     items: [
-      { label: "Opening Balance", status: "Coming Soon" },
+      { label: "Opening Balance", to: "/opening-balance" },
       { label: "Debt Reality", to: "/debt-reality" },
     ],
   },
@@ -51,7 +47,7 @@ const getNavSections = (pathname) => [
     label: "Settings",
     items: [
       { label: "Profile", to: "/profile" },
-      { label: "Settings", status: "Coming Soon" },
+      { label: "Settings", to: "/settings" },
     ],
   },
 ];
@@ -61,7 +57,7 @@ const isActiveItem = (pathname, search, hash, item) => {
     return false;
   }
 
-  if (item.status === "In Group") {
+  if (item.groupScoped) {
     return false;
   }
 
