@@ -2,6 +2,31 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.5.1 - Sidebar Completion and Demo Polish
+
+### Added
+- Monthly Summary page with income vs expense comparison
+- Net Flow card for monthly financial position
+- Category breakdown with visual bars
+- Monthly signals for budget and debt pressure
+- Opening Balance page with clearer setup explanation
+- Reset Opening Balance action
+- Settings page with account, money context, and data links
+
+### Improved
+- Dashboard all-time net balance now includes opening balance
+- Opening balance is clearly separated from monthly income
+- Sidebar is cleaner and more professional
+- Removed unprofessional group badges from sidebar
+- Removed Coming Soon badges from completed sidebar items
+
+### Notes
+- No import logic changed.
+- No group logic changed.
+- No Debt Reality payment logic changed.
+- No AI, rewards, bank sync, or credit optimization added.
+
+
 ## v1.5.0 - Import Review Queue MVP
 
 ### Added
