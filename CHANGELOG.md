@@ -2,6 +2,32 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.5.0 - Import Review Queue MVP
+
+### Added
+- Import CSV page
+- CSV upload and review queue
+- Import batches and import rows
+- Classification flow for income, expense, debt payment, transfer, and ignore
+- Suggested classifications for common transaction types
+- Debt payment import with linked Debt Reality item
+- Skip Row and Undo Skip actions
+- Import Complete summary
+- Read-only imported batch review
+- Cancel/remove support for pending or cancelled imports
+
+### Improved
+- CSV rows are reviewed before affecting income, expenses, or debt balances
+- Date-only CSV values now preserve the correct calendar date
+- Debt payment rows require linked debts before import
+- Imported rows cannot be committed twice
+
+### Notes
+- No bank sync added.
+- No AI categorization added.
+- No rewards, credit optimization, or tax split added.
+
+
 ## v1.4.0 - Debt Reality MVP
 
 ### Added
