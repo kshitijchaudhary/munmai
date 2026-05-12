@@ -9,7 +9,21 @@ Munmai is a production-deployed MERN application built to help people understand
 - Live app: [https://munmai.com](https://munmai.com)
 - Backend: [https://munmai-api.onrender.com](https://munmai-api.onrender.com)
 - API health: [https://munmai-api.onrender.com/api/health](https://munmai-api.onrender.com/api/health)
-- GitHub repo: add repository link here
+- GitHub repo: [https://github.com/kshitijchaudhary/munmai](https://github.com/kshitijchaudhary/munmai)
+
+## Quick Demo Flow
+
+1. Open the Dashboard to view personal balance, Monthly Control, Debt Reality, and shared money.
+2. Add or import income and expenses.
+3. Use Import CSV to review statement rows before committing them.
+4. Track debt balances and record payments through Debt Reality.
+5. Create a group, add shared expenses, and settle balances.
+6. Review Monthly Summary for income, expenses, net flow, and category breakdown.
+
+## Demo Access
+
+A demo account can be provided upon request.
+
 
 ## Feature Overview
 
@@ -119,6 +133,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a fuller system overview.
 
 - v1.2.1 Group Collaboration Polish: improved invite UX, group membership display, join code flow, and group management controls.
 - v1.3.0 Monthly Control Budget MVP: added monthly spending limit tracking and budget status.
+- v1.3.1 Group Join Code Hotfix: restored join-code group access after UI polish.
 - v1.3.2 Budget Clarity Polish: added progress bar, daily safe spend, clearer labels, and better budget insight copy.
 - v1.4.0 Debt Reality MVP: added personal liabilities, debt summaries, and payment recording.
 - v1.5.0 Import Review Queue MVP: added CSV upload, row review, classification, skip row, and reviewed commit flow.
@@ -130,8 +145,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a fuller system overview.
 ### 1. Clone
 
 ```bash
-git clone <your-repo-url>
-cd fintrack
+git clone https://github.com/kshitijchaudhary/munmai.git
+cd munmai
 ```
 
 ### 2. Install dependencies
