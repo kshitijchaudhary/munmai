@@ -2,6 +2,25 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.5.2 - Portfolio Demo Polish
+
+### Added
+- Updated README with stronger portfolio positioning
+- Added Munmai feature overview and workflow explanation
+- Added screenshots section for demo review
+- Added architecture/demo/interview documentation where applicable
+- Added release history and local setup guidance
+
+### Improved
+- GitHub project presentation for recruiters and interviewers
+- Clearer explanation of Munmai as a financial clarity system
+- Documentation now explains CSV review, Debt Reality, Monthly Control, and Shared Money flows
+
+### Notes
+- No application logic changed.
+- No backend routes changed.
+- No new product features added.
+
 ## v1.5.1 - Sidebar Completion and Demo Polish
 
 ### Added
