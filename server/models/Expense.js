@@ -85,11 +85,52 @@ const expenseSchema = new mongoose.Schema(
       maxLength: [500, 'Notes cannot exceed 500 characters'],
       default: '',
     },
+    importSource: {
+      type: String,
+      enum: ['pdf', 'csv'],
+      trim: true,
+    },
+    importFileName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    importHash: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    importedAt: {
+      type: Date,
+    },
+    originalDescription: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    originalRawText: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    sourceRowNumber: {
+      type: Number,
+      min: 0,
+    },
   },
   { timestamps: true }
 );
 
 expenseSchema.index({ userId: 1, date: -1 });
+expenseSchema.index(
+  { userId: 1, importHash: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      importHash: { $exists: true, $type: 'string' },
+    },
+  }
+);
 
 const Expense = mongoose.model('Expense', expenseSchema);
 export default Expense;

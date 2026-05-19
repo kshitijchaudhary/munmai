@@ -22,6 +22,11 @@ export const previewBankStatementPdf = async (file) => {
   return response.data;
 };
 
+export const confirmPdfImportRows = async (payload) => {
+  const response = await api.post("/imports/bank/pdf/confirm", payload);
+  return response.data;
+};
+
 export const getImportBatches = async () => {
   const response = await api.get("/imports");
   return response.data;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   commitImportBatch,
+  confirmPdfImportRows,
   deleteImportBatch,
   getImportBatches,
   getImportRows,
@@ -42,6 +43,23 @@ const formatCurrency = (value) =>
   }).format(Number(value || 0));
 
 const formatNumber = (value) => new Intl.NumberFormat("en-CA").format(Number(value || 0));
+
+const isImportablePdfType = (type) => ["income", "expense"].includes(type);
+
+const getPdfRowKey = (row) => String(row?.rowNumber || row?.rawText || "");
+
+const normalizePdfRows = (rows) =>
+  (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    type: row.type || "unknown",
+    category: row.category || "Other",
+  }));
+
+const buildDefaultPdfSelection = (rows) =>
+  rows.reduce((selection, row) => {
+    selection[getPdfRowKey(row)] = isImportablePdfType(row.type);
+    return selection;
+  }, {});
 
 const getDateParts = (value) => {
   if (!value) {
@@ -195,11 +213,16 @@ const ImportReview = () => {
   const [file, setFile] = useState(null);
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfPreview, setPdfPreview] = useState(null);
+  const [pdfRows, setPdfRows] = useState([]);
+  const [selectedPdfRows, setSelectedPdfRows] = useState({});
   const [pdfStatus, setPdfStatus] = useState(null);
+  const [pdfConfirmStatus, setPdfConfirmStatus] = useState(null);
+  const [pdfConfirmResult, setPdfConfirmResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rowsLoading, setRowsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewingPdf, setPreviewingPdf] = useState(false);
+  const [confirmingPdf, setConfirmingPdf] = useState(false);
   const [savingRowId, setSavingRowId] = useState("");
   const [committing, setCommitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -210,6 +233,14 @@ const ImportReview = () => {
   const activeLiabilities = useMemo(
     () => liabilities.filter((liability) => liability.status === "active"),
     [liabilities]
+  );
+
+  const selectedPdfRowsForImport = useMemo(
+    () =>
+      pdfRows.filter(
+        (row) => selectedPdfRows[getPdfRowKey(row)] && isImportablePdfType(row.type)
+      ),
+    [pdfRows, selectedPdfRows]
   );
 
   const loadBatches = useCallback(async () => {
@@ -315,9 +346,16 @@ const ImportReview = () => {
       setPreviewingPdf(true);
       setPdfStatus(null);
       setPdfPreview(null);
+      setPdfRows([]);
+      setSelectedPdfRows({});
+      setPdfConfirmStatus(null);
+      setPdfConfirmResult(null);
 
       const result = await previewBankStatementPdf(pdfFile);
+      const previewRows = normalizePdfRows(result.parsedRows);
       setPdfPreview(result);
+      setPdfRows(previewRows);
+      setSelectedPdfRows(buildDefaultPdfSelection(previewRows));
       setPdfStatus({
         type: "success",
         text:
@@ -333,6 +371,81 @@ const ImportReview = () => {
       });
     } finally {
       setPreviewingPdf(false);
+    }
+  };
+
+  const updatePdfRow = (rowKey, updates) => {
+    setPdfRows((currentRows) =>
+      currentRows.map((row) =>
+        getPdfRowKey(row) === rowKey ? { ...row, ...updates } : row
+      )
+    );
+
+    if (Object.prototype.hasOwnProperty.call(updates, "type")) {
+      setSelectedPdfRows((currentSelection) => ({
+        ...currentSelection,
+        [rowKey]: isImportablePdfType(updates.type)
+          ? Boolean(currentSelection[rowKey])
+          : false,
+      }));
+    }
+  };
+
+  const togglePdfRowSelection = (rowKey) => {
+    const row = pdfRows.find((currentRow) => getPdfRowKey(currentRow) === rowKey);
+
+    if (!row || !isImportablePdfType(row.type)) {
+      return;
+    }
+
+    setSelectedPdfRows((currentSelection) => ({
+      ...currentSelection,
+      [rowKey]: !currentSelection[rowKey],
+    }));
+  };
+
+  const handleConfirmPdfRows = async () => {
+    if (!selectedPdfRowsForImport.length) {
+      setPdfConfirmStatus({
+        type: "error",
+        text: "Select at least one income or expense row to import.",
+      });
+      return;
+    }
+
+    try {
+      setConfirmingPdf(true);
+      setPdfConfirmStatus(null);
+      setPdfConfirmResult(null);
+
+      const result = await confirmPdfImportRows({
+        fileName: pdfPreview?.fileName || pdfFile?.name || "statement.pdf",
+        rows: selectedPdfRowsForImport.map((row) => ({
+          rowNumber: row.rowNumber,
+          date: row.date,
+          description: row.description,
+          amount: row.amount,
+          type: row.type,
+          confidence: row.confidence,
+          rawText: row.rawText,
+          category: row.category || "Other",
+        })),
+      });
+
+      setPdfConfirmResult(result);
+      setPdfConfirmStatus({
+        type: "success",
+        text: result.message || "PDF rows processed.",
+      });
+    } catch (error) {
+      setPdfConfirmStatus({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          "Failed to import selected PDF rows.",
+      });
+    } finally {
+      setConfirmingPdf(false);
     }
   };
 
@@ -651,7 +764,20 @@ const ImportReview = () => {
           </div>
         </section>
 
-        {pdfPreview && <PdfPreviewSection preview={pdfPreview} />}
+        {pdfPreview && (
+          <PdfPreviewSection
+            preview={pdfPreview}
+            rows={pdfRows}
+            selectedRows={selectedPdfRows}
+            selectedCount={selectedPdfRowsForImport.length}
+            confirming={confirmingPdf}
+            confirmStatus={pdfConfirmStatus}
+            confirmResult={pdfConfirmResult}
+            onToggleRow={togglePdfRowSelection}
+            onUpdateRow={updatePdfRow}
+            onConfirm={handleConfirmPdfRows}
+          />
+        )}
 
         <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6">
@@ -744,8 +870,19 @@ const ImportReview = () => {
   );
 };
 
-const PdfPreviewSection = ({ preview }) => {
-  const parsedRows = Array.isArray(preview?.parsedRows) ? preview.parsedRows : [];
+const PdfPreviewSection = ({
+  preview,
+  rows,
+  selectedRows,
+  selectedCount,
+  confirming,
+  confirmStatus,
+  confirmResult,
+  onToggleRow,
+  onUpdateRow,
+  onConfirm,
+}) => {
+  const parsedRows = Array.isArray(rows) ? rows : [];
   const summary = preview?.parserSummary || {};
 
   return (
@@ -759,8 +896,8 @@ const PdfPreviewSection = ({ preview }) => {
             Bank statement preview
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Transactions are not saved yet. Use this preview to confirm whether
-            Munmai can read this text-based PDF.
+            PDF preview only. Transactions are not saved until you confirm
+            selected rows.
           </p>
         </div>
       </div>
@@ -841,9 +978,40 @@ const PdfPreviewSection = ({ preview }) => {
         </div>
 
         <div>
-          <h3 className="mb-3 text-lg font-black text-slate-900">
-            Parsed preview rows
-          </h3>
+          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-lg font-black text-slate-900">
+                Parsed preview rows
+              </h3>
+              <p className="text-sm text-slate-500">
+                {selectedCount} selected for import. Duplicates will be skipped,
+                not treated as failures.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={confirming || selectedCount === 0}
+              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+            >
+              {confirming ? "Importing..." : "Import Selected PDF Rows"}
+            </button>
+          </div>
+
+          {confirmStatus?.text && (
+            <div
+              className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
+                confirmStatus.type === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300"
+                  : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-300"
+              }`}
+            >
+              {confirmStatus.text}
+            </div>
+          )}
+
+          {confirmResult && <PdfConfirmResult result={confirmResult} />}
 
           {parsedRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-10 text-center dark:border-slate-700">
@@ -856,7 +1024,13 @@ const PdfPreviewSection = ({ preview }) => {
           ) : (
             <div className="space-y-3">
               {parsedRows.map((row) => (
-                <PdfParsedRow key={`${row.rowNumber}-${row.rawText}`} row={row} />
+                <PdfParsedRow
+                  key={`${row.rowNumber}-${row.rawText}`}
+                  row={row}
+                  selected={Boolean(selectedRows[getPdfRowKey(row)])}
+                  onToggle={() => onToggleRow(getPdfRowKey(row))}
+                  onUpdate={(updates) => onUpdateRow(getPdfRowKey(row), updates)}
+                />
               ))}
             </div>
           )}
@@ -875,52 +1049,185 @@ const PdfMetaCard = ({ label, value, tone = "text-slate-900" }) => (
   </div>
 );
 
-const PdfParsedRow = ({ row }) => (
-  <article className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white">
-            Row {row.rowNumber}
-          </span>
-          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-            {row.type || "unknown"}
-          </span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            {row.confidence || "low"} confidence
-          </span>
-        </div>
-        <p className="mt-3 font-black text-slate-900">
-          {row.description || "No description"}
-        </p>
-        <p className="mt-1 text-sm text-slate-500">{row.date || "No date"}</p>
-      </div>
+const PdfConfirmResult = ({ result }) => {
+  const summary = result?.summary || {};
+  const results = Array.isArray(result?.results) ? result.results : [];
 
-      <p
-        className={`text-lg font-black ${
-          row.type === "income"
-            ? "text-emerald-600 dark:text-emerald-400"
-            : row.type === "expense"
-            ? "text-rose-600 dark:text-rose-400"
-            : "text-slate-900 dark:text-slate-100"
-        }`}
-      >
-        {formatCurrency(row.amount)}
+  return (
+    <div className="mb-5 rounded-3xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+      <p className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
+        PDF Import Result
       </p>
-    </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <PdfMetaCard label="Processed" value={summary.totalProcessed || 0} />
+        <PdfMetaCard
+          label="Income"
+          value={summary.incomeImported || 0}
+          tone="text-emerald-600"
+        />
+        <PdfMetaCard
+          label="Expenses"
+          value={summary.expensesImported || 0}
+          tone="text-rose-600"
+        />
+        <PdfMetaCard
+          label="Duplicates"
+          value={summary.duplicatesSkipped || 0}
+          tone="text-amber-600"
+        />
+        <PdfMetaCard label="Skipped" value={summary.unsupportedSkipped || 0} />
+        <PdfMetaCard
+          label="Errors"
+          value={summary.errorsCount || 0}
+          tone={summary.errorsCount ? "text-rose-600" : "text-slate-900"}
+        />
+      </div>
 
-    {row.rawText && (
-      <div className="mt-3 rounded-xl border border-slate-100 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
-        <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Raw text
-        </p>
-        <p className="break-words text-sm text-slate-600 dark:text-slate-300">
-          {row.rawText}
+      {results.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {results.map((rowResult) => (
+            <div
+              key={`${rowResult.rowNumber}-${rowResult.status}`}
+              className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between"
+            >
+              <div>
+                <p className="font-bold text-slate-900">
+                  Row {rowResult.rowNumber}
+                </p>
+                <p className="text-slate-500">
+                  {rowResult.reason || rowResult.message || rowResult.recordType || "Processed"}
+                </p>
+              </div>
+              <PdfResultStatus status={rowResult.status} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PdfResultStatus = ({ status }) => {
+  const label = String(status || "processed").replace(/_/g, " ");
+  const tone =
+    status === "imported"
+      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+      : status === "duplicate_skipped" || status === "skipped"
+      ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+      : status === "error"
+      ? "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300"
+      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+
+  return (
+    <span
+      className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${tone}`}
+    >
+      {label}
+    </span>
+  );
+};
+
+const PdfParsedRow = ({ row, selected, onToggle, onUpdate }) => {
+  const importable = isImportablePdfType(row.type);
+
+  return (
+    <article
+      className={`rounded-2xl border p-4 dark:border-slate-800 ${
+        selected
+          ? "border-slate-300 bg-white dark:bg-slate-900"
+          : "border-slate-100 bg-slate-50 dark:bg-slate-950/70"
+      }`}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            disabled={!importable}
+            onChange={onToggle}
+            className="mt-1 h-5 w-5 rounded border-slate-300 text-slate-900 disabled:opacity-40"
+            aria-label={`Select PDF row ${row.rowNumber}`}
+          />
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+                Row {row.rowNumber}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {row.confidence || "low"} confidence
+              </span>
+              {!importable && (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                  Not importable
+                </span>
+              )}
+            </div>
+            <p className="mt-3 font-black text-slate-900">
+              {row.description || "No description"}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">{row.date || "No date"}</p>
+          </div>
+        </div>
+
+        <p
+          className={`text-lg font-black ${
+            row.type === "income"
+              ? "text-emerald-600 dark:text-emerald-400"
+              : row.type === "expense"
+              ? "text-rose-600 dark:text-rose-400"
+              : "text-slate-900 dark:text-slate-100"
+          }`}
+        >
+          {formatCurrency(row.amount)}
         </p>
       </div>
-    )}
-  </article>
-);
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <FormField label="Type">
+          <select
+            value={row.type || "unknown"}
+            onChange={(event) => onUpdate({ type: event.target.value })}
+            className={inputClass}
+          >
+            <option value="unknown">Unknown</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </FormField>
+
+        <FormField label="Category">
+          <input
+            type="text"
+            value={row.category || ""}
+            onChange={(event) => onUpdate({ category: event.target.value })}
+            disabled={!importable}
+            placeholder={row.type === "income" ? "Salary, Other" : "Other"}
+            className={inputClass}
+          />
+        </FormField>
+      </div>
+
+      {!importable && (
+        <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+          Unknown rows are not importable until you classify them as income or
+          expense.
+        </p>
+      )}
+
+      {row.rawText && (
+        <div className="mt-3 rounded-xl border border-slate-100 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+          <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Raw text
+          </p>
+          <p className="break-words text-sm text-slate-600 dark:text-slate-300">
+            {row.rawText}
+          </p>
+        </div>
+      )}
+    </article>
+  );
+};
 
 const BatchRow = ({ batch, selected, onOpen, onRemove }) => (
   <article
