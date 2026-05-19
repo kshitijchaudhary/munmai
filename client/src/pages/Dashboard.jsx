@@ -469,7 +469,7 @@ const Dashboard = () => {
       <div className="min-h-screen bg-slate-50">
         <Sidebar />
         <main className="flex min-h-screen items-center justify-center px-4 font-bold text-slate-400 lg:ml-72">
-          Syncing Financial Vault...
+          Syncing Munmai OS...
         </main>
       </div>
     );
