@@ -1124,7 +1124,7 @@ const GetStartedChecklist = ({ completion, completedCount }) => (
 );
 
 const RecentTransactionRow = ({ item }) => (
-  <div className="px-5 py-4 transition-colors hover:bg-slate-50 md:px-6">
+  <div className="px-5 py-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/70 md:px-6">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-start gap-4">
         <div
@@ -1152,7 +1152,9 @@ const RecentTransactionRow = ({ item }) => (
 
       <p
         className={`shrink-0 text-lg font-black ${
-          item.isIncome ? "text-emerald-600" : "text-slate-900"
+          item.isIncome
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-slate-900 dark:text-slate-100"
         }`}
       >
         {item.isIncome ? "+" : "-"}

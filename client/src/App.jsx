@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageTracker from "./components/PageTracker";
 import Login from "./pages/Login";
@@ -34,11 +35,12 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <AuthProvider>
-      <ErrorBoundary>
-        <Router>
-          <PageTracker />
-          <Routes>
+    <ThemeProvider>
+      <AuthProvider>
+        <ErrorBoundary>
+          <Router>
+            <PageTracker />
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -159,10 +161,11 @@ function App() {
               }
             />
             <Route path="/" element={<Navigate to="/dashboard" />} />
-          </Routes>
-        </Router>
-      </ErrorBoundary>
-    </AuthProvider>
+            </Routes>
+          </Router>
+        </ErrorBoundary>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

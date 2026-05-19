@@ -1,6 +1,7 @@
 import { useContext, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import ThemeToggle from "./ThemeToggle";
 
 const futureItems = new Set();
 
@@ -165,6 +166,9 @@ const SidebarContent = ({ onNavigate }) => {
       >
         Sign Out
       </button>
+      <div className="mt-3">
+        <ThemeToggle />
+      </div>
     </div>
   );
 };
@@ -174,11 +178,11 @@ const Sidebar = () => {
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white px-4 py-6 lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white px-4 py-6 dark:border-slate-800 dark:bg-slate-950 lg:block">
         <SidebarContent />
       </aside>
 
-      <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+      <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <Link to="/dashboard" className="text-xl font-black text-indigo-600">
             Munmai
@@ -193,7 +197,7 @@ const Sidebar = () => {
         </div>
 
         {mobileOpen && (
-          <div className="mt-4 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-100 bg-white p-4 shadow-xl">
+          <div className="mt-4 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-100 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-950">
             <SidebarContent onNavigate={() => setMobileOpen(false)} />
           </div>
         )}

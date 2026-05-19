@@ -55,7 +55,7 @@ const emptySummary = {
 };
 
 const inputClass =
-  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100";
+  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-700 dark:disabled:bg-slate-800";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-CA", {
@@ -627,7 +627,7 @@ const Liabilities = () => {
                   className={`rounded-xl px-4 py-2 text-sm font-bold capitalize transition ${
                     statusFilter === status
                       ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-white"
+                      : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800"
                   }`}
                 >
                   {status}
@@ -841,7 +841,7 @@ const DebtForm = ({ formData, saving, editing, onChange, onSubmit }) => {
       </div>
 
       {!config.showOriginalAmount && (
-        <p className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+        <p className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
           Original amount will default to the current balance for this debt type.
         </p>
       )}
@@ -885,7 +885,7 @@ const PaymentForm = ({
 }) => (
   <form onSubmit={onSubmit} className="space-y-4">
     {liability && (
-      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
         <p className="text-sm font-bold text-slate-900">
           Current balance: {formatCurrency(liability.currentBalance)}
         </p>
@@ -950,7 +950,11 @@ const DebtRow = ({ liability, actionId, onEdit, onRecordPayment, onDelete }) => 
   const paid = liability.status === "paid";
 
   return (
-    <article className={`px-5 py-5 md:px-6 ${paid ? "bg-slate-50/60" : ""}`}>
+    <article
+      className={`px-5 py-5 md:px-6 ${
+        paid ? "bg-slate-50/60 dark:bg-slate-900/50" : "dark:bg-slate-950/20"
+      }`}
+    >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -993,7 +997,7 @@ const DebtRow = ({ liability, actionId, onEdit, onRecordPayment, onDelete }) => 
           <button
             type="button"
             onClick={() => onEdit(liability)}
-            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Edit
           </button>
@@ -1002,7 +1006,7 @@ const DebtRow = ({ liability, actionId, onEdit, onRecordPayment, onDelete }) => 
               type="button"
               onClick={() => onRecordPayment(liability)}
               disabled={Boolean(actionId)}
-              className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:text-emerald-300"
+              className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:text-emerald-300 dark:border-emerald-900/70 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30 dark:disabled:text-emerald-700"
             >
               Record Payment
             </button>
@@ -1011,7 +1015,7 @@ const DebtRow = ({ liability, actionId, onEdit, onRecordPayment, onDelete }) => 
             type="button"
             onClick={() => onDelete(liability)}
             disabled={Boolean(actionId)}
-            className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300"
+            className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300 dark:border-rose-900/70 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/30 dark:disabled:text-rose-700"
           >
             {actionId === `delete-${liability._id}` ? "Deleting..." : "Delete"}
           </button>
@@ -1034,7 +1038,9 @@ const SummaryCard = ({ label, value, helper, tone = "text-slate-900" }) => (
 const DebtMiniStat = ({ label, value, tone = "text-slate-900", calm = false }) => (
   <div
     className={`rounded-2xl border px-4 py-3 ${
-      calm ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50"
+      calm
+        ? "border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900/70"
+        : "border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/70"
     }`}
   >
     <p className="text-xs font-black uppercase tracking-widest text-slate-400">
