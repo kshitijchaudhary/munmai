@@ -52,6 +52,7 @@ export const extractPdfTextPreview = async (file) => {
       isTextReadable,
       textLength,
       extractedTextSample: normalizedText.slice(0, SAMPLE_CHARACTER_LIMIT),
+      rawExtractedText: result?.text || "",
     };
   } catch (error) {
     throw createError(
