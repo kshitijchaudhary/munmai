@@ -7,6 +7,7 @@ import {
   listImportRows,
   updateImportRow,
 } from "../services/importService.js";
+import { extractPdfTextPreview } from "../services/import/pdfTextExtractor.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
   try {
@@ -45,6 +46,28 @@ const csvUpload = multer({
 
 const csvUploadMiddleware = csvUpload.single("file");
 
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: Number(process.env.PDF_IMPORT_LIMIT_MB || 5) * 1024 * 1024,
+  },
+  fileFilter: (req, file, callback) => {
+    if (
+      file.mimetype === "application/pdf" ||
+      file.originalname?.toLowerCase().endsWith(".pdf")
+    ) {
+      callback(null, true);
+      return;
+    }
+
+    const error = new Error("Only PDF statement files are supported");
+    error.statusCode = 400;
+    callback(error);
+  },
+});
+
+const pdfUploadMiddleware = pdfUpload.single("statement");
+
 export const uploadImportCsv = (req, res, next) => {
   csvUploadMiddleware(req, res, (error) => {
     if (error) {
@@ -60,9 +83,35 @@ export const uploadImportCsv = (req, res, next) => {
   });
 };
 
+export const uploadBankStatementPdf = (req, res, next) => {
+  pdfUploadMiddleware(req, res, (error) => {
+    if (error) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        error.message = `PDF statement file is too large. Maximum size is ${
+          process.env.PDF_IMPORT_LIMIT_MB || 5
+        }MB.`;
+      }
+
+      error.statusCode = error.statusCode || 400;
+      return next(error);
+    }
+
+    return next();
+  });
+};
+
 export const createCsvImport = asyncHandler(async (req, res) => {
   const result = await createImportBatchFromCsv(getUserId(req), req.file);
   return res.status(201).json(result);
+});
+
+export const previewBankStatementPdf = asyncHandler(async (req, res) => {
+  if (!getUserId(req)) {
+    return res.status(401).json({ message: "Authenticated user is required" });
+  }
+
+  const preview = await extractPdfTextPreview(req.file);
+  return res.status(200).json(preview);
 });
 
 export const getImportBatches = asyncHandler(async (req, res) => {
