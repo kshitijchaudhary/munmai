@@ -11,6 +11,17 @@ export const uploadImportCsv = async (file) => {
   return response.data;
 };
 
+export const previewBankStatementPdf = async (file) => {
+  const formData = new FormData();
+  formData.append("statement", file);
+
+  const response = await api.post("/imports/bank/pdf/preview", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+  return response.data;
+};
+
 export const getImportBatches = async () => {
   const response = await api.get("/imports");
   return response.data;
