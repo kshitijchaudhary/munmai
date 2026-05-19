@@ -5,6 +5,7 @@ import {
   deleteImportBatch,
   getImportBatches,
   getImportRows,
+  previewBankStatementPdf,
   updateImportRow,
   uploadImportCsv,
 } from "../api/imports";
@@ -39,6 +40,8 @@ const formatCurrency = (value) =>
     style: "currency",
     currency: "CAD",
   }).format(Number(value || 0));
+
+const formatNumber = (value) => new Intl.NumberFormat("en-CA").format(Number(value || 0));
 
 const getDateParts = (value) => {
   if (!value) {
@@ -190,9 +193,13 @@ const ImportReview = () => {
   const [rows, setRows] = useState([]);
   const [liabilities, setLiabilities] = useState([]);
   const [file, setFile] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState(null);
+  const [pdfStatus, setPdfStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rowsLoading, setRowsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [previewingPdf, setPreviewingPdf] = useState(false);
   const [savingRowId, setSavingRowId] = useState("");
   const [committing, setCommitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -293,6 +300,39 @@ const ImportReview = () => {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handlePdfPreview = async (event) => {
+    event.preventDefault();
+
+    if (!pdfFile) {
+      setPdfStatus({ type: "error", text: "Choose a PDF statement to preview." });
+      return;
+    }
+
+    try {
+      setPreviewingPdf(true);
+      setPdfStatus(null);
+      setPdfPreview(null);
+
+      const result = await previewBankStatementPdf(pdfFile);
+      setPdfPreview(result);
+      setPdfStatus({
+        type: "success",
+        text:
+          result.message ||
+          "PDF preview generated. Transactions are not saved yet.",
+      });
+    } catch (error) {
+      setPdfStatus({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          "Failed to preview PDF statement.",
+      });
+    } finally {
+      setPreviewingPdf(false);
     }
   };
 
@@ -502,6 +542,15 @@ const ImportReview = () => {
             </p>
 
             <form onSubmit={handleUpload} className="mt-5 space-y-4">
+              <div>
+                <p className="mb-1 text-sm font-black text-slate-900">
+                  CSV import queue
+                </p>
+                <p className="mb-3 text-sm text-slate-500">
+                  Create a review queue from a CSV bank export.
+                </p>
+              </div>
+
               <input
                 type="file"
                 accept=".csv,text/csv"
@@ -516,6 +565,49 @@ const ImportReview = () => {
               >
                 {uploading ? "Uploading..." : "Upload CSV"}
               </button>
+            </form>
+
+            <div className="my-6 border-t border-slate-100 dark:border-slate-800" />
+
+            <form onSubmit={handlePdfPreview} className="space-y-4">
+              <div>
+                <div className="mb-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+                  Preview Only
+                </div>
+                <p className="text-sm font-black text-slate-900">
+                  PDF bank statement preview
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  PDF preview only. Transactions are not saved yet.
+                </p>
+              </div>
+
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
+                className={inputClass}
+              />
+
+              <button
+                type="submit"
+                disabled={previewingPdf}
+                className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {previewingPdf ? "Previewing PDF..." : "Preview PDF"}
+              </button>
+
+              {pdfStatus?.text && (
+                <div
+                  className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+                    pdfStatus.type === "success"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300"
+                      : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-300"
+                  }`}
+                >
+                  {pdfStatus.text}
+                </div>
+              )}
             </form>
           </div>
 
@@ -558,6 +650,8 @@ const ImportReview = () => {
             )}
           </div>
         </section>
+
+        {pdfPreview && <PdfPreviewSection preview={pdfPreview} />}
 
         <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6">
@@ -649,6 +743,184 @@ const ImportReview = () => {
     </div>
   );
 };
+
+const PdfPreviewSection = ({ preview }) => {
+  const parsedRows = Array.isArray(preview?.parsedRows) ? preview.parsedRows : [];
+  const summary = preview?.parserSummary || {};
+
+  return (
+    <section className="mb-8 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800 md:flex-row md:items-start md:justify-between md:px-6">
+        <div>
+          <div className="mb-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+            PDF Preview Only
+          </div>
+          <h2 className="text-xl font-black text-slate-900">
+            Bank statement preview
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Transactions are not saved yet. Use this preview to confirm whether
+            Munmai can read this text-based PDF.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-6 p-5 md:p-6">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <PdfMetaCard label="File" value={preview.fileName || "PDF statement"} />
+          <PdfMetaCard
+            label="Pages"
+            value={preview.pageCount ?? "Unknown"}
+          />
+          <PdfMetaCard
+            label="Text readable"
+            value={preview.isTextReadable ? "Yes" : "No"}
+            tone={preview.isTextReadable ? "text-emerald-600" : "text-amber-600"}
+          />
+          <PdfMetaCard
+            label="Text length"
+            value={formatNumber(preview.textLength)}
+          />
+        </div>
+
+        {!preview.isTextReadable && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+            This PDF does not appear to contain readable text. Scanned/OCR PDFs
+            are not supported yet.
+          </div>
+        )}
+
+        {preview.extractedTextSample && (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+            <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+              Extracted text sample
+            </p>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
+              {preview.extractedTextSample}
+            </pre>
+          </div>
+        )}
+
+        <div>
+          <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-lg font-black text-slate-900">
+                Parser summary
+              </h3>
+              <p className="text-sm text-slate-500">
+                Conservative transaction-like rows detected from the PDF text.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <PdfMetaCard
+              label="Parsed rows"
+              value={summary.totalParsedRows || 0}
+            />
+            <PdfMetaCard
+              label="High confidence"
+              value={summary.highConfidenceRows || 0}
+              tone="text-emerald-600"
+            />
+            <PdfMetaCard
+              label="Medium"
+              value={summary.mediumConfidenceRows || 0}
+              tone="text-amber-600"
+            />
+            <PdfMetaCard
+              label="Low"
+              value={summary.lowConfidenceRows || 0}
+              tone="text-rose-600"
+            />
+            <PdfMetaCard
+              label="Unknown type"
+              value={summary.unknownTypeRows || 0}
+            />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="mb-3 text-lg font-black text-slate-900">
+            Parsed preview rows
+          </h3>
+
+          {parsedRows.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-10 text-center dark:border-slate-700">
+              <p className="font-bold text-slate-700">No transaction-like rows found.</p>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+                This PDF may use unsupported formatting, scanned pages, or a
+                table layout that needs a future parser update.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {parsedRows.map((row) => (
+                <PdfParsedRow key={`${row.rowNumber}-${row.rawText}`} row={row} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const PdfMetaCard = ({ label, value, tone = "text-slate-900" }) => (
+  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/70">
+    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+      {label}
+    </p>
+    <p className={`mt-1 break-words text-lg font-black ${tone}`}>{value}</p>
+  </div>
+);
+
+const PdfParsedRow = ({ row }) => (
+  <article className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+            Row {row.rowNumber}
+          </span>
+          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+            {row.type || "unknown"}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {row.confidence || "low"} confidence
+          </span>
+        </div>
+        <p className="mt-3 font-black text-slate-900">
+          {row.description || "No description"}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">{row.date || "No date"}</p>
+      </div>
+
+      <p
+        className={`text-lg font-black ${
+          row.type === "income"
+            ? "text-emerald-600 dark:text-emerald-400"
+            : row.type === "expense"
+            ? "text-rose-600 dark:text-rose-400"
+            : "text-slate-900 dark:text-slate-100"
+        }`}
+      >
+        {formatCurrency(row.amount)}
+      </p>
+    </div>
+
+    {row.rawText && (
+      <div className="mt-3 rounded-xl border border-slate-100 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+        <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+          Raw text
+        </p>
+        <p className="break-words text-sm text-slate-600 dark:text-slate-300">
+          {row.rawText}
+        </p>
+      </div>
+    )}
+  </article>
+);
 
 const BatchRow = ({ batch, selected, onOpen, onRemove }) => (
   <article
