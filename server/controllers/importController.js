@@ -8,6 +8,7 @@ import {
   updateImportRow,
 } from "../services/importService.js";
 import { extractPdfTextPreview } from "../services/import/pdfTextExtractor.js";
+import { parsePdfTransactionPreviewRows } from "../services/import/pdfTransactionParser.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
   try {
@@ -111,7 +112,15 @@ export const previewBankStatementPdf = asyncHandler(async (req, res) => {
   }
 
   const preview = await extractPdfTextPreview(req.file);
-  return res.status(200).json(preview);
+  const { rawExtractedText, ...safePreview } = preview;
+  const parsedPreview = preview.isTextReadable
+    ? parsePdfTransactionPreviewRows(rawExtractedText)
+    : parsePdfTransactionPreviewRows("");
+
+  return res.status(200).json({
+    ...safePreview,
+    ...parsedPreview,
+  });
 });
 
 export const getImportBatches = asyncHandler(async (req, res) => {
