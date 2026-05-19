@@ -32,7 +32,7 @@ const statusLabels = {
 };
 
 const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100";
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-700 dark:disabled:bg-slate-800";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-CA", {
@@ -577,7 +577,7 @@ const ImportReview = () => {
                   type="button"
                   onClick={() => handleRemoveBatch(selectedBatch)}
                   disabled={cancelling}
-                  className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300"
+                  className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300 dark:border-rose-900/70 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
                 >
                   {cancelling
                     ? "Removing..."
@@ -651,7 +651,11 @@ const ImportReview = () => {
 };
 
 const BatchRow = ({ batch, selected, onOpen, onRemove }) => (
-  <article className={`p-5 transition hover:bg-slate-50 ${selected ? "bg-slate-50" : ""}`}>
+  <article
+    className={`p-5 transition hover:bg-slate-50 dark:hover:bg-slate-900/80 ${
+      selected ? "bg-slate-50 dark:bg-slate-900/70" : "dark:bg-slate-950/20"
+    }`}
+  >
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -677,7 +681,7 @@ const BatchRow = ({ batch, selected, onOpen, onRemove }) => (
           <button
             type="button"
             onClick={onRemove}
-            className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50"
+            className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-900/70 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
           >
             {batch.status === "cancelled" ? "Remove" : "Cancel"}
           </button>
@@ -706,7 +710,13 @@ const ImportRowEditor = ({
   const linkedLiabilityId = getLinkedLiabilityId(row);
 
   return (
-    <article className={`p-5 md:p-6 ${skipped ? "bg-slate-50/80 opacity-80" : ""}`}>
+    <article
+      className={`p-5 md:p-6 ${
+        skipped
+          ? "bg-slate-50/80 opacity-80 dark:bg-slate-900/60"
+          : "dark:bg-slate-950/20"
+      }`}
+    >
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -840,7 +850,7 @@ const ImportRowEditor = ({
       )}
 
       {skipped && (
-        <p className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600">
+        <p className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
           This row will not be added to Munmai.
         </p>
       )}
@@ -858,7 +868,7 @@ const ImportRowEditor = ({
               type="button"
               onClick={onUndoSkip}
               disabled={saving}
-              className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 sm:w-auto"
+              className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
             >
               {saving ? "Restoring..." : "Undo Skip"}
             </button>
@@ -868,7 +878,7 @@ const ImportRowEditor = ({
                 type="button"
                 onClick={onSkip}
                 disabled={imported || saving}
-                className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:text-slate-300 sm:w-auto"
+                className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 sm:w-auto"
               >
                 {saving ? "Skipping..." : "Skip Row"}
               </button>
@@ -876,7 +886,7 @@ const ImportRowEditor = ({
                 type="button"
                 onClick={onSave}
                 disabled={imported || saving}
-                className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 sm:w-auto"
+                className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
               >
                 {saving ? "Saving..." : imported ? "Imported" : "Save Row"}
               </button>
@@ -889,8 +899,8 @@ const ImportRowEditor = ({
 };
 
 const ImportCompleteCard = ({ summary, onImportAnother }) => (
-  <div className="border-b border-slate-100 bg-emerald-50/70 px-5 py-5 md:px-6">
-    <div className="rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm">
+  <div className="border-b border-slate-100 bg-emerald-50/70 px-5 py-5 dark:border-slate-800 dark:bg-emerald-950/20 md:px-6">
+    <div className="rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm dark:border-emerald-900/60 dark:bg-slate-900">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-emerald-600">
@@ -913,20 +923,20 @@ const ImportCompleteCard = ({ summary, onImportAnother }) => (
           </Link>
           <Link
             to="/money/transactions"
-            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             View Transactions
           </Link>
           <Link
             to="/debt-reality"
-            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             View Debt Reality
           </Link>
           <button
             type="button"
             onClick={onImportAnother}
-            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Import Another CSV
           </button>
@@ -952,7 +962,7 @@ const ImportCompleteCard = ({ summary, onImportAnother }) => (
 );
 
 const CommitSummary = ({ summary }) => (
-  <div className="border-b border-slate-100 bg-slate-50 px-5 py-4 md:px-6">
+  <div className="border-b border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/70 md:px-6">
     <p className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
       Import Summary
     </p>
@@ -982,7 +992,7 @@ const FormField = ({ label, children }) => (
 );
 
 const MiniMetric = ({ label, value }) => (
-  <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3">
+  <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950/70">
     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
       {label}
     </p>

@@ -1,13 +1,16 @@
 import { useContext } from "react";
 import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import ThemeToggle from "../components/ThemeToggle";
 import { AuthContext } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 
 const getDisplayValue = (value, fallback = "Not set") =>
   String(value || "").trim() || fallback;
 
 const Settings = () => {
   const { user } = useContext(AuthContext);
+  const { isDark } = useTheme();
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -59,6 +62,18 @@ const Settings = () => {
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <PreferenceCard label="Default Currency" value="CAD" />
               <PreferenceCard label="Country / Context" value="Canada" />
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-black text-slate-900">Appearance</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Current mode: {isDark ? "Dark" : "Light"}
+                  </p>
+                </div>
+                <ThemeToggle compact />
+              </div>
             </div>
 
             <p className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-900">
