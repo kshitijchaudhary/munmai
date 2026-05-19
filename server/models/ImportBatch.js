@@ -7,6 +7,8 @@ export const importBatchStatuses = [
   "cancelled",
 ];
 
+export const importBatchSources = ["csv", "pdf"];
+
 const importBatchSchema = new mongoose.Schema(
   {
     user: {
@@ -25,6 +27,61 @@ const importBatchSchema = new mongoose.Schema(
       enum: importBatchStatuses,
       default: "pending_review",
       index: true,
+    },
+    importSource: {
+      type: String,
+      enum: importBatchSources,
+      default: "csv",
+      index: true,
+    },
+    importFileHash: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    committedAt: {
+      type: Date,
+      default: null,
+    },
+    summary: {
+      totalProcessed: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      incomeImported: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      expensesImported: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      duplicatesSkipped: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      unsupportedSkipped: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      errorsCount: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+    },
+    dateRangeStart: {
+      type: Date,
+      default: null,
+    },
+    dateRangeEnd: {
+      type: Date,
+      default: null,
     },
     totalRows: {
       type: Number,
