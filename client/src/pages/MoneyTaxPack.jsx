@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { exportTaxPackCsv, getTaxPackSummary } from "../api/dashboard";
 import Sidebar from "../components/Sidebar";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../context/authContext";
 
 const CURRENT_TAX_YEAR = new Date().getFullYear();
 

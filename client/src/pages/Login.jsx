@@ -1,7 +1,7 @@
 import { useState, useContext, useMemo } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import api from "../api/axios";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../context/authContext";
 import LegalFooter from "../components/LegalFooter";
 import { trackError, trackEvent } from "../utils/telemetry";
 

@@ -6,7 +6,7 @@ import GroupForm from "../components/GroupForm";
 import GroupManageModal from "../components/GroupManageModal";
 import JoinGroupModal from "../components/JoinGroupModal";
 import Sidebar from "../components/Sidebar";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../context/authContext";
 
 const getUserId = (user) => String(user?.id || user?._id || "");
 

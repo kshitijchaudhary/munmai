@@ -15,7 +15,7 @@ import { getLiabilitySummary } from "../api/liabilities";
 import { getOpeningBalance } from "../api/openingBalance";
 import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../context/authContext";
 
 const CURRENT_MONTH = new Date().getMonth();
 const CURRENT_YEAR = new Date().getFullYear();
