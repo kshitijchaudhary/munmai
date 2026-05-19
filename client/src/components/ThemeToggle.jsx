@@ -1,4 +1,4 @@
-import { useTheme } from "../context/ThemeContext";
+import { useTheme } from "../hooks/useTheme";
 
 const ThemeToggle = ({ compact = false }) => {
   const { isDark, toggleTheme } = useTheme();

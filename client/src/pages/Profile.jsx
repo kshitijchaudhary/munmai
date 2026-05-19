@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../context/authContext";
 import {
   getCurrentUserProfile,
   updateCurrentUserProfile,

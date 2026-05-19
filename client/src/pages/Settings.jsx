@@ -2,8 +2,8 @@ import { useContext } from "react";
 import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import ThemeToggle from "../components/ThemeToggle";
-import { AuthContext } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
+import { AuthContext } from "../context/authContext";
+import { useTheme } from "../hooks/useTheme";
 
 const getDisplayValue = (value, fallback = "Not set") =>
   String(value || "").trim() || fallback;

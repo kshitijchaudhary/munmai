@@ -16,7 +16,7 @@ import Modal from "../components/Modal";
 import Sidebar from "../components/Sidebar";
 import SettlementForm from "../components/SettlementForm";
 import SharedExpenseForm from "../components/SharedExpenseForm";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../context/authContext";
 
 const emptySummary = {
   expenseCount: 0,

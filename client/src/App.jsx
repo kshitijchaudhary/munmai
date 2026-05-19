@@ -1,7 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
-import { AuthProvider, AuthContext } from "./context/AuthContext";
-import { ThemeProvider } from "./context/ThemeContext";
+import AuthProvider from "./context/AuthProvider";
+import { AuthContext } from "./context/authContext";
+import ThemeProvider from "./context/ThemeProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageTracker from "./components/PageTracker";
 import Login from "./pages/Login";
