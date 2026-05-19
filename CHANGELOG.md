@@ -1,6 +1,90 @@
 # Changelog
 
 All notable Munmai release changes are documented here.
+## v1.7.0 — PDF Review/Confirm Import + Duplicate Detection
+
+### Added
+- Added backend PDF confirm import endpoint.
+- Added selected-row PDF import confirmation from the import page.
+- Added PDF import metadata to income and expense records.
+- Added SHA-256 duplicate hash generation for PDF imported transactions.
+- Added duplicate detection across income and expense records.
+- Added row-level import results for imported, duplicate-skipped, skipped, and error rows.
+- Added frontend import result summary for confirmed PDF rows.
+- Added empty-selection protection for PDF import confirmation.
+
+### Improved
+- PDF bank statement workflow now supports preview, review, selection, and confirmation.
+- Imported PDF rows now appear in Transactions, Dashboard, and Monthly Summary.
+- Duplicate rows are skipped instead of treated as failed imports.
+- Unknown PDF row types are skipped unless classified before import.
+- Validation errors are returned per row instead of crashing the full import.
+
+### Safety Notes
+- Scanned/OCR PDFs are still not supported.
+- PDF import history is not fully persisted yet.
+- Duplicate detection is based on user, date, type, amount, and normalized description.
+- If a user deletes an imported transaction, the same PDF row may be importable again until import history/fingerprint tracking is added.
+- Existing CSV import flow remains unchanged.
+
+### Tested
+- First PDF confirm import creates income and expense records.
+- Re-importing the same PDF rows skips duplicates.
+- Unknown row type is skipped.
+- Invalid date returns row-level error.
+- Imported PDF rows appear on Transactions page.
+- Dashboard and Monthly Summary totals update.
+- MongoDB records include PDF import metadata.
+- Empty selected rows disables confirm button.
+- Dark/light mode remains readable.
+- GitHub Actions CI passes.
+
+---
+
+## v1.6.0 — Bank Statement Preview + Dark Mode
+
+### Added
+- Added GitHub Actions CI workflow.
+- Added protected PDF bank statement preview endpoint.
+- Added text-based PDF extraction using `pdf-parse`.
+- Added conservative PDF transaction parser preview.
+- Added frontend PDF preview UI on the import page.
+- Added parsed transaction preview rows with confidence levels.
+- Added parser summary for PDF statement previews.
+- Added dark/light mode support.
+- Added theme persistence using localStorage.
+- Added theme toggle in Settings and Sidebar.
+
+### Improved
+- Improved Import page dark-mode styling.
+- Improved Dashboard recent transaction dark-mode rows.
+- Improved Transactions page dark-mode readability.
+- Improved Debt Reality dark-mode paid/unpaid rows.
+- Improved Settings appearance section.
+- Improved overall premium dark fintech UI feel.
+- Cleaned up theme structure for React Fast Refresh compatibility.
+
+### Safety Notes
+- PDF transactions are preview-only in this release.
+- PDF transactions are not saved to income or expense records yet.
+- OCR/scanned PDF import is not supported yet.
+- Existing CSV import flow remains unchanged.
+
+### Tested
+- Valid text-based PDF preview.
+- Parsed PDF preview rows.
+- Invalid fake PDF rejection.
+- Existing CSV import flow.
+- Dark/light mode persistence.
+- Dashboard.
+- Transactions.
+- Debt Reality.
+- Opening Balance.
+- Monthly Summary.
+- Frontend production build.
+- GitHub Actions CI.
+
+---
 
 ## v1.5.2 - Portfolio Demo Polish
 
