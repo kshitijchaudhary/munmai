@@ -1,6 +1,7 @@
 import express from "express";
 import {
   commitImportBatchById,
+  confirmBankStatementPdfRows,
   createCsvImport,
   deleteImportBatchById,
   getImportBatches,
@@ -18,6 +19,7 @@ router.use(protect);
 
 router.post("/csv", uploadImportCsv, createCsvImport);
 router.post("/bank/pdf/preview", uploadBankStatementPdf, previewBankStatementPdf);
+router.post("/bank/pdf/confirm", confirmBankStatementPdfRows);
 router.get("/", getImportBatches);
 router.put("/rows/:rowId", updateImportRowById);
 router.get("/:batchId/rows", getImportRows);

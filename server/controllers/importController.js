@@ -8,6 +8,7 @@ import {
   updateImportRow,
 } from "../services/importService.js";
 import { extractPdfTextPreview } from "../services/import/pdfTextExtractor.js";
+import { confirmPdfImportRows } from "../services/import/pdfConfirmImportService.js";
 import { parsePdfTransactionPreviewRows } from "../services/import/pdfTransactionParser.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
@@ -121,6 +122,11 @@ export const previewBankStatementPdf = asyncHandler(async (req, res) => {
     ...safePreview,
     ...parsedPreview,
   });
+});
+
+export const confirmBankStatementPdfRows = asyncHandler(async (req, res) => {
+  const result = await confirmPdfImportRows(getUserId(req), req.body || {});
+  return res.status(200).json(result);
 });
 
 export const getImportBatches = asyncHandler(async (req, res) => {
