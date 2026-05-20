@@ -30,6 +30,12 @@ const budgetStatusLabels = {
   over: "Over budget",
 };
 
+const importSourceOptions = [
+  { key: "manual", label: "Manual" },
+  { key: "csv", label: "CSV" },
+  { key: "pdf", label: "PDF" },
+];
+
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-CA", {
     style: "currency",
@@ -62,6 +68,47 @@ const getStatusTone = (status) => {
 const getFlowBarPercent = (value, maxValue) => {
   if (!maxValue) return 0;
   return Math.max(4, Math.round((Number(value || 0) / maxValue) * 100));
+};
+
+const createEmptyImportSourceSummary = () => ({
+  income: {
+    manual: 0,
+    csv: 0,
+    pdf: 0,
+  },
+  expenses: {
+    manual: 0,
+    csv: 0,
+    pdf: 0,
+  },
+  totals: {
+    manual: 0,
+    csv: 0,
+    pdf: 0,
+  },
+});
+
+const getImportSourceBucket = (item) => {
+  const source = String(item?.importSource || "").trim().toLowerCase();
+  return source === "csv" || source === "pdf" ? source : "manual";
+};
+
+const buildImportSourceSummary = ({ incomeItems, expenseItems }) => {
+  const importSourceSummary = createEmptyImportSourceSummary();
+
+  incomeItems.forEach((item) => {
+    const source = getImportSourceBucket(item);
+    importSourceSummary.income[source] += 1;
+    importSourceSummary.totals[source] += 1;
+  });
+
+  expenseItems.forEach((item) => {
+    const source = getImportSourceBucket(item);
+    importSourceSummary.expenses[source] += 1;
+    importSourceSummary.totals[source] += 1;
+  });
+
+  return importSourceSummary;
 };
 
 const MonthlySummary = () => {
@@ -173,6 +220,10 @@ const MonthlySummary = () => {
     const recentTransactions = [...periodIncome, ...periodExpenses]
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 8);
+    const importSourceSummary = buildImportSourceSummary({
+      incomeItems: periodIncome,
+      expenseItems: periodExpenses,
+    });
     const maxFlowAmount = Math.max(incomeTotal, expenseTotal, 1);
     const maxCategoryAmount = Math.max(
       ...topCategories.map((category) => Number(category.amount || 0)),
@@ -203,6 +254,7 @@ const MonthlySummary = () => {
       insights,
       topCategories,
       recentTransactions,
+      importSourceSummary,
       hasData: periodIncome.length > 0 || periodExpenses.length > 0,
       periodLabel: new Date(selectedYear, selectedMonth, 1).toLocaleString(
         "default",
@@ -313,6 +365,8 @@ const MonthlySummary = () => {
               <NetFlowCard summary={summary} />
             </section>
 
+            <ImportSourceBreakdown summary={summary.importSourceSummary} />
+
             {summary.insights.length > 0 && (
               <section className="mb-8 rounded-3xl border border-amber-100 bg-amber-50 p-5 shadow-sm md:p-6">
                 <p className="mb-3 text-xs font-black uppercase tracking-widest text-amber-700">
@@ -378,6 +432,72 @@ const MonthlySummary = () => {
         )}
       </main>
     </div>
+  );
+};
+
+const ImportSourceBreakdown = ({ summary }) => {
+  const importSourceSummary = summary || createEmptyImportSourceSummary();
+  const totalTransactions = importSourceOptions.reduce(
+    (sum, source) => sum + Number(importSourceSummary.totals?.[source.key] || 0),
+    0
+  );
+
+  return (
+    <section className="mb-8 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
+      <div className="mb-5">
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+          Data Source
+        </p>
+        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+          Import Source
+        </h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Transaction counts by manual entry, CSV import, and PDF import for this month.
+        </p>
+      </div>
+
+      {totalTransactions === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
+          No source data for this period.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {importSourceOptions.map((source) => (
+            <div
+              key={source.key}
+              className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-black text-slate-900 dark:text-slate-100">
+                  {source.label}
+                </p>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">
+                  {importSourceSummary.totals?.[source.key] || 0}
+                </span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Income
+                  </p>
+                  <p className="mt-1 font-black text-emerald-600 dark:text-emerald-400">
+                    {importSourceSummary.income?.[source.key] || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Expenses
+                  </p>
+                  <p className="mt-1 font-black text-rose-600 dark:text-rose-400">
+                    {importSourceSummary.expenses?.[source.key] || 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 };
 

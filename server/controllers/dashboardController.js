@@ -66,6 +66,43 @@ const getDeductibleAmount = (expense) => {
   return Number(expense.amount || 0) * (Number(expense.deductiblePercent) / 100);
 };
 
+const createEmptyImportSourceSummary = () => ({
+  income: {
+    manual: 0,
+    csv: 0,
+    pdf: 0,
+  },
+  expenses: {
+    manual: 0,
+    csv: 0,
+    pdf: 0,
+  },
+  totals: {
+    manual: 0,
+    csv: 0,
+    pdf: 0,
+  },
+});
+
+const getImportSourceBucket = (importSource) => {
+  const normalizedSource = String(importSource || "").trim().toLowerCase();
+  return normalizedSource === "csv" || normalizedSource === "pdf"
+    ? normalizedSource
+    : "manual";
+};
+
+const buildTaxPackImportSourceSummary = (expenses) => {
+  const importSourceSummary = createEmptyImportSourceSummary();
+
+  expenses.forEach((expense) => {
+    const source = getImportSourceBucket(expense.importSource);
+    importSourceSummary.expenses[source] += 1;
+    importSourceSummary.totals[source] += 1;
+  });
+
+  return importSourceSummary;
+};
+
 const escapeCsvValue = (value) => {
   const stringValue = String(value ?? "");
   const escapedValue = stringValue.replace(/"/g, '""');
@@ -137,6 +174,7 @@ const buildTaxPackSummary = ({ expenses, taxYear }) => {
           ? Number(((deductibleReceiptCount / deductibleExpenses.length) * 100).toFixed(2))
           : 0,
       deductibleByCategory,
+      importSourceSummary: buildTaxPackImportSourceSummary(expenses),
     },
     records: [],
   };
