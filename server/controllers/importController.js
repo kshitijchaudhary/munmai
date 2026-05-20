@@ -11,6 +11,7 @@ import { extractPdfTextPreview } from "../services/import/pdfTextExtractor.js";
 import { confirmPdfImportRows } from "../services/import/pdfConfirmImportService.js";
 import { parsePdfTransactionPreviewRows } from "../services/import/pdfTransactionParser.js";
 import {
+  archiveImportHistoryBatch,
   getImportHistoryBatch,
   getImportHistorySummary,
   listImportHistoryBatches,
@@ -163,6 +164,11 @@ export const getImportHistoryRows = asyncHandler(async (req, res) => {
 export const getImportHistorySummaryByUser = asyncHandler(async (req, res) => {
   const summary = await getImportHistorySummary(getUserId(req));
   return res.status(200).json(summary);
+});
+
+export const archiveImportHistoryBatchById = asyncHandler(async (req, res) => {
+  const result = await archiveImportHistoryBatch(getUserId(req), req.params.batchId);
+  return res.status(200).json(result);
 });
 
 export const updateImportRowById = asyncHandler(async (req, res) => {

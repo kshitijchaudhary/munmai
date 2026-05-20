@@ -28,8 +28,14 @@ const normalizePositiveInteger = (value, fallback, max = Number.MAX_SAFE_INTEGER
   return Math.min(parsed, max);
 };
 
-const buildBatchQuery = (userId, { source } = {}) => {
+const shouldIncludeArchived = (value) => String(value || "").toLowerCase() === "true";
+
+const buildBatchQuery = (userId, { source, includeArchived } = {}) => {
   const query = { user: userId };
+
+  if (!includeArchived) {
+    query.$or = [{ archivedAt: null }, { archivedAt: { $exists: false } }];
+  }
 
   if (source) {
     if (!VALID_IMPORT_SOURCES.has(source)) {
@@ -37,10 +43,16 @@ const buildBatchQuery = (userId, { source } = {}) => {
     }
 
     if (source === "csv") {
-      query.$or = [
+      const csvSourceQuery = [
         { importSource: { $in: ["csv", null, ""] } },
         { importSource: { $exists: false } },
       ];
+
+      query.$and = [
+        ...(query.$or ? [{ $or: query.$or }] : []),
+        { $or: csvSourceQuery },
+      ];
+      delete query.$or;
     } else {
       query.importSource = source;
     }
@@ -85,6 +97,7 @@ const serializeBatch = (batch, skippedRows = 0) => ({
   skippedRows: Number(skippedRows || 0),
   createdAt: batch.createdAt,
   committedAt: batch.committedAt || null,
+  archivedAt: batch.archivedAt || null,
 });
 
 export const listImportHistoryBatches = async (userId, queryParams = {}) => {
@@ -96,6 +109,7 @@ export const listImportHistoryBatches = async (userId, queryParams = {}) => {
   );
   const query = buildBatchQuery(userId, {
     source: String(queryParams.source || "").trim().toLowerCase(),
+    includeArchived: shouldIncludeArchived(queryParams.includeArchived),
   });
   const skip = (page - 1) * limit;
 
@@ -155,7 +169,12 @@ export const listImportHistoryRows = async (userId, batchId) => {
 export const getImportHistorySummary = async (userId) => {
   const [batchStats, rowStats] = await Promise.all([
     ImportBatch.aggregate([
-      { $match: { user: new mongoose.Types.ObjectId(String(userId)) } },
+      {
+        $match: {
+          user: new mongoose.Types.ObjectId(String(userId)),
+          $or: [{ archivedAt: null }, { archivedAt: { $exists: false } }],
+        },
+      },
       {
         $addFields: {
           normalizedImportSource: {
@@ -215,5 +234,26 @@ export const getImportHistorySummary = async (userId) => {
     totalImported: Number(rows.totalImported || 0),
     totalDuplicates: Number(rows.totalDuplicates || 0),
     totalErrors: Number(rows.totalErrors || 0),
+  };
+};
+
+export const archiveImportHistoryBatch = async (userId, batchId) => {
+  assertValidObjectId(batchId);
+
+  const batch = await ImportBatch.findOneAndUpdate(
+    { _id: batchId, user: userId },
+    { $set: { archivedAt: new Date() } },
+    { new: true }
+  ).lean();
+
+  if (!batch) {
+    throw createError("Import batch not found", 404);
+  }
+
+  const skippedRowsByBatch = await getSkippedRowsByBatch([batch._id]);
+
+  return {
+    message: "Import batch archived.",
+    batch: serializeBatch(batch, skippedRowsByBatch.get(String(batch._id)) || 0),
   };
 };

@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  archiveImportHistoryBatchById,
   commitImportBatchById,
   confirmBankStatementPdfRows,
   createCsvImport,
@@ -26,6 +27,7 @@ router.post("/bank/pdf/preview", uploadBankStatementPdf, previewBankStatementPdf
 router.post("/bank/pdf/confirm", confirmBankStatementPdfRows);
 router.get("/history/summary", getImportHistorySummaryByUser);
 router.get("/history", getImportHistory);
+router.patch("/history/:batchId/archive", archiveImportHistoryBatchById);
 router.get("/history/:batchId/rows", getImportHistoryRows);
 router.get("/history/:batchId", getImportHistoryById);
 router.get("/", getImportBatches);
