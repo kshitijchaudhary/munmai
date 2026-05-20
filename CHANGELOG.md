@@ -1,6 +1,58 @@
 # Changelog
 
 All notable Munmai release changes are documented here.
+
+## v1.8.0 — Import History + Reporting Integration
+
+### Added
+- Added durable import fingerprint ledger for imported records.
+- Added PDF import history using ImportBatch and ImportRow records.
+- Added row-level import history for imported, duplicate-skipped, skipped, and error rows.
+- Added Import History API endpoints.
+- Added Import History UI on the Import Statements page.
+- Added CSV/PDF import history filters.
+- Added batch row detail viewing.
+- Added archive/hide support for import batches.
+- Added `includeArchived=true` support for archived import history.
+- Added import-source summary to Monthly Summary.
+- Added Data Source card to Tax Pack.
+
+### Improved
+- Renamed Import CSV to Import Statements.
+- Improved import page copy for CSV and PDF statement workflows.
+- Archived batches are hidden from default Recent Imports and Import History.
+- Legacy CSV batches without `importSource` are treated as CSV in import history.
+- Duplicate detection now survives deleted imported transactions through persistent fingerprints.
+- Import history preserves audit records without hard-deleting rows or fingerprints.
+- Monthly Summary now shows manual, CSV, and PDF transaction source counts.
+- Tax Pack now shows source counts for tax-aware expenses.
+
+### Safety Notes
+- Import history batches are archived, not permanently deleted.
+- Import rows and fingerprints remain after archive for audit and duplicate protection.
+- Scanned/OCR PDF import is still not supported.
+- Existing CSV import flow remains unchanged.
+- Existing PDF preview and confirm import flow remains unchanged.
+- Imported expenses are not automatically marked deductible.
+
+### Tested
+- PDF import history creation.
+- Durable duplicate protection after deleting imported transactions.
+- Import History All/CSV/PDF filters.
+- Batch row history view.
+- Archive cancel and confirm behavior.
+- Archived batches hidden from default lists.
+- `includeArchived=true` returns archived batches.
+- Legacy CSV batch appears under CSV history.
+- Monthly Summary import-source counts.
+- Tax Pack Data Source card.
+- Tax Pack CSV export remains unchanged.
+- CSV import still works.
+- PDF preview/confirm still works.
+- Dark/light mode remains readable.
+- GitHub Actions CI passes.
+
+
 ## v1.7.0 — PDF Review/Confirm Import + Duplicate Detection
 
 ### Added
