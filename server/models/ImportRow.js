@@ -16,6 +16,7 @@ export const importRowStatuses = [
   "ready",
   "imported",
   "ignored",
+  "duplicate_skipped",
   "error",
 ];
 
@@ -88,6 +89,32 @@ const importRowSchema = new mongoose.Schema(
       default: null,
     },
     notes: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    importHash: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+    duplicateOfFingerprint: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ImportedRecordFingerprint",
+      default: null,
+    },
+    errorMessage: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    sourceRowNumber: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    originalRawText: {
       type: String,
       trim: true,
       default: "",

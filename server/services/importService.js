@@ -486,7 +486,12 @@ export const createImportBatchFromCsv = async (userId, file) => {
 };
 
 export const listImportBatches = async (userId) =>
-  ImportBatch.find({ user: userId }).sort({ createdAt: -1 }).limit(25);
+  ImportBatch.find({
+    user: userId,
+    $or: [{ archivedAt: null }, { archivedAt: { $exists: false } }],
+  })
+    .sort({ createdAt: -1 })
+    .limit(25);
 
 export const listImportRows = async (userId, batchId) => {
   await ensureOwnBatch(userId, batchId);

@@ -92,8 +92,8 @@ const Settings = () => {
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
               <DataLink
                 to="/imports"
-                title="Import CSV"
-                description="Review statement rows before adding them to Munmai."
+                title="Import Statements"
+                description="Review CSV or PDF statement rows before adding them to Munmai."
               />
               <DataLink
                 to="/money/receipts"

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  archiveImportHistoryBatch,
   commitImportBatch,
   confirmPdfImportRows,
   deleteImportBatch,
+  getImportHistoryBatchRows,
+  getImportHistoryBatches,
+  getImportHistorySummary,
   getImportBatches,
   getImportRows,
   previewBankStatementPdf,
@@ -32,6 +36,21 @@ const statusLabels = {
   ignored: "Ignored",
   error: "Error",
 };
+
+const emptyImportHistorySummary = {
+  totalBatches: 0,
+  csvBatches: 0,
+  pdfBatches: 0,
+  totalImported: 0,
+  totalDuplicates: 0,
+  totalErrors: 0,
+};
+
+const historySourceOptions = [
+  { value: "", label: "All" },
+  { value: "csv", label: "CSV" },
+  { value: "pdf", label: "PDF" },
+];
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-700 dark:disabled:bg-slate-800";
@@ -99,6 +118,23 @@ const formatDate = (value) => {
   }
 
   return `${parts.month}/${parts.day}/${parts.year}`;
+};
+
+const formatDateTime = (value) => {
+  if (!value) {
+    return "Not committed";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not committed";
+  }
+
+  return new Intl.DateTimeFormat("en-CA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 };
 
 const toDateInputValue = (value) => {
@@ -229,6 +265,21 @@ const ImportReview = () => {
   const [message, setMessage] = useState(null);
   const [commitSummary, setCommitSummary] = useState(null);
   const [importComplete, setImportComplete] = useState(false);
+  const [historySummary, setHistorySummary] = useState(emptyImportHistorySummary);
+  const [historyBatches, setHistoryBatches] = useState([]);
+  const [historyPagination, setHistoryPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1,
+  });
+  const [historySource, setHistorySource] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const [expandedHistoryBatchId, setExpandedHistoryBatchId] = useState("");
+  const [historyRowsByBatch, setHistoryRowsByBatch] = useState({});
+  const [historyRowsLoadingId, setHistoryRowsLoadingId] = useState("");
+  const [archivingHistoryBatchId, setArchivingHistoryBatchId] = useState("");
 
   const activeLiabilities = useMemo(
     () => liabilities.filter((liability) => liability.status === "active"),
@@ -271,6 +322,45 @@ const ImportReview = () => {
     }
   }, []);
 
+  const loadImportHistory = useCallback(
+    async ({ source = historySource, page = 1 } = {}) => {
+      try {
+        setHistoryLoading(true);
+        setHistoryError("");
+
+        const [summaryData, batchData] = await Promise.all([
+          getImportHistorySummary(),
+          getImportHistoryBatches({
+            source: source || undefined,
+            page,
+            limit: historyPagination.limit,
+          }),
+        ]);
+
+        setHistorySummary({
+          ...emptyImportHistorySummary,
+          ...(summaryData || {}),
+        });
+        setHistoryBatches(Array.isArray(batchData?.batches) ? batchData.batches : []);
+        setHistoryPagination({
+          page: batchData?.pagination?.page || page,
+          limit: batchData?.pagination?.limit || historyPagination.limit,
+          total: batchData?.pagination?.total || 0,
+          pages: batchData?.pagination?.pages || 1,
+        });
+      } catch (error) {
+        setHistorySummary(emptyImportHistorySummary);
+        setHistoryBatches([]);
+        setHistoryError(
+          error.response?.data?.message || "Failed to load import history."
+        );
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [historyPagination.limit, historySource]
+  );
+
   const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
@@ -297,6 +387,12 @@ const ImportReview = () => {
     loadInitialData();
   }, [loadInitialData]);
 
+  useEffect(() => {
+    setExpandedHistoryBatchId("");
+    setHistoryRowsByBatch({});
+    loadImportHistory({ page: 1 });
+  }, [historySource, loadImportHistory]);
+
   const handleUpload = async (event) => {
     event.preventDefault();
 
@@ -320,6 +416,7 @@ const ImportReview = () => {
       setFile(null);
       setImportComplete(false);
       await loadBatches();
+      await loadImportHistory({ page: 1 });
 
       if (batch) {
         await loadRows(batch);
@@ -437,6 +534,7 @@ const ImportReview = () => {
         type: "success",
         text: result.message || "PDF rows processed.",
       });
+      await loadImportHistory({ page: historyPagination.page });
     } catch (error) {
       setPdfConfirmStatus({
         type: "error",
@@ -446,6 +544,73 @@ const ImportReview = () => {
       });
     } finally {
       setConfirmingPdf(false);
+    }
+  };
+
+  const handleToggleHistoryRows = async (batch) => {
+    if (!batch?._id) {
+      return;
+    }
+
+    if (expandedHistoryBatchId === batch._id) {
+      setExpandedHistoryBatchId("");
+      return;
+    }
+
+    setExpandedHistoryBatchId(batch._id);
+
+    if (historyRowsByBatch[batch._id]) {
+      return;
+    }
+
+    try {
+      setHistoryRowsLoadingId(batch._id);
+      setHistoryError("");
+
+      const data = await getImportHistoryBatchRows(batch._id);
+      setHistoryRowsByBatch((currentRows) => ({
+        ...currentRows,
+        [batch._id]: Array.isArray(data?.rows) ? data.rows : [],
+      }));
+    } catch (error) {
+      setHistoryError(
+        error.response?.data?.message || "Failed to load import history rows."
+      );
+    } finally {
+      setHistoryRowsLoadingId("");
+    }
+  };
+
+  const handleArchiveHistoryBatch = async (batch) => {
+    if (!batch?._id) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Archive this import batch? It will be hidden from your default history, but the audit trail will not be deleted."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setArchivingHistoryBatchId(batch._id);
+      setHistoryError("");
+
+      await archiveImportHistoryBatch(batch._id);
+
+      if (expandedHistoryBatchId === batch._id) {
+        setExpandedHistoryBatchId("");
+      }
+
+      await loadImportHistory({ page: historyPagination.page });
+    } catch (error) {
+      setHistoryError(
+        error.response?.data?.message || "Failed to archive import batch."
+      );
+    } finally {
+      setArchivingHistoryBatchId("");
     }
   };
 
@@ -544,6 +709,7 @@ const ImportReview = () => {
 
       await loadBatches();
       await loadRows(result.batch || selectedBatch, { preserveSummary: true });
+      await loadImportHistory({ page: historyPagination.page });
       setCommitSummary(summary);
       setImportComplete(!hasErrors);
       setMessage({
@@ -592,6 +758,7 @@ const ImportReview = () => {
         text: result.message || "Import removed.",
       });
       await loadBatches();
+      await loadImportHistory({ page: historyPagination.page });
     } catch (error) {
       setMessage({
         type: "error",
@@ -627,10 +794,11 @@ const ImportReview = () => {
           <div>
             <p className="mb-2 text-sm font-semibold text-indigo-600">Money</p>
             <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
-              Import CSV
+              Import Statements
             </h1>
             <p className="mt-2 max-w-2xl text-slate-500">
-              Upload a bank statement and review rows before adding them to Munmai.
+              Upload CSV or PDF bank statements and review rows before adding
+              them to Munmai.
             </p>
           </div>
         </header>
@@ -865,7 +1033,334 @@ const ImportReview = () => {
             </div>
           )}
         </section>
+
+        <ImportHistorySection
+          summary={historySummary}
+          batches={historyBatches}
+          pagination={historyPagination}
+          source={historySource}
+          loading={historyLoading}
+          error={historyError}
+          expandedBatchId={expandedHistoryBatchId}
+          rowsByBatch={historyRowsByBatch}
+          rowsLoadingId={historyRowsLoadingId}
+          onSourceChange={setHistorySource}
+          onRefresh={() => loadImportHistory({ page: historyPagination.page })}
+          onPageChange={(page) => loadImportHistory({ page })}
+          onToggleRows={handleToggleHistoryRows}
+          onArchiveBatch={handleArchiveHistoryBatch}
+          archivingBatchId={archivingHistoryBatchId}
+        />
       </main>
+    </div>
+  );
+};
+
+const ImportHistorySection = ({
+  summary,
+  batches,
+  pagination,
+  source,
+  loading,
+  error,
+  expandedBatchId,
+  rowsByBatch,
+  rowsLoadingId,
+  archivingBatchId,
+  onSourceChange,
+  onRefresh,
+  onPageChange,
+  onToggleRows,
+  onArchiveBatch,
+}) => (
+  <section className="mt-8 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+    <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 dark:border-slate-800 md:flex-row md:items-start md:justify-between md:px-6">
+      <div>
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+          Audit Trail
+        </p>
+        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+          Import History
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+          Review previous CSV/PDF import batches and confirmed PDF imports.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+      >
+        Refresh history
+      </button>
+    </div>
+
+    <div className="space-y-6 p-5 md:p-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <HistoryMetric label="Total batches" value={summary.totalBatches} />
+        <HistoryMetric label="CSV batches" value={summary.csvBatches} />
+        <HistoryMetric label="PDF batches" value={summary.pdfBatches} />
+        <HistoryMetric label="Imported" value={summary.totalImported} />
+        <HistoryMetric label="Duplicates" value={summary.totalDuplicates} />
+        <HistoryMetric label="Errors" value={summary.totalErrors} tone="text-rose-600 dark:text-rose-400" />
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {historySourceOptions.map((option) => (
+            <button
+              key={option.value || "all"}
+              type="button"
+              onClick={() => onSourceChange(option.value)}
+              className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                source === option.value
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+          Page {pagination.page || 1} of {pagination.pages || 1}
+        </p>
+      </div>
+
+      {error && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-12 text-center font-semibold text-slate-400 dark:border-slate-700">
+          Loading import history...
+        </div>
+      ) : batches.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-12 text-center dark:border-slate-700">
+          <p className="font-bold text-slate-700 dark:text-slate-200">
+            No import history found.
+          </p>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+            Confirm a PDF import or commit a CSV review batch to see history here.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {batches.map((batch) => (
+            <ImportHistoryBatchCard
+              key={batch._id}
+              batch={batch}
+              expanded={expandedBatchId === batch._id}
+              rows={rowsByBatch[batch._id] || []}
+              rowsLoading={rowsLoadingId === batch._id}
+              archiving={archivingBatchId === batch._id}
+              onToggleRows={() => onToggleRows(batch)}
+              onArchive={() => onArchiveBatch(batch)}
+            />
+          ))}
+        </div>
+      )}
+
+      {pagination.pages > 1 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <button
+            type="button"
+            disabled={pagination.page <= 1}
+            onClick={() => onPageChange(Math.max(1, pagination.page - 1))}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            disabled={pagination.page >= pagination.pages}
+            onClick={() => onPageChange(Math.min(pagination.pages, pagination.page + 1))}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </div>
+  </section>
+);
+
+const HistoryMetric = ({ label, value, tone = "text-slate-900 dark:text-slate-100" }) => (
+  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/70">
+    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+      {label}
+    </p>
+    <p className={`mt-1 text-2xl font-black ${tone}`}>
+      {formatNumber(value)}
+    </p>
+  </div>
+);
+
+const SourceBadge = ({ source }) => {
+  const normalizedSource = source === "pdf" ? "pdf" : "csv";
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${
+        normalizedSource === "pdf"
+          ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+      }`}
+    >
+      {normalizedSource}
+    </span>
+  );
+};
+
+const ImportHistoryBatchCard = ({
+  batch,
+  expanded,
+  rows,
+  rowsLoading,
+  archiving,
+  onToggleRows,
+  onArchive,
+}) => {
+  const summary = batch.summary || {};
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60">
+      <div className="p-4 md:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="break-words font-black text-slate-900 dark:text-slate-100">
+                {batch.fileName || "Import file"}
+              </h3>
+              <SourceBadge source={batch.importSource} />
+              <StatusPill status={batch.status} />
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Created {formatDateTime(batch.createdAt)} | Committed{" "}
+              {formatDateTime(batch.committedAt)}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={onToggleRows}
+              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+            >
+              {expanded ? "Hide rows" : "View rows"}
+            </button>
+            <button
+              type="button"
+              onClick={onArchive}
+              disabled={archiving}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              {archiving ? "Archiving..." : "Archive batch"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+          <MiniMetric label="Rows" value={batch.totalRows || 0} />
+          <MiniMetric label="Imported" value={batch.importedRows || 0} />
+          <MiniMetric label="Skipped" value={batch.skippedRows || 0} />
+          <MiniMetric label="Income" value={summary.incomeImported || 0} />
+          <MiniMetric label="Expenses" value={summary.expensesImported || 0} />
+          <MiniMetric label="Duplicates" value={summary.duplicatesSkipped || 0} />
+          <MiniMetric label="Errors" value={summary.errorsCount || 0} />
+        </div>
+      </div>
+
+      {expanded && (
+        <ImportHistoryRows rows={rows} loading={rowsLoading} />
+      )}
+    </article>
+  );
+};
+
+const ImportHistoryRows = ({ rows, loading }) => {
+  if (loading) {
+    return (
+      <div className="border-t border-slate-100 px-5 py-8 text-center text-sm font-semibold text-slate-400 dark:border-slate-800">
+        Loading rows...
+      </div>
+    );
+  }
+
+  if (!rows.length) {
+    return (
+      <div className="border-t border-slate-100 px-5 py-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        No rows found for this import.
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
+      {rows.map((row) => (
+        <ImportHistoryRow key={row._id} row={row} />
+      ))}
+    </div>
+  );
+};
+
+const ImportHistoryRow = ({ row }) => {
+  const rowNumber = row.sourceRowNumber || row.rowNumber || "-";
+  const classification = row.classification || row.importedRecordType || "unclassified";
+  const isDuplicate = row.status === "duplicate_skipped";
+  const isError = row.status === "error";
+
+  return (
+    <div className="p-4 md:p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white dark:bg-slate-100 dark:text-slate-950">
+              Row {rowNumber}
+            </span>
+            <StatusPill status={row.status} />
+            {isDuplicate && (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                Duplicate skipped
+              </span>
+            )}
+          </div>
+          <p className="break-words font-black text-slate-900 dark:text-slate-100">
+            {row.description || row.rawDescription || "Imported row"}
+          </p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {formatDate(row.parsedDate)} | {classification} |{" "}
+            {row.category || "No category"}
+          </p>
+        </div>
+
+        <p
+          className={`text-lg font-black ${
+            row.direction === "inflow"
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-rose-600 dark:text-rose-400"
+          }`}
+        >
+          {row.direction === "inflow" ? "+" : "-"}
+          {formatCurrency(row.amount)}
+        </p>
+      </div>
+
+      {(isError || row.errorMessage) && (
+        <p className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
+          {row.errorMessage || "Import row failed."}
+        </p>
+      )}
+
+      {isDuplicate && row.duplicateOfFingerprint?.importHash && (
+        <p className="mt-3 break-all rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+          Duplicate fingerprint: {row.duplicateOfFingerprint.importHash}
+        </p>
+      )}
     </div>
   );
 };

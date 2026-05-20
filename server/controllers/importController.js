@@ -10,6 +10,13 @@ import {
 import { extractPdfTextPreview } from "../services/import/pdfTextExtractor.js";
 import { confirmPdfImportRows } from "../services/import/pdfConfirmImportService.js";
 import { parsePdfTransactionPreviewRows } from "../services/import/pdfTransactionParser.js";
+import {
+  archiveImportHistoryBatch,
+  getImportHistoryBatch,
+  getImportHistorySummary,
+  listImportHistoryBatches,
+  listImportHistoryRows,
+} from "../services/importHistoryService.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
   try {
@@ -137,6 +144,31 @@ export const getImportBatches = asyncHandler(async (req, res) => {
 export const getImportRows = asyncHandler(async (req, res) => {
   const rows = await listImportRows(getUserId(req), req.params.batchId);
   return res.status(200).json({ rows });
+});
+
+export const getImportHistory = asyncHandler(async (req, res) => {
+  const result = await listImportHistoryBatches(getUserId(req), req.query || {});
+  return res.status(200).json(result);
+});
+
+export const getImportHistoryById = asyncHandler(async (req, res) => {
+  const batch = await getImportHistoryBatch(getUserId(req), req.params.batchId);
+  return res.status(200).json({ batch });
+});
+
+export const getImportHistoryRows = asyncHandler(async (req, res) => {
+  const rows = await listImportHistoryRows(getUserId(req), req.params.batchId);
+  return res.status(200).json({ rows });
+});
+
+export const getImportHistorySummaryByUser = asyncHandler(async (req, res) => {
+  const summary = await getImportHistorySummary(getUserId(req));
+  return res.status(200).json(summary);
+});
+
+export const archiveImportHistoryBatchById = asyncHandler(async (req, res) => {
+  const result = await archiveImportHistoryBatch(getUserId(req), req.params.batchId);
+  return res.status(200).json(result);
 });
 
 export const updateImportRowById = asyncHandler(async (req, res) => {

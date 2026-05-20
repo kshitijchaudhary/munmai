@@ -51,3 +51,41 @@ export const deleteImportBatch = async (batchId) => {
   const response = await api.delete(`/imports/${batchId}`);
   return response.data;
 };
+
+export const getImportHistorySummary = async () => {
+  const response = await api.get("/imports/history/summary");
+  return response.data;
+};
+
+export const getImportHistoryBatches = async ({
+  source,
+  page,
+  limit,
+  includeArchived,
+} = {}) => {
+  const response = await api.get("/imports/history", {
+    params: {
+      ...(source ? { source } : {}),
+      ...(page ? { page } : {}),
+      ...(limit ? { limit } : {}),
+      ...(includeArchived ? { includeArchived: true } : {}),
+    },
+  });
+
+  return response.data;
+};
+
+export const getImportHistoryBatch = async (batchId) => {
+  const response = await api.get(`/imports/history/${batchId}`);
+  return response.data;
+};
+
+export const getImportHistoryBatchRows = async (batchId) => {
+  const response = await api.get(`/imports/history/${batchId}/rows`);
+  return response.data;
+};
+
+export const archiveImportHistoryBatch = async (batchId) => {
+  const response = await api.patch(`/imports/history/${batchId}/archive`);
+  return response.data;
+};
