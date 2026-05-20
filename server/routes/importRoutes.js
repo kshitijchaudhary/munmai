@@ -4,6 +4,10 @@ import {
   confirmBankStatementPdfRows,
   createCsvImport,
   deleteImportBatchById,
+  getImportHistory,
+  getImportHistoryById,
+  getImportHistoryRows,
+  getImportHistorySummaryByUser,
   getImportBatches,
   getImportRows,
   previewBankStatementPdf,
@@ -20,6 +24,10 @@ router.use(protect);
 router.post("/csv", uploadImportCsv, createCsvImport);
 router.post("/bank/pdf/preview", uploadBankStatementPdf, previewBankStatementPdf);
 router.post("/bank/pdf/confirm", confirmBankStatementPdfRows);
+router.get("/history/summary", getImportHistorySummaryByUser);
+router.get("/history", getImportHistory);
+router.get("/history/:batchId/rows", getImportHistoryRows);
+router.get("/history/:batchId", getImportHistoryById);
 router.get("/", getImportBatches);
 router.put("/rows/:rowId", updateImportRowById);
 router.get("/:batchId/rows", getImportRows);
