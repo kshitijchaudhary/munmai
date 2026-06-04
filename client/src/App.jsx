@@ -3,7 +3,6 @@ import { useContext } from "react";
 import AuthProvider from "./context/AuthProvider";
 import { AuthContext } from "./context/authContext";
 import ThemeProvider from "./context/ThemeProvider";
-import { hasValidToken } from "./utils/authToken";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageTracker from "./components/PageTracker";
 import Login from "./pages/Login";
@@ -33,12 +32,11 @@ const ProtectedRoute = ({ children }) => {
   if (loading) return null;
 
   if (!user) {
+    const reason = window.sessionStorage.getItem("authRedirectReason");
+    if (reason === "expired") {
+      return <Navigate to="/login?session=expired" replace />;
+    }
     return <Navigate to="/login" replace />;
-  }
-
-  if (!hasValidToken(user)) {
-    window.localStorage.removeItem("user");
-    return <Navigate to="/login?session=expired" replace />;
   }
 
   return children;

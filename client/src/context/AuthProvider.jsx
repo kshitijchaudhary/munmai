@@ -8,6 +8,7 @@ const AuthProvider = ({ children }) => {
   const login = (userData) => {
     if (!hasValidToken(userData)) {
       localStorage.removeItem("user");
+      sessionStorage.setItem("authRedirectReason", "expired");
       setUser(null);
       return;
     }

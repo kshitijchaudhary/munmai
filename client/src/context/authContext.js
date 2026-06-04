@@ -15,11 +15,13 @@ export const getStoredUser = () => {
 
     if (!hasValidToken(parsedUser)) {
       window.localStorage.removeItem("user");
+      window.sessionStorage.setItem("authRedirectReason", "expired");
       return null;
     }
 
     return parsedUser;
   } catch {
+    window.sessionStorage.setItem("authRedirectReason", "expired");
     window.localStorage.removeItem("user");
     return null;
   }

@@ -1,4 +1,4 @@
-import { useState, useContext, useMemo } from "react";
+import { useState, useContext, useMemo, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import api from "../api/axios";
 import { AuthContext } from "../context/authContext";
@@ -27,8 +27,9 @@ const Login = () => {
     const session = params.get("session");
     const verified = params.get("verified");
     const registered = params.get("registered");
+    const reason = window.sessionStorage.getItem("authRedirectReason");
 
-    if (session === "expired") {
+    if (session === "expired" || reason === "expired") {
       return {
         type: "error",
         text: "Your session expired. Please log in again.",
@@ -58,6 +59,19 @@ const Login = () => {
 
     return null;
   }, [flashMessage, flashType, location.search]);
+
+  useEffect(() => {
+    const reason = window.sessionStorage.getItem("authRedirectReason");
+    if (reason !== "expired") return;
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("session") !== "expired") {
+      window.sessionStorage.removeItem("authRedirectReason");
+      navigate("/login?session=expired", { replace: true });
+    } else {
+      window.sessionStorage.removeItem("authRedirectReason");
+    }
+  }, [location.search, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

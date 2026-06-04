@@ -17,6 +17,7 @@ const redirectToExpiredLogin = () => {
   if (!isBrowser()) return;
 
   window.localStorage.removeItem("user");
+  window.sessionStorage.setItem("authRedirectReason", "expired");
 
   if (isLoginPage()) return;
 
