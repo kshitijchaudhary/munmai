@@ -11,6 +11,7 @@ import {
   getImportBatches,
   getImportRows,
   previewBankStatementPdf,
+  revertImportHistoryBatch,
   updateImportRow,
   uploadImportCsv,
 } from "../api/imports";
@@ -31,6 +32,7 @@ const statusLabels = {
   partially_imported: "Partially Imported",
   imported: "Imported",
   cancelled: "Cancelled",
+  reverted: "Reverted",
   needs_review: "Needs Review",
   ready: "Ready",
   ignored: "Ignored",
@@ -267,11 +269,8 @@ const ImportReview = () => {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [rows, setRows] = useState([]);
   const [liabilities, setLiabilities] = useState([]);
-  const [file, setFile] = useState(null);
   const [statementFile, setStatementFile] = useState(null);
   const [statementInputKey, setStatementInputKey] = useState(0);
-  const [pdfFile, setPdfFile] = useState(null);
-  const [pdfInputKey, setPdfInputKey] = useState(0);
   const [pdfPreview, setPdfPreview] = useState(null);
   const [pdfRows, setPdfRows] = useState([]);
   const [selectedPdfRows, setSelectedPdfRows] = useState({});
@@ -304,6 +303,7 @@ const ImportReview = () => {
   const [historyRowsByBatch, setHistoryRowsByBatch] = useState({});
   const [historyRowsLoadingId, setHistoryRowsLoadingId] = useState("");
   const [archivingHistoryBatchId, setArchivingHistoryBatchId] = useState("");
+  const [revertingHistoryBatchId, setRevertingHistoryBatchId] = useState("");
   const pdfRowsSectionRef = useRef(null);
   const pdfInputRef = useRef(null);
 
@@ -465,7 +465,6 @@ const ImportReview = () => {
         type: "success",
         text: `Created review queue with ${result.rowsCreated || 0} row(s).`,
       });
-      setFile(null);
       setStatementFile(null);
       setStatementInputKey((currentKey) => currentKey + 1);
       setImportComplete(false);
@@ -494,7 +493,6 @@ const ImportReview = () => {
 
     try {
       setPreviewingPdf(true);
-      setPdfFile(fileToPreview);
       setPdfStatus(null);
       setPdfPreview(null);
       setPdfRows([]);
@@ -521,16 +519,6 @@ const ImportReview = () => {
     } finally {
       setPreviewingPdf(false);
     }
-  };
-
-  const handleUpload = async (event) => {
-    event.preventDefault();
-    await uploadCsvFile(file);
-  };
-
-  const handlePdfPreview = async (event) => {
-    event.preventDefault();
-    await previewPdfFile(pdfFile);
   };
 
   const handleStatementFileChange = (selectedFile) => {
@@ -563,8 +551,6 @@ const ImportReview = () => {
   const clearPdfPreview = ({ focusInput = false } = {}) => {
     setStatementFile(null);
     setStatementInputKey((currentKey) => currentKey + 1);
-    setPdfFile(null);
-    setPdfInputKey((currentKey) => currentKey + 1);
     setPdfPreview(null);
     setPdfRows([]);
     setSelectedPdfRows({});
@@ -636,7 +622,7 @@ const ImportReview = () => {
       setPdfConfirmResult(null);
 
       const result = await confirmPdfImportRows({
-        fileName: pdfPreview?.fileName || pdfFile?.name || "statement.pdf",
+        fileName: pdfPreview?.fileName || statementFile?.name || "statement.pdf",
         rows: selectedPdfRowsForImport.map((row) => ({
           rowNumber: row.rowNumber,
           date: row.date,
@@ -731,6 +717,49 @@ const ImportReview = () => {
       );
     } finally {
       setArchivingHistoryBatchId("");
+    }
+  };
+
+  const handleRevertHistoryBatch = async (batch) => {
+    if (!batch?._id || batch.revertedAt || batch.status === "reverted") {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "This will remove the income/expense records created by this import from your account totals. Import history will be kept for audit. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setRevertingHistoryBatchId(batch._id);
+      setHistoryError("");
+      setMessage(null);
+
+      const result = await revertImportHistoryBatch(batch._id);
+
+      if (expandedHistoryBatchId === batch._id) {
+        setExpandedHistoryBatchId("");
+      }
+
+      setHistoryRowsByBatch((currentRows) => {
+        const nextRows = { ...currentRows };
+        delete nextRows[batch._id];
+        return nextRows;
+      });
+      setMessage({
+        type: "success",
+        text: result.message || "Import batch reverted.",
+      });
+      await loadImportHistory({ page: historyPagination.page });
+    } catch (error) {
+      setHistoryError(
+        error.response?.data?.message || "Failed to revert import batch."
+      );
+    } finally {
+      setRevertingHistoryBatchId("");
     }
   };
 
@@ -956,102 +985,104 @@ const ImportReview = () => {
 
         {activeTab === "upload" && (
           <div className="space-y-8">
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 md:p-6">
-              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
-                    Upload statement
-                  </h2>
-                  <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-                    Upload a CSV or text-based PDF bank statement. CSV files create
-                    a review queue. PDF files are previewed before import.
-                  </p>
+            {!pdfConfirmResult && (
+              <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 md:p-6">
+                <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                      Upload statement
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+                      Upload a CSV or text-based PDF bank statement. CSV files create
+                      a review queue. PDF files are previewed before import.
+                    </p>
+                  </div>
+
+                  {statementFile && (
+                    <StatementTypeBadge type={statementFileType} />
+                  )}
                 </div>
 
-                {statementFile && (
-                  <StatementTypeBadge type={statementFileType} />
-                )}
-              </div>
+                <form onSubmit={handleStatementSubmit} className="space-y-4">
+                  <input
+                    key={statementInputKey}
+                    ref={pdfInputRef}
+                    type="file"
+                    accept=".csv,.pdf,text/csv,application/pdf"
+                    onChange={(event) =>
+                      handleStatementFileChange(event.target.files?.[0] || null)
+                    }
+                    className={inputClass}
+                  />
 
-              <form onSubmit={handleStatementSubmit} className="space-y-4">
-                <input
-                  key={statementInputKey}
-                  ref={pdfInputRef}
-                  type="file"
-                  accept=".csv,.pdf,text/csv,application/pdf"
-                  onChange={(event) =>
-                    handleStatementFileChange(event.target.files?.[0] || null)
-                  }
-                  className={inputClass}
-                />
+                  {statementFile && (
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
+                      Selected file:{" "}
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {statementFile.name}
+                      </span>
+                    </div>
+                  )}
 
-                {statementFile && (
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
-                    Selected file:{" "}
-                    <span className="font-bold text-slate-900 dark:text-slate-100">
-                      {statementFile.name}
-                    </span>
+                  <button
+                    type="submit"
+                    disabled={statementSubmitDisabled}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+                  >
+                    {uploading
+                      ? "Creating queue..."
+                      : previewingPdf
+                      ? "Previewing PDF..."
+                      : statementButtonLabel}
+                  </button>
+                </form>
+
+                {pdfStatus?.text && (
+                  <div
+                    className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
+                      pdfStatus.type === "success"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300"
+                        : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-300"
+                    }`}
+                  >
+                    {pdfStatus.text}
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={statementSubmitDisabled}
-                  className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
-                >
-                  {uploading
-                    ? "Creating queue..."
-                    : previewingPdf
-                    ? "Previewing PDF..."
-                    : statementButtonLabel}
-                </button>
-              </form>
-
-              {pdfStatus?.text && (
-                <div
-                  className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
-                    pdfStatus.type === "success"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300"
-                      : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-300"
-                  }`}
-                >
-                  {pdfStatus.text}
-                </div>
-              )}
-
-              {pdfPreview && (
-                <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
-                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">
-                    Preview actions
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <button
-                      type="button"
-                      onClick={handleReviewParsedRows}
-                      className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
-                    >
-                      Review parsed rows
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => clearPdfPreview({ focusInput: true })}
-                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      Choose another file
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => clearPdfPreview()}
-                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                    >
-                      Clear preview
-                    </button>
+                {pdfPreview && (
+                  <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+                    <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">
+                      Preview actions
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={handleReviewParsedRows}
+                        className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+                      >
+                        Review parsed rows
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => clearPdfPreview({ focusInput: true })}
+                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        Choose another file
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => clearPdfPreview()}
+                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        Clear preview
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </section>
+                )}
+              </section>
+            )}
 
-            {!pdfPreview && (
+            {!pdfPreview && !pdfConfirmResult && (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
                 <p className="font-bold text-slate-700 dark:text-slate-200">
                   Upload a CSV or PDF statement to begin.
@@ -1075,6 +1106,8 @@ const ImportReview = () => {
                 onToggleRow={togglePdfRowSelection}
                 onUpdateRow={updatePdfRow}
                 onConfirm={handleConfirmPdfRows}
+                onViewHistory={() => setActiveTab("history")}
+                onImportAnother={() => clearPdfPreview({ focusInput: true })}
                 rowsSectionRef={pdfRowsSectionRef}
               />
             )}
@@ -1235,7 +1268,9 @@ const ImportReview = () => {
             onPageChange={(page) => loadImportHistory({ page })}
             onToggleRows={handleToggleHistoryRows}
             onArchiveBatch={handleArchiveHistoryBatch}
+            onRevertBatch={handleRevertHistoryBatch}
             archivingBatchId={archivingHistoryBatchId}
+            revertingBatchId={revertingHistoryBatchId}
           />
         )}
       </main>
@@ -1259,6 +1294,8 @@ const ImportHistorySection = ({
   onPageChange,
   onToggleRows,
   onArchiveBatch,
+  onRevertBatch,
+  revertingBatchId,
 }) => (
   <section className="mt-8 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
     <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 dark:border-slate-800 md:flex-row md:items-start md:justify-between md:px-6">
@@ -1345,8 +1382,10 @@ const ImportHistorySection = ({
               rows={rowsByBatch[batch._id] || []}
               rowsLoading={rowsLoadingId === batch._id}
               archiving={archivingBatchId === batch._id}
+              reverting={revertingBatchId === batch._id}
               onToggleRows={() => onToggleRows(batch)}
               onArchive={() => onArchiveBatch(batch)}
+              onRevert={() => onRevertBatch(batch)}
             />
           ))}
         </div>
@@ -1428,15 +1467,22 @@ const ImportHistoryBatchCard = ({
   rows,
   rowsLoading,
   archiving,
+  reverting,
   onToggleRows,
   onArchive,
+  onRevert,
 }) => {
   const summary = batch.summary || {};
   const duplicateCount = summary.duplicatesSkipped || 0;
   const errorCount = summary.errorsCount || 0;
+  const isReverted = batch.revertedAt || batch.status === "reverted";
+  const canRevert = Number(batch.importedRows || 0) > 0 && !isReverted;
   const committedLabel = batch.committedAt
     ? `Committed ${formatDateTime(batch.committedAt)}`
     : "Not committed";
+  const revertedLabel = batch.revertedAt
+    ? `Reverted ${formatDateTime(batch.revertedAt)}`
+    : "";
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-slate-700 dark:hover:bg-slate-900/70">
@@ -1454,6 +1500,7 @@ const ImportHistoryBatchCard = ({
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
               <span>Created {formatDateTime(batch.createdAt)}</span>
               <span>{committedLabel}</span>
+              {revertedLabel && <span>{revertedLabel}</span>}
             </div>
 
             <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
@@ -1477,6 +1524,16 @@ const ImportHistoryBatchCard = ({
             >
               {expanded ? "Hide rows" : "View rows"}
             </button>
+            {canRevert && (
+              <button
+                type="button"
+                onClick={onRevert}
+                disabled={reverting}
+                className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 disabled:text-rose-300 dark:border-rose-900/70 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+              >
+                {reverting ? "Reverting..." : "Revert import"}
+              </button>
+            )}
             <button
               type="button"
               onClick={onArchive}
@@ -1588,10 +1645,29 @@ const PdfPreviewSection = ({
   onToggleRow,
   onUpdateRow,
   onConfirm,
+  onViewHistory,
+  onImportAnother,
   rowsSectionRef,
 }) => {
   const parsedRows = Array.isArray(rows) ? rows : [];
   const summary = preview?.parserSummary || {};
+  const incomeCount = parsedRows.filter((row) => row.type === "income").length;
+  const expenseCount = parsedRows.filter((row) => row.type === "expense").length;
+  const needsReviewCount = parsedRows.filter(
+    (row) => !isImportablePdfType(row.type)
+  ).length;
+
+  if (confirmResult) {
+    return (
+      <section className="mb-8 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <PdfConfirmResult
+          result={confirmResult}
+          onViewHistory={onViewHistory}
+          onImportAnother={onImportAnother}
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="mb-8 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
@@ -1600,32 +1676,47 @@ const PdfPreviewSection = ({
           <div className="mb-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
             PDF Preview Only
           </div>
-          <h2 className="text-xl font-black text-slate-900">
+          <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
             Bank statement preview
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            PDF preview only. Transactions are not saved until you confirm
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Review the rows Munmai found. Nothing is saved until you import
             selected rows.
           </p>
         </div>
       </div>
 
       <div className="space-y-6 p-5 md:p-6">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <PdfMetaCard label="File" value={preview.fileName || "PDF statement"} />
-          <PdfMetaCard
-            label="Pages"
-            value={preview.pageCount ?? "Unknown"}
-          />
-          <PdfMetaCard
-            label="Text readable"
-            value={preview.isTextReadable ? "Yes" : "No"}
-            tone={preview.isTextReadable ? "text-emerald-600" : "text-amber-600"}
-          />
-          <PdfMetaCard
-            label="Text length"
-            value={formatNumber(preview.textLength)}
-          />
+        <div>
+          <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
+                Preview summary
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Rows are editable before import. Duplicates are checked when you import.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <PdfMetaCard label="Rows detected" value={parsedRows.length} />
+            <PdfMetaCard
+              label="Income"
+              value={incomeCount}
+              tone="text-emerald-600 dark:text-emerald-400"
+            />
+            <PdfMetaCard
+              label="Expenses"
+              value={expenseCount}
+              tone="text-rose-600 dark:text-rose-400"
+            />
+            <PdfMetaCard
+              label="Needs review"
+              value={needsReviewCount}
+              tone={needsReviewCount ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"}
+            />
+          </div>
         </div>
 
         {!preview.isTextReadable && (
@@ -1635,30 +1726,23 @@ const PdfPreviewSection = ({
           </div>
         )}
 
-        {preview.extractedTextSample && (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
-            <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-              Extracted text sample
-            </p>
-            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
-              {preview.extractedTextSample}
-            </pre>
-          </div>
-        )}
-
-        <div>
-          <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h3 className="text-lg font-black text-slate-900">
-                Parser summary
-              </h3>
-              <p className="text-sm text-slate-500">
-                Conservative transaction-like rows detected from the PDF text.
-              </p>
+        <details className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+          <summary className="cursor-pointer text-sm font-black text-slate-700 dark:text-slate-200">
+            Show technical preview details
+          </summary>
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <PdfMetaCard label="File" value={preview.fileName || "PDF statement"} />
+              <PdfMetaCard label="Pages" value={preview.pageCount ?? "Unknown"} />
+              <PdfMetaCard
+                label="Text readable"
+                value={preview.isTextReadable ? "Yes" : "No"}
+                tone={preview.isTextReadable ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}
+              />
+              <PdfMetaCard label="Text length" value={formatNumber(preview.textLength)} />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <PdfMetaCard
               label="Parsed rows"
               value={summary.totalParsedRows || 0}
@@ -1666,32 +1750,44 @@ const PdfPreviewSection = ({
             <PdfMetaCard
               label="High confidence"
               value={summary.highConfidenceRows || 0}
-              tone="text-emerald-600"
+              tone="text-emerald-600 dark:text-emerald-400"
             />
             <PdfMetaCard
               label="Medium"
               value={summary.mediumConfidenceRows || 0}
-              tone="text-amber-600"
+              tone="text-amber-600 dark:text-amber-400"
             />
             <PdfMetaCard
               label="Low"
               value={summary.lowConfidenceRows || 0}
-              tone="text-rose-600"
+              tone="text-rose-600 dark:text-rose-400"
             />
             <PdfMetaCard
               label="Unknown type"
               value={summary.unknownTypeRows || 0}
             />
+            </div>
+
+            {preview.extractedTextSample && (
+              <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                  Extracted text sample
+                </p>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  {preview.extractedTextSample}
+                </pre>
+              </div>
+            )}
           </div>
-        </div>
+        </details>
 
         <div ref={rowsSectionRef} tabIndex={-1} className="outline-none">
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h3 className="text-lg font-black text-slate-900">
+              <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
                 Parsed preview rows
               </h3>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 {selectedCount} selected for import. Duplicates will be skipped,
                 not treated as failures.
               </p>
@@ -1701,7 +1797,7 @@ const PdfPreviewSection = ({
               type="button"
               onClick={onConfirm}
               disabled={confirming || selectedCount === 0}
-              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
             >
               {confirming ? "Importing..." : "Import Selected PDF Rows"}
             </button>
@@ -1719,12 +1815,10 @@ const PdfPreviewSection = ({
             </div>
           )}
 
-          {confirmResult && <PdfConfirmResult result={confirmResult} />}
-
           {parsedRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-10 text-center dark:border-slate-700">
-              <p className="font-bold text-slate-700">No transaction-like rows found.</p>
-              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+              <p className="font-bold text-slate-700 dark:text-slate-200">No transaction-like rows found.</p>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">
                 This PDF may use unsupported formatting, scanned pages, or a
                 table layout that needs a future parser update.
               </p>
@@ -1748,7 +1842,7 @@ const PdfPreviewSection = ({
   );
 };
 
-const PdfMetaCard = ({ label, value, tone = "text-slate-900" }) => (
+const PdfMetaCard = ({ label, value, tone = "text-slate-900 dark:text-slate-100" }) => (
   <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/70">
     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
       {label}
@@ -1757,58 +1851,127 @@ const PdfMetaCard = ({ label, value, tone = "text-slate-900" }) => (
   </div>
 );
 
-const PdfConfirmResult = ({ result }) => {
+const getPdfResultDescription = (rowResult) => {
+  if (rowResult.status === "imported") {
+    return `${rowResult.recordType === "income" ? "Income" : "Expense"} added`;
+  }
+
+  if (rowResult.status === "duplicate_skipped") {
+    return "Already imported from a previous import.";
+  }
+
+  if (rowResult.status === "skipped") {
+    return rowResult.reason || "Skipped";
+  }
+
+  if (rowResult.status === "error") {
+    return rowResult.message || "Could not import this row.";
+  }
+
+  return rowResult.reason || rowResult.message || "Processed";
+};
+
+const PdfConfirmResult = ({ result, onViewHistory, onImportAnother }) => {
   const summary = result?.summary || {};
   const results = Array.isArray(result?.results) ? result.results : [];
+  const hasDuplicates = Number(summary.duplicatesSkipped || 0) > 0;
+  const importedCount =
+    Number(summary.incomeImported || 0) + Number(summary.expensesImported || 0);
+  const duplicateOnly = importedCount === 0 && hasDuplicates;
 
   return (
-    <div className="mb-5 rounded-3xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
-      <p className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
-        PDF Import Result
-      </p>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <PdfMetaCard label="Processed" value={summary.totalProcessed || 0} />
-        <PdfMetaCard
-          label="Income"
-          value={summary.incomeImported || 0}
-          tone="text-emerald-600"
-        />
-        <PdfMetaCard
-          label="Expenses"
-          value={summary.expensesImported || 0}
-          tone="text-rose-600"
-        />
-        <PdfMetaCard
-          label="Duplicates"
-          value={summary.duplicatesSkipped || 0}
-          tone="text-amber-600"
-        />
-        <PdfMetaCard label="Skipped" value={summary.unsupportedSkipped || 0} />
-        <PdfMetaCard
-          label="Errors"
-          value={summary.errorsCount || 0}
-          tone={summary.errorsCount ? "text-rose-600" : "text-slate-900"}
-        />
+    <div className="space-y-6 p-5 md:p-6">
+      <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+        <p className="text-xs font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
+          {duplicateOnly ? "No new rows imported" : "Import complete"}
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">
+          {duplicateOnly
+            ? "These rows were already imported before, so Munmai skipped them to protect your totals."
+            : "Your selected PDF rows were added to Munmai."}
+        </h2>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          Start another import to upload a new CSV or PDF statement.
+        </p>
+
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <PdfMetaCard label="Processed" value={summary.totalProcessed || 0} />
+          <PdfMetaCard
+            label="Income imported"
+            value={summary.incomeImported || 0}
+            tone="text-emerald-600 dark:text-emerald-400"
+          />
+          <PdfMetaCard
+            label="Expenses imported"
+            value={summary.expensesImported || 0}
+            tone="text-rose-600 dark:text-rose-400"
+          />
+          <PdfMetaCard
+            label="Duplicates skipped"
+            value={summary.duplicatesSkipped || 0}
+            tone={hasDuplicates ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"}
+          />
+          <PdfMetaCard label="Skipped" value={summary.unsupportedSkipped || 0} />
+          <PdfMetaCard
+            label="Errors"
+            value={summary.errorsCount || 0}
+            tone={summary.errorsCount ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-slate-100"}
+          />
+        </div>
+
+        {hasDuplicates && (
+          <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+            Duplicates were skipped to protect your totals.
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <button
+            type="button"
+            onClick={onImportAnother}
+            className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+          >
+            Import another statement
+          </button>
+          <Link
+            to="/money/transactions"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            View transactions
+          </Link>
+          <button
+            type="button"
+            onClick={onViewHistory}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            View import history
+          </button>
+        </div>
       </div>
 
       {results.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {results.map((rowResult) => (
-            <div
-              key={`${rowResult.rowNumber}-${rowResult.status}`}
-              className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between"
-            >
-              <div>
-                <p className="font-bold text-slate-900">
-                  Row {rowResult.rowNumber}
-                </p>
-                <p className="text-slate-500">
-                  {rowResult.reason || rowResult.message || rowResult.recordType || "Processed"}
-                </p>
+        <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+          <p className="mb-3 text-sm font-black uppercase tracking-widest text-slate-400">
+            Row results
+          </p>
+          <div className="space-y-2">
+            {results.map((rowResult) => (
+              <div
+                key={`${rowResult.rowNumber}-${rowResult.status}`}
+                className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-slate-100">
+                    Row {rowResult.rowNumber}
+                  </p>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    {getPdfResultDescription(rowResult)}
+                  </p>
+                </div>
+                <PdfResultStatus status={rowResult.status} />
               </div>
-              <PdfResultStatus status={rowResult.status} />
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -1871,10 +2034,10 @@ const PdfParsedRow = ({ row, selected, onToggle, onUpdate }) => {
                 </span>
               )}
             </div>
-            <p className="mt-3 font-black text-slate-900">
+            <p className="mt-3 font-black text-slate-900 dark:text-slate-100">
               {row.description || "No description"}
             </p>
-            <p className="mt-1 text-sm text-slate-500">{row.date || "No date"}</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{row.date || "No date"}</p>
           </div>
         </div>
 
@@ -2291,12 +2454,14 @@ const StatusPill = ({ status }) => (
   <span
     className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${
       status === "imported" || status === "ready"
-        ? "bg-emerald-50 text-emerald-700"
-        : status === "error"
-        ? "bg-rose-50 text-rose-700"
-        : status === "ignored" || status === "cancelled"
-        ? "bg-slate-100 text-slate-500"
-        : "bg-amber-50 text-amber-700"
+        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+        : status === "reverted"
+        ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+      : status === "error"
+        ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+      : status === "ignored" || status === "cancelled"
+        ? "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+        : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
     }`}
   >
     {statusLabels[status] || status}

@@ -89,3 +89,8 @@ export const archiveImportHistoryBatch = async (batchId) => {
   const response = await api.patch(`/imports/history/${batchId}/archive`);
   return response.data;
 };
+
+export const revertImportHistoryBatch = async (batchId) => {
+  const response = await api.post(`/imports/history/${batchId}/revert`);
+  return response.data;
+};
