@@ -2,6 +2,59 @@
 
 All notable Munmai release changes are documented here.
 
+## v1.8.1 — Phase 2 Stabilization + Demo Cleanup
+
+### Added
+- Added safe import revert workflow for confirmed CSV/PDF import batches.
+- Added reverted import audit tracking with `revertedAt`, `revertedBy`, and revert summary details.
+- Added support for reverted import rows and reverted import fingerprints.
+- Added Import Complete state after PDF import confirmation.
+- Added post-import actions for viewing transactions, viewing import history, and importing another statement.
+- Added PDF preview clear/start-over actions.
+- Added unified CSV/PDF statement upload flow.
+- Added tabbed Import Statements workflow: Upload & Preview, Review Queue, and History.
+
+### Improved
+- Improved Import Statements page layout for demo readiness.
+- Simplified PDF preview and import completion flow.
+- Hid technical PDF preview details behind a cleaner product flow.
+- Improved duplicate-only import messaging.
+- Improved Import History row display with friendlier duplicate messages.
+- Removed technical hashes, fingerprints, and Mongo IDs from normal Import History UI.
+- Made Import another statement the primary action after completed imports.
+- Improved compact Import History batch display.
+- Improved row number fallback for legacy import rows.
+- Preserved audit history while allowing users to undo accidental confirmed imports.
+
+### Safety Notes
+- Reverting an import removes only the income/expense records created by that import batch.
+- ImportBatch, ImportRow, and ImportedRecordFingerprint audit records are preserved.
+- Reverted fingerprints no longer block intentional re-import.
+- Active fingerprints still protect against duplicate imports.
+- Archive remains a soft-hide action and does not remove financial records.
+- Clear preview only resets the temporary PDF preview state before import.
+- Existing CSV review and PDF preview/confirm behavior remains unchanged.
+
+### Tested
+- Unified CSV/PDF upload flow.
+- PDF preview and clear/start-over behavior.
+- PDF import completion state.
+- Duplicate-only import completion state.
+- Import another statement reset flow.
+- Import History view rows.
+- Import History archive batch.
+- Safe import revert workflow.
+- Income and expense deletion after revert.
+- Re-import after revert.
+- Duplicate protection after re-import.
+- CSV review queue flow.
+- Dashboard and Monthly Summary totals after revert.
+- Dark/light mode readability.
+- Client build.
+- Backend syntax checks.
+- GitHub Actions CI passes.
+
+
 ## v1.8.0 — Import History + Reporting Integration
 
 ### Added
