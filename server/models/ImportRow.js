@@ -18,6 +18,7 @@ export const importRowStatuses = [
   "ignored",
   "duplicate_skipped",
   "error",
+  "reverted",
 ];
 
 const importRowSchema = new mongoose.Schema(
@@ -115,6 +116,15 @@ const importRowSchema = new mongoose.Schema(
       default: 0,
     },
     originalRawText: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    revertedAt: {
+      type: Date,
+      default: null,
+    },
+    revertMessage: {
       type: String,
       trim: true,
       default: "",

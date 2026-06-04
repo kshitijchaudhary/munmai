@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
+import Expense from "../models/Expense.js";
 import ImportBatch from "../models/ImportBatch.js";
 import ImportRow from "../models/ImportRow.js";
+import ImportedRecordFingerprint from "../models/ImportedRecordFingerprint.js";
+import Income from "../models/Income.js";
 
 const DEFAULT_HISTORY_LIMIT = 20;
 const MAX_HISTORY_LIMIT = 100;
@@ -90,14 +93,16 @@ const serializeBatch = (batch, skippedRows = 0) => ({
   _id: batch._id,
   importSource: batch.importSource || "csv",
   fileName: batch.originalFilename,
-  status: batch.status,
+  status: batch.revertedAt ? "reverted" : batch.status,
   summary: batch.summary || {},
+  revertSummary: batch.revertSummary || {},
   totalRows: Number(batch.totalRows || 0),
   importedRows: Number(batch.importedRows || 0),
   skippedRows: Number(skippedRows || 0),
   createdAt: batch.createdAt,
   committedAt: batch.committedAt || null,
   archivedAt: batch.archivedAt || null,
+  revertedAt: batch.revertedAt || null,
 });
 
 export const listImportHistoryBatches = async (userId, queryParams = {}) => {
@@ -209,7 +214,9 @@ export const getImportHistorySummary = async (userId) => {
         $group: {
           _id: null,
           totalImported: {
-            $sum: { $cond: [{ $eq: ["$status", "imported"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $in: ["$status", ["imported", "reverted"]] }, 1, 0],
+            },
           },
           totalDuplicates: {
             $sum: {
@@ -255,5 +262,98 @@ export const archiveImportHistoryBatch = async (userId, batchId) => {
   return {
     message: "Import batch archived.",
     batch: serializeBatch(batch, skippedRowsByBatch.get(String(batch._id)) || 0),
+  };
+};
+
+export const revertImportHistoryBatch = async (userId, batchId) => {
+  assertValidObjectId(batchId);
+
+  const batch = await ImportBatch.findOne({ _id: batchId, user: userId });
+
+  if (!batch) {
+    throw createError("Import batch not found", 404);
+  }
+
+  if (batch.revertedAt || batch.status === "reverted") {
+    throw createError("Import batch is already reverted", 400);
+  }
+
+  const importedRows = await ImportRow.find({
+    user: userId,
+    importBatch: batch._id,
+    status: "imported",
+    importedRecordType: { $in: ["income", "expense"] },
+  }).select("_id importedRecordType importedRecordId");
+
+  const incomeIds = importedRows
+    .filter((row) => row.importedRecordType === "income" && row.importedRecordId)
+    .map((row) => row.importedRecordId);
+  const expenseIds = importedRows
+    .filter((row) => row.importedRecordType === "expense" && row.importedRecordId)
+    .map((row) => row.importedRecordId);
+
+  const [incomeDeleteResult, expenseDeleteResult] = await Promise.all([
+    incomeIds.length
+      ? Income.deleteMany({ _id: { $in: incomeIds }, userId })
+      : Promise.resolve({ deletedCount: 0 }),
+    expenseIds.length
+      ? Expense.deleteMany({ _id: { $in: expenseIds }, userId })
+      : Promise.resolve({ deletedCount: 0 }),
+  ]);
+
+  const incomeDeleted = Number(incomeDeleteResult.deletedCount || 0);
+  const expensesDeleted = Number(expenseDeleteResult.deletedCount || 0);
+  const targetRecordCount = incomeIds.length + expenseIds.length;
+  const deletedRecordCount = incomeDeleted + expensesDeleted;
+  const now = new Date();
+  const summary = {
+    incomeDeleted,
+    expensesDeleted,
+    skipped: Math.max(0, importedRows.length - targetRecordCount),
+    errors: Math.max(0, targetRecordCount - deletedRecordCount),
+  };
+
+  await Promise.all([
+    ImportRow.updateMany(
+      {
+        user: userId,
+        importBatch: batch._id,
+        status: "imported",
+        importedRecordType: { $in: ["income", "expense"] },
+      },
+      {
+        $set: {
+          status: "reverted",
+          revertedAt: now,
+          revertMessage: "Import record removed during batch revert.",
+        },
+      }
+    ),
+    ImportedRecordFingerprint.updateMany(
+      {
+        user: userId,
+        importBatch: batch._id,
+        recordType: { $in: ["income", "expense"] },
+        status: "imported",
+      },
+      {
+        $set: {
+          status: "reverted",
+          errorMessage: "",
+        },
+      }
+    ),
+  ]);
+
+  batch.status = "reverted";
+  batch.revertedAt = now;
+  batch.revertedBy = userId;
+  batch.revertSummary = summary;
+  await batch.save();
+
+  return {
+    message: "Import batch reverted.",
+    batchId: batch._id,
+    summary,
   };
 };

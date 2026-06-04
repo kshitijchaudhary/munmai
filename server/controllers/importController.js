@@ -16,6 +16,7 @@ import {
   getImportHistorySummary,
   listImportHistoryBatches,
   listImportHistoryRows,
+  revertImportHistoryBatch,
 } from "../services/importHistoryService.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
@@ -168,6 +169,11 @@ export const getImportHistorySummaryByUser = asyncHandler(async (req, res) => {
 
 export const archiveImportHistoryBatchById = asyncHandler(async (req, res) => {
   const result = await archiveImportHistoryBatch(getUserId(req), req.params.batchId);
+  return res.status(200).json(result);
+});
+
+export const revertImportHistoryBatchById = asyncHandler(async (req, res) => {
+  const result = await revertImportHistoryBatch(getUserId(req), req.params.batchId);
   return res.status(200).json(result);
 });
 

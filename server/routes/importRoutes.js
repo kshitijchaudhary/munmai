@@ -12,6 +12,7 @@ import {
   getImportBatches,
   getImportRows,
   previewBankStatementPdf,
+  revertImportHistoryBatchById,
   updateImportRowById,
   uploadBankStatementPdf,
   uploadImportCsv,
@@ -28,6 +29,7 @@ router.post("/bank/pdf/confirm", confirmBankStatementPdfRows);
 router.get("/history/summary", getImportHistorySummaryByUser);
 router.get("/history", getImportHistory);
 router.patch("/history/:batchId/archive", archiveImportHistoryBatchById);
+router.post("/history/:batchId/revert", revertImportHistoryBatchById);
 router.get("/history/:batchId/rows", getImportHistoryRows);
 router.get("/history/:batchId", getImportHistoryById);
 router.get("/", getImportBatches);

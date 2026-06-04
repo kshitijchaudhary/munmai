@@ -5,6 +5,7 @@ export const importBatchStatuses = [
   "partially_imported",
   "imported",
   "cancelled",
+  "reverted",
 ];
 
 export const importBatchSources = ["csv", "pdf"];
@@ -47,6 +48,38 @@ const importBatchSchema = new mongoose.Schema(
       type: Date,
       default: null,
       index: true,
+    },
+    revertedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    revertedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    revertSummary: {
+      incomeDeleted: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      expensesDeleted: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      skipped: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      errors: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
     },
     summary: {
       totalProcessed: {

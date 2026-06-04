@@ -16,6 +16,7 @@ export const importFingerprintStatuses = [
   "skipped",
   "error",
   "record_deleted",
+  "reverted",
 ];
 
 const importedRecordFingerprintSchema = new mongoose.Schema(

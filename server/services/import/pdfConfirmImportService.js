@@ -92,6 +92,7 @@ const findDuplicateImport = async (userId, importHash) => {
   const fingerprint = await ImportedRecordFingerprint.findOne({
     user: userId,
     importHash,
+    status: { $ne: "reverted" },
   })
     .select("_id importHash recordType recordId recordModel status")
     .lean();
@@ -283,8 +284,8 @@ const createImportedFingerprint = async ({
   amount,
   category,
   importBatchId,
-}) =>
-  ImportedRecordFingerprint.create({
+}) => {
+  const fingerprintPayload = {
     user: userId,
     importHash,
     importSource: "pdf",
@@ -300,7 +301,22 @@ const createImportedFingerprint = async ({
     sourceRowNumber: rowNumber,
     originalRawText: truncateRawText(row?.rawText),
     status: "imported",
-  });
+    errorMessage: "",
+  };
+
+  const reactivatedFingerprint =
+    await ImportedRecordFingerprint.findOneAndUpdate(
+      { user: userId, importHash, status: "reverted" },
+      { $set: fingerprintPayload },
+      { new: true, runValidators: true }
+    );
+
+  if (reactivatedFingerprint) {
+    return reactivatedFingerprint;
+  }
+
+  return ImportedRecordFingerprint.create(fingerprintPayload);
+};
 
 export const confirmPdfImportRows = async (userId, payload = {}) => {
   validateConfirmPayload(userId, payload);
