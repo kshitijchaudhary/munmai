@@ -24,8 +24,16 @@ const Login = () => {
     }
 
     const params = new URLSearchParams(location.search);
+    const session = params.get("session");
     const verified = params.get("verified");
     const registered = params.get("registered");
+
+    if (session === "expired") {
+      return {
+        type: "error",
+        text: "Your session expired. Please log in again.",
+      };
+    }
 
     if (verified === "success") {
       return {
