@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   archiveImportHistoryBatch,
@@ -34,6 +34,8 @@ const statusLabels = {
   needs_review: "Needs Review",
   ready: "Ready",
   ignored: "Ignored",
+  skipped: "Skipped",
+  duplicate_skipped: "Duplicate skipped",
   error: "Error",
 };
 
@@ -52,6 +54,12 @@ const historySourceOptions = [
   { value: "pdf", label: "PDF" },
 ];
 
+const importTabs = [
+  { value: "upload", label: "Upload & Preview" },
+  { value: "review", label: "Review Queue" },
+  { value: "history", label: "History" },
+];
+
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-700 dark:disabled:bg-slate-800";
 
@@ -64,6 +72,18 @@ const formatCurrency = (value) =>
 const formatNumber = (value) => new Intl.NumberFormat("en-CA").format(Number(value || 0));
 
 const isImportablePdfType = (type) => ["income", "expense"].includes(type);
+
+const getStatementFileType = (selectedFile) => {
+  if (!selectedFile) return "";
+
+  const name = String(selectedFile.name || "").toLowerCase();
+  const mimeType = String(selectedFile.type || "").toLowerCase();
+
+  if (name.endsWith(".csv") || mimeType === "text/csv") return "csv";
+  if (name.endsWith(".pdf") || mimeType === "application/pdf") return "pdf";
+
+  return "unsupported";
+};
 
 const getPdfRowKey = (row) => String(row?.rowNumber || row?.rawText || "");
 
@@ -242,12 +262,16 @@ const getLinkedLiabilityId = (row) =>
     : row.linkedLiability || "";
 
 const ImportReview = () => {
+  const [activeTab, setActiveTab] = useState("upload");
   const [batches, setBatches] = useState([]);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [rows, setRows] = useState([]);
   const [liabilities, setLiabilities] = useState([]);
   const [file, setFile] = useState(null);
+  const [statementFile, setStatementFile] = useState(null);
+  const [statementInputKey, setStatementInputKey] = useState(0);
   const [pdfFile, setPdfFile] = useState(null);
+  const [pdfInputKey, setPdfInputKey] = useState(0);
   const [pdfPreview, setPdfPreview] = useState(null);
   const [pdfRows, setPdfRows] = useState([]);
   const [selectedPdfRows, setSelectedPdfRows] = useState({});
@@ -280,10 +304,40 @@ const ImportReview = () => {
   const [historyRowsByBatch, setHistoryRowsByBatch] = useState({});
   const [historyRowsLoadingId, setHistoryRowsLoadingId] = useState("");
   const [archivingHistoryBatchId, setArchivingHistoryBatchId] = useState("");
+  const pdfRowsSectionRef = useRef(null);
+  const pdfInputRef = useRef(null);
 
   const activeLiabilities = useMemo(
     () => liabilities.filter((liability) => liability.status === "active"),
     [liabilities]
+  );
+
+  const statementFileType = useMemo(
+    () => getStatementFileType(statementFile),
+    [statementFile]
+  );
+
+  const statementButtonLabel = useMemo(() => {
+    if (!statementFile) return "Choose a statement file";
+    if (statementFileType === "csv") return "Create Review Queue";
+    if (statementFileType === "pdf") return "Preview PDF";
+    return "Unsupported file type";
+  }, [statementFile, statementFileType]);
+
+  const statementSubmitDisabled =
+    uploading ||
+    previewingPdf ||
+    !statementFile ||
+    statementFileType === "unsupported";
+
+  const reviewQueueBatches = useMemo(
+    () =>
+      batches.filter(
+        (batch) =>
+          batch.importSource !== "pdf" &&
+          ["pending_review", "partially_imported", "cancelled"].includes(batch.status)
+      ),
+    [batches]
   );
 
   const selectedPdfRowsForImport = useMemo(
@@ -393,10 +447,8 @@ const ImportReview = () => {
     loadImportHistory({ page: 1 });
   }, [historySource, loadImportHistory]);
 
-  const handleUpload = async (event) => {
-    event.preventDefault();
-
-    if (!file) {
+  const uploadCsvFile = async (csvFile) => {
+    if (!csvFile) {
       setMessage({ type: "error", text: "Choose a CSV file to upload." });
       return;
     }
@@ -406,7 +458,7 @@ const ImportReview = () => {
       setMessage(null);
       setCommitSummary(null);
 
-      const result = await uploadImportCsv(file);
+      const result = await uploadImportCsv(csvFile);
       const batch = result?.batch;
 
       setMessage({
@@ -414,12 +466,15 @@ const ImportReview = () => {
         text: `Created review queue with ${result.rowsCreated || 0} row(s).`,
       });
       setFile(null);
+      setStatementFile(null);
+      setStatementInputKey((currentKey) => currentKey + 1);
       setImportComplete(false);
       await loadBatches();
       await loadImportHistory({ page: 1 });
 
       if (batch) {
         await loadRows(batch);
+        setActiveTab("review");
       }
     } catch (error) {
       setMessage({
@@ -431,16 +486,15 @@ const ImportReview = () => {
     }
   };
 
-  const handlePdfPreview = async (event) => {
-    event.preventDefault();
-
-    if (!pdfFile) {
+  const previewPdfFile = async (fileToPreview) => {
+    if (!fileToPreview) {
       setPdfStatus({ type: "error", text: "Choose a PDF statement to preview." });
       return;
     }
 
     try {
       setPreviewingPdf(true);
+      setPdfFile(fileToPreview);
       setPdfStatus(null);
       setPdfPreview(null);
       setPdfRows([]);
@@ -448,16 +502,14 @@ const ImportReview = () => {
       setPdfConfirmStatus(null);
       setPdfConfirmResult(null);
 
-      const result = await previewBankStatementPdf(pdfFile);
+      const result = await previewBankStatementPdf(fileToPreview);
       const previewRows = normalizePdfRows(result.parsedRows);
       setPdfPreview(result);
       setPdfRows(previewRows);
       setSelectedPdfRows(buildDefaultPdfSelection(previewRows));
       setPdfStatus({
         type: "success",
-        text:
-          result.message ||
-          "PDF preview generated. Transactions are not saved yet.",
+        text: "Preview ready. Transactions are not saved until you import selected rows.",
       });
     } catch (error) {
       setPdfStatus({
@@ -469,6 +521,74 @@ const ImportReview = () => {
     } finally {
       setPreviewingPdf(false);
     }
+  };
+
+  const handleUpload = async (event) => {
+    event.preventDefault();
+    await uploadCsvFile(file);
+  };
+
+  const handlePdfPreview = async (event) => {
+    event.preventDefault();
+    await previewPdfFile(pdfFile);
+  };
+
+  const handleStatementFileChange = (selectedFile) => {
+    setStatementFile(selectedFile);
+    setMessage(null);
+    setPdfStatus(null);
+  };
+
+  const handleStatementSubmit = async (event) => {
+    event.preventDefault();
+
+    if (statementFileType === "csv") {
+      await uploadCsvFile(statementFile);
+      return;
+    }
+
+    if (statementFileType === "pdf") {
+      await previewPdfFile(statementFile);
+      return;
+    }
+
+    setMessage({
+      type: "error",
+      text: statementFile
+        ? "Unsupported file type. Choose a CSV or PDF statement."
+        : "Choose a statement file.",
+    });
+  };
+
+  const clearPdfPreview = ({ focusInput = false } = {}) => {
+    setStatementFile(null);
+    setStatementInputKey((currentKey) => currentKey + 1);
+    setPdfFile(null);
+    setPdfInputKey((currentKey) => currentKey + 1);
+    setPdfPreview(null);
+    setPdfRows([]);
+    setSelectedPdfRows({});
+    setPdfConfirmStatus(null);
+    setPdfConfirmResult(null);
+    setPdfStatus(null);
+
+    if (focusInput) {
+      window.setTimeout(() => {
+        pdfInputRef.current?.focus();
+      }, 0);
+    }
+  };
+
+  const handleReviewParsedRows = () => {
+    if (!pdfRowsSectionRef.current) {
+      return;
+    }
+
+    pdfRowsSectionRef.current.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    pdfRowsSectionRef.current.focus({ preventScroll: true });
   };
 
   const updatePdfRow = (rowKey, updates) => {
@@ -815,72 +935,81 @@ const ImportReview = () => {
           </div>
         )}
 
-        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-          <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
-            <h2 className="text-xl font-black text-slate-900">Upload statement</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Rows are reviewed before they affect your income, expenses, or debts.
-            </p>
-
-            <form onSubmit={handleUpload} className="mt-5 space-y-4">
-              <div>
-                <p className="mb-1 text-sm font-black text-slate-900">
-                  CSV import queue
-                </p>
-                <p className="mb-3 text-sm text-slate-500">
-                  Create a review queue from a CSV bank export.
-                </p>
-              </div>
-
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={(event) => setFile(event.target.files?.[0] || null)}
-                className={inputClass}
-              />
-
+        <div className="mb-6 rounded-3xl border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {importTabs.map((tab) => (
               <button
-                type="submit"
-                disabled={uploading}
-                className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+                key={tab.value}
+                type="button"
+                onClick={() => setActiveTab(tab.value)}
+                className={`rounded-2xl px-4 py-3 text-sm font-black transition ${
+                  activeTab === tab.value
+                    ? "bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
               >
-                {uploading ? "Uploading..." : "Upload CSV"}
+                {tab.label}
               </button>
-            </form>
+            ))}
+          </div>
+        </div>
 
-            <div className="my-6 border-t border-slate-100 dark:border-slate-800" />
-
-            <form onSubmit={handlePdfPreview} className="space-y-4">
-              <div>
-                <div className="mb-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
-                  Preview Only
+        {activeTab === "upload" && (
+          <div className="space-y-8">
+            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 md:p-6">
+              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                    Upload statement
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+                    Upload a CSV or text-based PDF bank statement. CSV files create
+                    a review queue. PDF files are previewed before import.
+                  </p>
                 </div>
-                <p className="text-sm font-black text-slate-900">
-                  PDF bank statement preview
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  PDF preview only. Transactions are not saved yet.
-                </p>
+
+                {statementFile && (
+                  <StatementTypeBadge type={statementFileType} />
+                )}
               </div>
 
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
-                className={inputClass}
-              />
+              <form onSubmit={handleStatementSubmit} className="space-y-4">
+                <input
+                  key={statementInputKey}
+                  ref={pdfInputRef}
+                  type="file"
+                  accept=".csv,.pdf,text/csv,application/pdf"
+                  onChange={(event) =>
+                    handleStatementFileChange(event.target.files?.[0] || null)
+                  }
+                  className={inputClass}
+                />
 
-              <button
-                type="submit"
-                disabled={previewingPdf}
-                className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                {previewingPdf ? "Previewing PDF..." : "Preview PDF"}
-              </button>
+                {statementFile && (
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
+                    Selected file:{" "}
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                      {statementFile.name}
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={statementSubmitDisabled}
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+                >
+                  {uploading
+                    ? "Creating queue..."
+                    : previewingPdf
+                    ? "Previewing PDF..."
+                    : statementButtonLabel}
+                </button>
+              </form>
 
               {pdfStatus?.text && (
                 <div
-                  className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+                  className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
                     pdfStatus.type === "success"
                       ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300"
                       : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-300"
@@ -889,168 +1018,226 @@ const ImportReview = () => {
                   {pdfStatus.text}
                 </div>
               )}
-            </form>
-          </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">Recent imports</h2>
-                <p className="text-sm text-slate-500">
-                  Open a batch to review, classify, and commit rows.
+              {pdfPreview && (
+                <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">
+                    Preview actions
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={handleReviewParsedRows}
+                      className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+                    >
+                      Review parsed rows
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearPdfPreview({ focusInput: true })}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Choose another file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearPdfPreview()}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Clear preview
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {!pdfPreview && (
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+                <p className="font-bold text-slate-700 dark:text-slate-200">
+                  Upload a CSV or PDF statement to begin.
+                </p>
+                <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+                  CSV files create a review queue. Text-based PDFs can be
+                  previewed before importing selected rows.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={loadInitialData}
-                className="text-sm font-bold text-indigo-600 hover:underline"
-              >
-                Refresh
-              </button>
-            </div>
+            )}
 
-            {loading ? (
-              <EmptyState title="Loading imports..." />
-            ) : batches.length === 0 ? (
-              <EmptyState
-                title="No imports yet"
-                description="Upload your first CSV to review transactions before importing."
+            {pdfPreview && (
+              <PdfPreviewSection
+                preview={pdfPreview}
+                rows={pdfRows}
+                selectedRows={selectedPdfRows}
+                selectedCount={selectedPdfRowsForImport.length}
+                confirming={confirmingPdf}
+                confirmStatus={pdfConfirmStatus}
+                confirmResult={pdfConfirmResult}
+                onToggleRow={togglePdfRowSelection}
+                onUpdateRow={updatePdfRow}
+                onConfirm={handleConfirmPdfRows}
+                rowsSectionRef={pdfRowsSectionRef}
               />
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {batches.map((batch) => (
-                  <BatchRow
-                    key={batch._id}
-                    batch={batch}
-                    selected={selectedBatch?._id === batch._id}
-                    onOpen={() => loadRows(batch)}
-                    onRemove={() => handleRemoveBatch(batch)}
-                  />
-                ))}
-              </div>
             )}
           </div>
-        </section>
-
-        {pdfPreview && (
-          <PdfPreviewSection
-            preview={pdfPreview}
-            rows={pdfRows}
-            selectedRows={selectedPdfRows}
-            selectedCount={selectedPdfRowsForImport.length}
-            confirming={confirmingPdf}
-            confirmStatus={pdfConfirmStatus}
-            confirmResult={pdfConfirmResult}
-            onToggleRow={togglePdfRowSelection}
-            onUpdateRow={updatePdfRow}
-            onConfirm={handleConfirmPdfRows}
-          />
         )}
 
-        <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6">
-            <div>
-              <h2 className="text-xl font-black text-slate-900">Review rows</h2>
-              <p className="text-sm text-slate-500">
-                {selectedBatch
-                  ? selectedBatch.originalFilename
-                  : "Choose an import batch to review rows."}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              {selectedBatch &&
-                ["cancelled", "pending_review"].includes(selectedBatch.status) && (
+        {activeTab === "review" && (
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+            <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+              <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800 md:flex-row md:items-center md:justify-between md:px-6">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                    CSV review queue
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Open a CSV batch to review, classify, and import rows.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => handleRemoveBatch(selectedBatch)}
-                  disabled={cancelling}
-                  className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300 dark:border-rose-900/70 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                  onClick={loadInitialData}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
-                  {cancelling
-                    ? "Removing..."
-                    : selectedBatch.status === "cancelled"
-                    ? "Remove Batch"
-                    : "Cancel Batch"}
+                  Refresh
                 </button>
-              )}
-              {!readOnlyRows && (
-                <button
-                  type="button"
-                  onClick={handleCommit}
-                  disabled={commitDisabled}
-                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
-                >
-                  {committing ? "Importing..." : "Import Reviewed Rows"}
-                </button>
-              )}
-            </div>
-          </div>
+              </div>
 
-          {commitSummary && !importComplete && <CommitSummary summary={commitSummary} />}
-
-          {importComplete && displayedSummary && (
-            <ImportCompleteCard
-              summary={displayedSummary}
-              onImportAnother={() => {
-                setSelectedBatch(null);
-                setRows([]);
-                setCommitSummary(null);
-                setImportComplete(false);
-                setMessage(null);
-              }}
-            />
-          )}
-
-          {!readOnlyRows && unresolvedDebtRows.length > 0 && (
-            <div className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 md:mx-6">
-              Choose which debt this payment belongs to.
-            </div>
-          )}
-
-          {!selectedBatch ? (
-            <EmptyState title="No batch selected" description="Open an import batch to review rows." />
-          ) : rowsLoading ? (
-            <EmptyState title="Loading rows..." />
-          ) : rows.length === 0 ? (
-            <EmptyState title="No rows found" description="No rows found in this import." />
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {rows.map((row) => (
-                <ImportRowEditor
-                  key={row._id}
-                  row={row}
-                  liabilities={activeLiabilities}
-                  readOnly={readOnlyRows}
-                  rowError={rowErrorsById.get(String(row._id))}
-                  saving={savingRowId === row._id}
-                  onChange={(updates) => updateLocalRow(row._id, updates)}
-                  onSave={() => handleSaveRow(row)}
-                  onSkip={() => handleSkipRow(row)}
-                  onUndoSkip={() => handleUndoSkipRow(row)}
+              {loading ? (
+                <EmptyState title="Loading imports..." />
+              ) : reviewQueueBatches.length === 0 ? (
+                <EmptyState
+                  title="No review batches"
+                  description="Create a CSV review queue from the Upload & Preview tab."
                 />
-              ))}
-            </div>
-          )}
-        </section>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {reviewQueueBatches.map((batch) => (
+                    <BatchRow
+                      key={batch._id}
+                      batch={batch}
+                      selected={selectedBatch?._id === batch._id}
+                      onOpen={() => loadRows(batch)}
+                      onRemove={() => handleRemoveBatch(batch)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
 
-        <ImportHistorySection
-          summary={historySummary}
-          batches={historyBatches}
-          pagination={historyPagination}
-          source={historySource}
-          loading={historyLoading}
-          error={historyError}
-          expandedBatchId={expandedHistoryBatchId}
-          rowsByBatch={historyRowsByBatch}
-          rowsLoadingId={historyRowsLoadingId}
-          onSourceChange={setHistorySource}
-          onRefresh={() => loadImportHistory({ page: historyPagination.page })}
-          onPageChange={(page) => loadImportHistory({ page })}
-          onToggleRows={handleToggleHistoryRows}
-          onArchiveBatch={handleArchiveHistoryBatch}
-          archivingBatchId={archivingHistoryBatchId}
-        />
+            <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+              <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-800 md:flex-row md:items-center md:justify-between md:px-6">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                    Review rows
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    {selectedBatch
+                      ? selectedBatch.originalFilename
+                      : "Open a CSV review batch to review rows."}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {selectedBatch &&
+                    ["cancelled", "pending_review"].includes(selectedBatch.status) && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveBatch(selectedBatch)}
+                      disabled={cancelling}
+                      className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:text-rose-300 dark:border-rose-900/70 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                    >
+                      {cancelling
+                        ? "Removing..."
+                        : selectedBatch.status === "cancelled"
+                        ? "Remove Batch"
+                        : "Cancel Batch"}
+                    </button>
+                  )}
+                  {!readOnlyRows && (
+                    <button
+                      type="button"
+                      onClick={handleCommit}
+                      disabled={commitDisabled}
+                      className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+                    >
+                      {committing ? "Importing..." : "Import Reviewed Rows"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {commitSummary && !importComplete && <CommitSummary summary={commitSummary} />}
+
+              {importComplete && displayedSummary && (
+                <ImportCompleteCard
+                  summary={displayedSummary}
+                  onImportAnother={() => {
+                    setSelectedBatch(null);
+                    setRows([]);
+                    setCommitSummary(null);
+                    setImportComplete(false);
+                    setMessage(null);
+                    setActiveTab("upload");
+                  }}
+                />
+              )}
+
+              {!readOnlyRows && unresolvedDebtRows.length > 0 && (
+                <div className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300 md:mx-6">
+                  Choose which debt this payment belongs to.
+                </div>
+              )}
+
+              {!selectedBatch ? (
+                <EmptyState
+                  title="No batch selected"
+                  description="Open a CSV review batch to review rows."
+                />
+              ) : rowsLoading ? (
+                <EmptyState title="Loading rows..." />
+              ) : rows.length === 0 ? (
+                <EmptyState title="No rows found" description="No rows found in this import." />
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {rows.map((row) => (
+                    <ImportRowEditor
+                      key={row._id}
+                      row={row}
+                      liabilities={activeLiabilities}
+                      readOnly={readOnlyRows}
+                      rowError={rowErrorsById.get(String(row._id))}
+                      saving={savingRowId === row._id}
+                      onChange={(updates) => updateLocalRow(row._id, updates)}
+                      onSave={() => handleSaveRow(row)}
+                      onSkip={() => handleSkipRow(row)}
+                      onUndoSkip={() => handleUndoSkipRow(row)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeTab === "history" && (
+          <ImportHistorySection
+            summary={historySummary}
+            batches={historyBatches}
+            pagination={historyPagination}
+            source={historySource}
+            loading={historyLoading}
+            error={historyError}
+            expandedBatchId={expandedHistoryBatchId}
+            rowsByBatch={historyRowsByBatch}
+            rowsLoadingId={historyRowsLoadingId}
+            onSourceChange={setHistorySource}
+            onRefresh={() => loadImportHistory({ page: historyPagination.page })}
+            onPageChange={(page) => loadImportHistory({ page })}
+            onToggleRows={handleToggleHistoryRows}
+            onArchiveBatch={handleArchiveHistoryBatch}
+            archivingBatchId={archivingHistoryBatchId}
+          />
+        )}
       </main>
     </div>
   );
@@ -1216,6 +1403,25 @@ const SourceBadge = ({ source }) => {
   );
 };
 
+const StatementTypeBadge = ({ type }) => {
+  const label =
+    type === "csv" ? "CSV" : type === "pdf" ? "PDF" : "Unsupported";
+  const tone =
+    type === "csv"
+      ? "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+      : type === "pdf"
+      ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900/70 dark:bg-indigo-950/40 dark:text-indigo-300"
+      : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300";
+
+  return (
+    <span
+      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${tone}`}
+    >
+      {label}
+    </span>
+  );
+};
+
 const ImportHistoryBatchCard = ({
   batch,
   expanded,
@@ -1226,26 +1432,44 @@ const ImportHistoryBatchCard = ({
   onArchive,
 }) => {
   const summary = batch.summary || {};
+  const duplicateCount = summary.duplicatesSkipped || 0;
+  const errorCount = summary.errorsCount || 0;
+  const committedLabel = batch.committedAt
+    ? `Committed ${formatDateTime(batch.committedAt)}`
+    : "Not committed";
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60">
+    <article className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-slate-700 dark:hover:bg-slate-900/70">
       <div className="p-4 md:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="break-words font-black text-slate-900 dark:text-slate-100">
-                {batch.fileName || "Import file"}
-              </h3>
               <SourceBadge source={batch.importSource} />
               <StatusPill status={batch.status} />
+              <h3 className="min-w-0 break-words font-black text-slate-900 dark:text-slate-100">
+                {batch.fileName || "Import file"}
+              </h3>
             </div>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Created {formatDateTime(batch.createdAt)} | Committed{" "}
-              {formatDateTime(batch.committedAt)}
+
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+              <span>Created {formatDateTime(batch.createdAt)}</span>
+              <span>{committedLabel}</span>
+            </div>
+
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
+              <span>Rows {formatNumber(batch.totalRows || 0)}</span>
+              <span className="text-slate-300 dark:text-slate-700">·</span>
+              <span>Imported {formatNumber(batch.importedRows || 0)}</span>
+              <span className="text-slate-300 dark:text-slate-700">·</span>
+              <span>Duplicates {formatNumber(duplicateCount)}</span>
+              <span className="text-slate-300 dark:text-slate-700">·</span>
+              <span className={errorCount > 0 ? "text-rose-600 dark:text-rose-400" : ""}>
+                Errors {formatNumber(errorCount)}
+              </span>
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
             <button
               type="button"
               onClick={onToggleRows}
@@ -1262,16 +1486,6 @@ const ImportHistoryBatchCard = ({
               {archiving ? "Archiving..." : "Archive batch"}
             </button>
           </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-          <MiniMetric label="Rows" value={batch.totalRows || 0} />
-          <MiniMetric label="Imported" value={batch.importedRows || 0} />
-          <MiniMetric label="Skipped" value={batch.skippedRows || 0} />
-          <MiniMetric label="Income" value={summary.incomeImported || 0} />
-          <MiniMetric label="Expenses" value={summary.expensesImported || 0} />
-          <MiniMetric label="Duplicates" value={summary.duplicatesSkipped || 0} />
-          <MiniMetric label="Errors" value={summary.errorsCount || 0} />
         </div>
       </div>
 
@@ -1301,15 +1515,15 @@ const ImportHistoryRows = ({ rows, loading }) => {
 
   return (
     <div className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
-      {rows.map((row) => (
-        <ImportHistoryRow key={row._id} row={row} />
+      {rows.map((row, index) => (
+        <ImportHistoryRow key={row._id} row={row} index={index} />
       ))}
     </div>
   );
 };
 
-const ImportHistoryRow = ({ row }) => {
-  const rowNumber = row.sourceRowNumber || row.rowNumber || "-";
+const ImportHistoryRow = ({ row, index }) => {
+  const rowNumber = row.sourceRowNumber || row.rowNumber || index + 1;
   const classification = row.classification || row.importedRecordType || "unclassified";
   const isDuplicate = row.status === "duplicate_skipped";
   const isError = row.status === "error";
@@ -1323,11 +1537,6 @@ const ImportHistoryRow = ({ row }) => {
               Row {rowNumber}
             </span>
             <StatusPill status={row.status} />
-            {isDuplicate && (
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                Duplicate skipped
-              </span>
-            )}
           </div>
           <p className="break-words font-black text-slate-900 dark:text-slate-100">
             {row.description || row.rawDescription || "Imported row"}
@@ -1350,16 +1559,19 @@ const ImportHistoryRow = ({ row }) => {
         </p>
       </div>
 
-      {(isError || row.errorMessage) && (
+      {isError && (
         <p className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
           {row.errorMessage || "Import row failed."}
         </p>
       )}
 
-      {isDuplicate && row.duplicateOfFingerprint?.importHash && (
-        <p className="mt-3 break-all rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
-          Duplicate fingerprint: {row.duplicateOfFingerprint.importHash}
-        </p>
+      {isDuplicate && (
+        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+          <p>Already imported from a previous import.</p>
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+            Duplicate skipped to protect your totals.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -1376,6 +1588,7 @@ const PdfPreviewSection = ({
   onToggleRow,
   onUpdateRow,
   onConfirm,
+  rowsSectionRef,
 }) => {
   const parsedRows = Array.isArray(rows) ? rows : [];
   const summary = preview?.parserSummary || {};
@@ -1472,7 +1685,7 @@ const PdfPreviewSection = ({
           </div>
         </div>
 
-        <div>
+        <div ref={rowsSectionRef} tabIndex={-1} className="outline-none">
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <h3 className="text-lg font-black text-slate-900">
