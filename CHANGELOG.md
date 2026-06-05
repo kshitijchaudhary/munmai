@@ -2,6 +2,37 @@
 
 All notable Munmai release changes are documented here.
 
+
+## v1.9.0 — Receipt Inbox Prototype
+
+### Added
+- Standalone Receipt Inbox backend API
+- Protected receipt upload and secure file access
+- Receipt metadata model
+- Receipt list/search/filter API
+- Soft archive workflow for receipts
+- Sanitized receipt API responses without internal file paths
+- Receipt Inbox UI under Receipts
+- Upload form with manual metadata
+- Today/Yesterday/Clear date shortcuts
+- Category presets
+- Receipt search and filter shortcuts
+- Secure file viewing
+- Inline receipt metadata editing
+- Receipt archive flow
+- Trust & Legal links in Settings
+
+### Updated
+- Privacy Policy copy
+- Terms of Use copy
+- What Munmai Stores copy
+- Legal page navigation for logged-in users now returns to Settings
+
+### Notes
+- OCR, AI extraction, and receipt-to-expense linking are intentionally deferred.
+- Receipt Inbox MVP focuses on secure document storage and manual review first.
+
+
 ## v1.8.1 — Phase 2 Stabilization + Demo Cleanup
 
 ### Added
