@@ -71,13 +71,9 @@ Munmai was built for students, workers, and everyday users who need a clear view
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-![Import Statements – CSV Review Queue](docs/screenshots/import-csv.png)
+![Import Statements - CSV Review Queue](docs/screenshots/import-csv.png)
 
-![Receipt Inbox](docs/screenshots/receipt-inbox.png)
-
-![Import Statements – PDF Preview](docs/screenshots/import-statements.png)
-
-![Import History](docs/screenshots/import-history.png)
+![Receipt File View](docs/screenshots/receipt-view.png)
 
 ![Debt Reality](docs/screenshots/debt-reality.png)
 
@@ -86,6 +82,12 @@ Munmai was built for students, workers, and everyday users who need a clear view
 ![Group Summary](docs/screenshots/group-summary.png)
 
 ![Opening Balance](docs/screenshots/opening-balance.png)
+
+Planned v2 screenshots:
+
+- Receipt Inbox
+- Import Statements PDF preview
+- Import History
 
 ## Tech Stack
 
@@ -161,8 +163,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a fuller system overview.
 - v1.6.0 Bank Statement Preview + Dark Mode: added PDF upload, parsed-row preview, text-based statement extraction, and dark/light mode toggle.
 - v1.7.0 PDF Review/Confirm Import + Duplicate Detection: added per-row type/category editing, row selection, confirm import flow, and import fingerprints for duplicate prevention.
 - v1.8.0 Import History + Reporting Integration: added import history with batch rows, archive, revert workflow, and import-source counts in Monthly Summary.
-- v1.8.1 Phase 2 Stabilization + Demo Cleanup: polished import history UX, receipt-import coverage summary, trust/legal pages, and Settings links.
-- v1.9.0 Receipt Inbox Prototype: added standalone receipt upload, metadata management, search, filter, edit, archive, receipt coverage summary, and quick date/category/filter shortcuts.
+- v1.8.1 Phase 2 Stabilization + Demo Cleanup: polished import history UX, safe import revert clarity, trust/legal pages, and Settings links.
+- v1.9.0 Receipt Inbox Prototype: added standalone receipt upload, metadata management, category presets, purchase date field, search/filter controls, status filter, include archived toggle, edit, archive, and receipt coverage summary.
 
 ## Local Setup
 

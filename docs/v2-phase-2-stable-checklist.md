@@ -1,4 +1,4 @@
-# Munmai v2.0.0 — Phase 2 Stable Checklist
+# Munmai v2.0.0 - Phase 2 Stable Checklist
 
 ## Goal
 
@@ -56,7 +56,7 @@ No major new features should be added in v2.0.0.
 
 ## 4. Import Statements
 
-- [ ] CSV import preview works
+- [ ] CSV review queue works
 - [ ] PDF import preview works
 - [ ] Parsed rows display correctly
 - [ ] Confirm selected rows works
@@ -88,12 +88,20 @@ No major new features should be added in v2.0.0.
 - [ ] Add shared expense
 - [ ] Balances calculate correctly
 - [ ] Settlements display correctly
-- [ ] Opening Balance works
-- [ ] Debt Reality works
 
 ---
 
-## 7. Deployment Verification
+## 7. Opening Balance / Debt Reality
+
+- [ ] Opening Balance works
+- [ ] Opening Balance does not count as monthly income
+- [ ] Debt Reality works
+- [ ] Record debt payment works
+- [ ] Debt pressure summary looks correct
+
+---
+
+## 8. Deployment Verification
 
 - [ ] Frontend deployed URL works
 - [ ] Backend deployed URL works
@@ -108,7 +116,7 @@ No major new features should be added in v2.0.0.
 
 ---
 
-## 8. Documentation
+## 9. Documentation
 
 - [ ] README updated with latest feature list
 - [ ] Setup instructions updated
@@ -122,7 +130,7 @@ No major new features should be added in v2.0.0.
 
 ---
 
-## 9. Demo Polish
+## 10. Demo Polish
 
 - [ ] Create clean demo account
 - [ ] Add realistic income records
@@ -136,7 +144,7 @@ No major new features should be added in v2.0.0.
 
 ---
 
-## 10. Deferred After v2.0.0
+## 11. Deferred After v2.0.0
 
 These are intentionally not part of v2.0.0:
 

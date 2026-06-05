@@ -18,21 +18,21 @@ Quick overview covering the most important workflows.
 
 - Show the all-time personal balance with In/Out/Net summaries.
 - Point out Monthly Control, Debt Reality preview, and shared money cards.
-- "The Dashboard is a financial overview — every page feeds into it, but you don't manage details here."
+- "The Dashboard is a financial overview - every page feeds into it, but you don't manage details here."
 
 ### 3. Receipt Inbox (25 sec)
 
-- Open Money → Receipts.
-- Show the upload form with date shortcuts, category presets, and tags.
+- Open Money -> Receipts.
+- Show the upload form with the purchase date field, category presets, and tags.
 - Point out the receipt list with vendor/amount/status on one line.
-- Click the "Reviewed" and "Archived" filter shortcuts.
+- Use the status filter and include archived toggle.
 - Show receipt coverage summary: "X% of expenses have receipts."
 
 ### 4. Import Statements (30 sec)
 
-- Open Money → Import Statements.
+- Open Money -> Import Statements.
 - Go to Upload & Preview tab.
-- Upload a CSV file — show how rows enter a review queue.
+- Upload a CSV file - show how rows enter a review queue.
 - Click into a batch, classify one row, skip another.
 - "Rows are review-only until I commit them. No automatic changes to records."
 - Switch to History tab: show import history with batch rows.
@@ -50,7 +50,7 @@ Quick overview covering the most important workflows.
 - Open Monthly Summary.
 - Change month, show income vs expenses, category breakdown, and import-source counts.
 - Open Tax Pack: show the data source card and tax-oriented expense review.
-- "Tax Pack is a foundation — it surfaces deductible expenses for eventual export."
+- "Tax Pack is a foundation - it organizes deductible expense data, but it is not a full tax filing engine."
 
 ### 7. Groups & Debt Reality (20 sec)
 
@@ -60,7 +60,7 @@ Quick overview covering the most important workflows.
 
 ### 8. Trust & Legal (10 sec)
 
-- Open Settings → scroll to Trust & Legal.
+- Open Settings -> scroll to Trust & Legal.
 - Show links to Privacy Policy, Terms of Use, and What Munmai Stores.
 - "Transparency pages explain exactly what data Munmai stores and how it's used."
 
@@ -72,7 +72,7 @@ Deeper walkthrough with more detail for technical interviewers.
 
 ### 1. Login & Auth Context (30 sec)
 
-- Log in, open DevTools → Application → Local Storage.
+- Log in, open DevTools -> Application -> Local Storage.
 - Show the stored user object with JWT token.
 - "Token is attached to every request via an Axios interceptor. Expired tokens are detected client-side and redirect to login with a session-expired message."
 
@@ -85,9 +85,9 @@ Deeper walkthrough with more detail for technical interviewers.
 ### 3. Receipt Inbox Walkthrough (60 sec)
 
 - Upload a receipt file (JPG/PNG/PDF).
-- Fill in vendor, amount, and use the "Today" date shortcut.
+- Fill in vendor, amount, and the purchase date field.
 - Select a category from the preset list, add tags.
-- "Files are stored server-side and accessed through protected API routes — not public static uploads."
+- "Files are stored server-side and accessed through protected API routes - not public static uploads."
 - Click "View file" to open the receipt in a new tab via a blob URL.
 - Edit a receipt: change category, status, notes.
 - Archive a receipt and toggle "Include archived" in filters.
@@ -156,7 +156,7 @@ Deeper walkthrough with more detail for technical interviewers.
 
 ### What problem Munmai solves
 
-Personal money is scattered — income and expenses in bank apps, debts in separate portals, receipts in email inboxes, group expenses in messaging threads, and imported bank rows that may contain errors or duplicates. Munmai brings these together in a single review-first system.
+Personal money is scattered - income and expenses in bank apps, debts in separate portals, receipts in email inboxes, group expenses in messaging threads, and imported bank rows that may contain errors or duplicates. Munmai brings these together in a single review-first system.
 
 ### Why review-before-commit matters
 
@@ -168,7 +168,7 @@ Without fingerprints, the same bank charge could appear across two statements an
 
 ### Why secure receipt access matters
 
-Receipts often contain personal information — vendor names, partial card numbers, addresses. Munmai stores files server-side and streams them through authenticated API routes. Files are never exposed as public static URLs.
+Receipts often contain personal information - vendor names, partial card numbers, addresses. Munmai stores files server-side and streams them through authenticated API routes. Files are never exposed as public static URLs.
 
 ### Why import history and revert matter
 
@@ -178,11 +178,11 @@ Users change their minds. An import might include a mistaken row. Rather than as
 
 I chose to build real, working features over AI demos:
 
-- No OCR or AI receipt extraction yet — the Receipt Inbox is manual metadata for now.
-- No automatic expense matching — receipts stay standalone until linking is implemented.
-- No bank sync — imports require user-provided CSV or PDF files.
-- No full tax filing engine — Tax Pack is a data organization foundation, not a filing service.
-- No subscriptions or billing — the app is free during development.
+- No OCR or AI receipt extraction yet - the Receipt Inbox is manual metadata for now.
+- No automatic expense matching - receipts stay standalone until linking is implemented.
+- No bank sync - imports require user-provided CSV or PDF files.
+- No full tax filing engine - Tax Pack is a data organization foundation, not a filing service.
+- No subscriptions or billing - the app is free during development.
 
 ---
 

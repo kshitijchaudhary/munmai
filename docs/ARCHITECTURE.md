@@ -110,6 +110,7 @@ Current route mounts:
 /api/income            incomeRoutes
 /api/expenses          expenseRoutes
 /api/receipts          receiptRoutes
+/api/receipt-inbox     receiptInboxRoutes
 /api/users             userRoutes
 /api                   groupMembershipRoutes
 /api/dashboard         dashboardRoutes
@@ -195,6 +196,17 @@ GET    /api/receipts/:expenseId
 POST   /api/transactions/import
 ```
 
+Receipt Inbox:
+
+```text
+POST   /api/receipt-inbox
+GET    /api/receipt-inbox
+GET    /api/receipt-inbox/:receiptId
+PUT    /api/receipt-inbox/:receiptId
+DELETE /api/receipt-inbox/:receiptId
+GET    /api/receipt-inbox/:receiptId/file
+```
+
 Dashboard, budget, opening balance, and tax pack:
 
 ```text
@@ -238,6 +250,7 @@ GET   /api/imports/history
 GET   /api/imports/history/:batchId
 GET   /api/imports/history/:batchId/rows
 PATCH /api/imports/history/:batchId/archive
+POST  /api/imports/history/:batchId/revert
 ```
 
 Groups, memberships, expenses, balances, and settlements:
@@ -302,6 +315,14 @@ Expense:
   `deductiblePercent`.
 - Import metadata fields and unique partial import hash index.
 
+Receipt:
+- Standalone user-owned Receipt Inbox document record.
+- Stores original filename, internal stored filename/path, MIME type, size,
+  extension, vendor, amount, purchase date, category, notes, tags, status,
+  optional linked expense, upload timestamp, and archive timestamp.
+- Normal JSON API responses hide internal `filePath` and `storedFilename`.
+- Files are served only through protected Receipt Inbox routes.
+
 BudgetSetting:
 - One monthly spending limit per user.
 
@@ -341,7 +362,8 @@ OpeningBalance:
 ImportBatch:
 - User-owned import job/history record.
 - Source: CSV or PDF.
-- Status, row counts, summary, archive timestamp, date range, commit timestamp.
+- Status, row counts, summary, archive timestamp, revert timestamp, date range,
+  and commit timestamp.
 
 ImportRow:
 - User-owned reviewed row linked to an import batch.
@@ -351,6 +373,9 @@ ImportRow:
 ImportedRecordFingerprint:
 - User/import hash ledger used to detect duplicate PDF imports and legacy
   imported income/expense duplicates.
+- Active imported fingerprints block duplicate re-imports. Fingerprints marked
+  reverted by the explicit import revert workflow do not block intentional
+  re-import of the same rows.
 
 TelemetryEvent:
 - Client events, client errors, and server errors with route, request ID,
@@ -393,6 +418,14 @@ PDF files. Files are stored under `UPLOAD_DIR`; the database stores a
 `/uploads/<filename>` style receipt URL. Receipts are served through
 `GET /api/receipts/:expenseId`, which checks expense ownership before sending
 the file.
+
+Standalone Receipt Inbox records use a separate lifecycle from expense receipt
+uploads. `POST /api/receipt-inbox` stores JPG, PNG, or PDF receipt files in a
+Receipt Inbox upload folder and saves optional metadata such as vendor, amount,
+purchase date, category, notes, and tags. Receipt Inbox list/read/update/archive
+queries are scoped to the authenticated user. `GET /api/receipt-inbox/:receiptId/file`
+streams the owned file through a protected route; there is no public static
+uploads route for Receipt Inbox files.
 
 ### Dashboard And Monthly Summary
 
@@ -593,7 +626,8 @@ Major page responsibilities:
   Debt Reality preview, shared money, onboarding checklist.
 - `MoneyTransactions`: income/expense table, add/edit/delete flow, inline CSV
   import helper, receipt viewing.
-- `MoneyReceipts`: receipt coverage review and receipt file access.
+- `MoneyReceipts`: standalone Receipt Inbox upload/search/filter/edit/archive
+  workflow plus receipt coverage summary for tracked expenses.
 - `MoneyTaxPack`: tax year summary and CSV export.
 - `ImportReview`: CSV batch review queue, PDF preview/confirm flow, import
   history, debt linking for payment rows.
@@ -630,7 +664,9 @@ Authentication:
 Personal data isolation:
 - Income and expenses query by `userId`.
 - Budget, liabilities, imports, and personal opening balance query by `user`.
-- Receipt download checks expense ownership before sending a file.
+- Expense receipt download checks expense ownership before sending a file.
+- Receipt Inbox download checks standalone receipt ownership before sending a
+  file and hides internal file paths from normal JSON responses.
 
 Group data isolation:
 - Group reads require membership.
@@ -644,7 +680,9 @@ Transport and browser boundaries:
 - Password and verification tokens are not exposed in auth payloads.
 
 File upload controls:
-- Receipt uploads restrict mime type and file extension.
+- Expense receipt uploads restrict mime type and file extension.
+- Receipt Inbox uploads restrict mime type and file extension, store files with
+  random internal filenames, and serve files only through authenticated routes.
 - CSV and PDF import uploads use memory storage and size limits.
 - Receipt file paths are resolved through `path.basename()` to avoid trusting
   user-controlled paths.
@@ -725,9 +763,10 @@ Lint/build:
 - Client has ESLint config and Vite build.
 - No dedicated backend test suite is currently present in `package.json`.
 
-## Current Implementation Notes
+## Known Cleanup Items
 
-These are architecture-relevant observations from the current codebase:
+These are architecture-relevant cleanup items tracked for future hardening.
+They do not block the current v2.0.0 stable portfolio release:
 
 - `server/server.js` registers `/api/health` twice.
 - `server/server.js` mounts `/api/auth` twice.
