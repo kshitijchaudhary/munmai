@@ -107,6 +107,35 @@ const Settings = () => {
               />
             </div>
           </section>
+
+          <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6 lg:col-span-12">
+            <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+              Trust &amp; Legal
+            </p>
+            <h2 className="text-xl font-black text-slate-900">
+              Our policies
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              Review how Munmai handles data, privacy, and responsible use.
+            </p>
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DataLink
+                to="/privacy"
+                title="Privacy Policy"
+                description="How Munmai collects, uses, and protects your data."
+              />
+              <DataLink
+                to="/terms"
+                title="Terms of Use"
+                description="Rules and responsibilities for using Munmai."
+              />
+              <DataLink
+                to="/what-we-store"
+                title="What We Store"
+                description="A breakdown of the data Munmai keeps."
+              />
+            </div>
+          </section>
         </div>
       </main>
     </div>
