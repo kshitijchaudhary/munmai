@@ -71,23 +71,23 @@ Munmai was built for students, workers, and everyday users who need a clear view
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-![Import Statements - CSV Review Queue](docs/screenshots/import-csv.png)
+![Receipt Inbox](docs/screenshots/receipt-inbox.png)
 
-![Receipt File View](docs/screenshots/receipt-view.png)
+![Import Statements](docs/screenshots/import-statements.png)
 
-![Debt Reality](docs/screenshots/debt-reality.png)
+![Import History](docs/screenshots/import-history.png)
 
 ![Monthly Summary](docs/screenshots/monthly-summary.png)
 
+![Tax Pack](docs/screenshots/tax-pack.png)
+
+![Debt Reality](docs/screenshots/debt-reality.png)
+
 ![Group Summary](docs/screenshots/group-summary.png)
 
+![Settings – Trust & Legal](docs/screenshots/settings-trust-legal.png)
+
 ![Opening Balance](docs/screenshots/opening-balance.png)
-
-Planned v2 screenshots:
-
-- Receipt Inbox
-- Import Statements PDF preview
-- Import History
 
 ## Tech Stack
 
