@@ -621,6 +621,23 @@ const GroupSummary = () => {
           </div>
         </section>
 
+        {joinCode && (
+          <section className="mb-8 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Invite & Join Code</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Share this code so others can request to join this group.
+                </p>
+                <p className="mt-3 text-2xl font-black tracking-wide text-slate-900">
+                  {joinCode}
+                </p>
+              </div>
+              <JoinCodeCopyButton joinCode={joinCode} />
+            </div>
+          </section>
+        )}
+
         {membersError && (
           <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {membersError}
@@ -1159,6 +1176,30 @@ const JoinCodeCard = ({ joinCode }) => {
         </button>
       </div>
     </section>
+  );
+};
+
+const JoinCodeCopyButton = ({ joinCode }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(joinCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:w-auto"
+    >
+      {copied ? "Copied" : "Copy Code"}
+    </button>
   );
 };
 
