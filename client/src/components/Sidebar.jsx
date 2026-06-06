@@ -17,7 +17,7 @@ const getNavSections = (pathname) => [
     label: "Money",
     items: [
       { label: "Transactions", to: "/money/transactions" },
-      { label: "Receipts", to: "/money/receipts" },
+      { label: "Receipt Inbox", to: "/money/receipts" },
       { label: "Import Statements", to: "/imports" },
     ],
   },
@@ -33,15 +33,15 @@ const getNavSections = (pathname) => [
   {
     label: "Reports",
     items: [
-      { label: "Tax Pack", to: "/money/tax-pack" },
       { label: "Monthly Summary", to: "/monthly-summary" },
+      { label: "Tax Pack", to: "/money/tax-pack" },
     ],
   },
   {
     label: "Financial Life",
     items: [
-      { label: "Opening Balance", to: "/opening-balance" },
       { label: "Debt Reality", to: "/debt-reality" },
+      { label: "Opening Balance", to: "/opening-balance" },
     ],
   },
   {
