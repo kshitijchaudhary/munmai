@@ -113,6 +113,26 @@ const quickActions = [
     to: "/money/transactions",
   },
   {
+    title: "Receipt Inbox",
+    description: "Upload and organize receipt documents.",
+    to: "/money/receipts",
+  },
+  {
+    title: "Import Statements",
+    description: "Review CSV or PDF bank statement rows.",
+    to: "/imports",
+  },
+  {
+    title: "Monthly Summary",
+    description: "Review income, expenses, and monthly trends.",
+    to: "/monthly-summary",
+  },
+  {
+    title: "Debt Reality",
+    description: "Track debts, due dates, and payment pressure.",
+    to: "/debt-reality",
+  },
+  {
     title: "Tax Pack",
     description: "Review deductible expenses and export CSV.",
     to: "/money/tax-pack",

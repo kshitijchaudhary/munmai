@@ -97,8 +97,8 @@ const Settings = () => {
               />
               <DataLink
                 to="/money/receipts"
-                title="Receipts"
-                description="Check tracked expenses for receipt coverage."
+                title="Receipt Inbox"
+                description="Upload, search, edit, and archive receipt documents."
               />
               <DataLink
                 to="/money/tax-pack"
