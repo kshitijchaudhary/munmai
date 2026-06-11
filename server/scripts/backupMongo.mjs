@@ -26,7 +26,7 @@ const run = async () => {
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupDir = path.join(process.cwd(), "backups");
-  const filePath = path.join(backupDir, `finvexa-backup-${timestamp}.json`);
+  const filePath = path.join(backupDir, `munmai-backup-${timestamp}.json`);
 
   fs.mkdirSync(backupDir, { recursive: true });
   fs.writeFileSync(
