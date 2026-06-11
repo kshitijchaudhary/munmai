@@ -11,34 +11,26 @@ const getNavSections = () => [
     items: [{ label: "Dashboard", to: "/dashboard" }],
   },
   {
-    label: "Money",
+    label: "Daily",
     items: [
       { label: "Transactions", to: "/money/transactions" },
       { label: "Receipt Inbox", to: "/money/receipts" },
-      { label: "Import Statements", to: "/imports" },
     ],
   },
   {
-    label: "Groups",
-    items: [{ label: "Groups", to: "/groups" }],
-  },
-  {
-    label: "Reports",
+    label: "Review",
     items: [
       { label: "Monthly Summary", to: "/monthly-summary" },
-      { label: "Tax Pack", to: "/money/tax-pack" },
-    ],
-  },
-  {
-    label: "Financial Life",
-    items: [
+      { label: "Import Statements", to: "/imports" },
       { label: "Debt Reality", to: "/debt-reality" },
-      { label: "Opening Balance", to: "/opening-balance" },
+      { label: "Groups", to: "/groups" },
     ],
   },
   {
-    label: "Settings",
+    label: "Setup",
     items: [
+      { label: "Opening Balance", to: "/opening-balance" },
+      { label: "Tax Pack", to: "/money/tax-pack" },
       { label: "Profile", to: "/profile" },
       { label: "Settings", to: "/settings" },
     ],
