@@ -5,10 +5,7 @@ import ThemeToggle from "./ThemeToggle";
 
 const futureItems = new Set();
 
-const getGroupDestination = (pathname) =>
-  /^\/groups\/[^/]+\/summary$/.test(pathname) ? pathname : "/groups";
-
-const getNavSections = (pathname) => [
+const getNavSections = () => [
   {
     label: "Main",
     items: [{ label: "Dashboard", to: "/dashboard" }],
@@ -26,8 +23,6 @@ const getNavSections = (pathname) => [
     items: [
       { label: "My Groups", to: "/groups" },
       { label: "Invitations", to: "/group-invitations" },
-      { label: "Shared Expenses", to: getGroupDestination(pathname), groupScoped: true },
-      { label: "Settlements", to: getGroupDestination(pathname), groupScoped: true },
     ],
   },
   {
@@ -55,10 +50,6 @@ const getNavSections = (pathname) => [
 
 const isActiveItem = (pathname, search, hash, item) => {
   if (!item.to || futureItems.has(item.label)) {
-    return false;
-  }
-
-  if (item.groupScoped) {
     return false;
   }
 
@@ -125,9 +116,8 @@ const NavItem = ({ item, onNavigate }) => {
 };
 
 const SidebarContent = ({ onNavigate }) => {
-  const { pathname } = useLocation();
   const { logout } = useContext(AuthContext);
-  const sections = useMemo(() => getNavSections(pathname), [pathname]);
+  const sections = useMemo(() => getNavSections(), []);
 
   return (
     <div className="flex h-full flex-col">

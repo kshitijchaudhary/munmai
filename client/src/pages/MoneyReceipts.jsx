@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import DocumentUploadField from "../components/DocumentUploadField";
+import Modal from "../components/Modal";
 import api from "../api/axios";
 import {
   archiveReceipt,
@@ -23,6 +25,7 @@ const EMPTY_FILTERS = {
   status: "",
   category: "",
   includeArchived: false,
+  archivedOnly: false,
   from: "",
   to: "",
 };
@@ -96,6 +99,22 @@ const buildReceiptPayload = (form) => ({
   tags: form.tags,
 });
 
+const getDetectedFileType = (file) => {
+  if (!file) return "";
+
+  const mimeType = String(file.type || "").toLowerCase();
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType === "image/jpeg") return "JPG";
+  if (mimeType === "image/png") return "PNG";
+
+  const name = String(file.name || "").toLowerCase();
+  if (name.endsWith(".pdf")) return "PDF";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "JPG";
+  if (name.endsWith(".png")) return "PNG";
+
+  return "";
+};
+
 const getTodayDateString = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -152,6 +171,8 @@ const MoneyReceipts = () => {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [openingReceiptId, setOpeningReceiptId] = useState("");
   const [editingReceiptId, setEditingReceiptId] = useState("");
   const [editForm, setEditForm] = useState(EMPTY_UPLOAD_FORM);
@@ -179,11 +200,17 @@ const MoneyReceipts = () => {
         ...(f.category ? { category: f.category } : {}),
         ...(f.from ? { from: f.from } : {}),
         ...(f.to ? { to: f.to } : {}),
-        ...(f.includeArchived ? { includeArchived: true } : {}),
+        ...(f.includeArchived || f.archivedOnly ? { includeArchived: true } : {}),
       };
 
       const data = await getReceipts(params);
-      setReceipts(Array.isArray(data.receipts) ? data.receipts : []);
+      let receiptList = Array.isArray(data.receipts) ? data.receipts : [];
+
+      if (f.archivedOnly) {
+        receiptList = receiptList.filter((r) => r.status === "archived");
+      }
+
+      setReceipts(receiptList);
       setPagination(data.pagination || null);
     } catch (loadError) {
       setReceipts([]);
@@ -237,6 +264,22 @@ const MoneyReceipts = () => {
     setFileInputKey((current) => current + 1);
   };
 
+  const openUploadModal = () => {
+    setError("");
+    setSuccess("");
+    setUploadModalOpen(true);
+  };
+
+  const closeUploadModal = () => {
+    if (uploading) {
+      return;
+    }
+
+    setUploadModalOpen(false);
+    setError("");
+    resetUploadForm();
+  };
+
   const handleUploadChange = (event) => {
     const { name, value } = event.target;
     setUploadForm((current) => ({ ...current, [name]: value }));
@@ -244,10 +287,18 @@ const MoneyReceipts = () => {
 
   const handleFilterChange = (event) => {
     const { name, value, checked, type } = event.target;
-    setFilters((current) => ({
-      ...current,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setFilters((current) => {
+      const next = {
+        ...current,
+        [name]: type === "checkbox" ? checked : value,
+      };
+
+      if (name === "includeArchived" && checked) {
+        next.archivedOnly = false;
+      }
+
+      return next;
+    });
   };
 
   const handleUpload = async (event) => {
@@ -273,6 +324,7 @@ const MoneyReceipts = () => {
       await uploadReceipt(formData);
       setSuccess("Receipt uploaded.");
       resetUploadForm();
+      setUploadModalOpen(false);
       await loadReceipts();
     } catch (uploadError) {
       setError(getMessage(uploadError, "Failed to upload receipt."));
@@ -370,7 +422,11 @@ const MoneyReceipts = () => {
   };
 
   const hasActiveFilters =
-    filters.search || filters.status || filters.category || filters.from || filters.to || filters.includeArchived;
+    filters.search || filters.status || filters.category || filters.from || filters.to || filters.includeArchived || filters.archivedOnly;
+
+  const advancedFiltersActive = Boolean(filters.status || filters.category || filters.includeArchived);
+
+  const receiptCount = filters.archivedOnly ? receipts.length : pagination?.total || receipts.length;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -401,7 +457,7 @@ const MoneyReceipts = () => {
         )}
 
         <section className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-4">
-          <SummaryCard label="Inbox Receipts" value={pagination?.total || receipts.length} />
+          <SummaryCard label="Inbox Receipts" value={receiptCount} />
           <SummaryCard
             label="Expense Coverage"
             value={`${coveragePercent}%`}
@@ -419,26 +475,81 @@ const MoneyReceipts = () => {
           />
         </section>
 
-        <FilterShortcuts filters={filters} onApply={(next) => { const merged = { ...filters, ...next }; setFilters(merged); loadReceipts(merged); }} />
+        <section className="mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 md:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-lg font-black text-slate-950 dark:text-white">
+                Receipt controls
+              </h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Upload receipts when needed, then search and review saved documents below.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={openUploadModal}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+            >
+              + Upload Receipt
+            </button>
+          </div>
 
-        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <UploadReceiptCard
-            form={uploadForm}
-            fileInputKey={fileInputKey}
-            uploading={uploading}
-            selectedFile={selectedFile}
-            onChange={handleUploadChange}
-            onFileChange={(file) => setSelectedFile(file)}
-            onSubmit={handleUpload}
-          />
+          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <TextInput
+              label="Search receipts"
+              name="search"
+              value={filters.search}
+              placeholder="Vendor, notes, filename, tag"
+              onChange={handleFilterChange}
+            />
+            <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+              <button
+                type="button"
+                onClick={() => setAdvancedFiltersOpen((current) => !current)}
+                className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-sm font-black transition ${
+                  advancedFiltersOpen || advancedFiltersActive
+                    ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                }`}
+              >
+                Filters
+                {advancedFiltersActive && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200">
+                    Active
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => loadReceipts()}
+                disabled={loading}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <FilterShortcuts
+              filters={filters}
+              onApply={(next) => {
+                setFilters(next);
+                loadReceipts(next);
+              }}
+            />
+          </div>
 
           <FilterCard
+            open={advancedFiltersOpen}
             filters={filters}
             categories={visibleCategories}
-            loading={loading}
             onChange={handleFilterChange}
-            onRefresh={loadReceipts}
-            onReset={() => setFilters(EMPTY_FILTERS)}
+            onReset={() => {
+              setFilters(EMPTY_FILTERS);
+              loadReceipts(EMPTY_FILTERS);
+              setAdvancedFiltersOpen(false);
+            }}
           />
         </section>
 
@@ -454,7 +565,7 @@ const MoneyReceipts = () => {
                 </p>
               </div>
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                {pagination?.total || receipts.length} saved
+                {receiptCount} saved
               </p>
             </div>
           </div>
@@ -497,6 +608,29 @@ const MoneyReceipts = () => {
             )}
           </div>
         </section>
+
+        <Modal
+          open={uploadModalOpen}
+          onClose={closeUploadModal}
+          title="Upload receipt"
+          description="Add a receipt file and optional metadata for later review."
+        >
+          {error && (
+            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
+              {error}
+            </div>
+          )}
+          <UploadReceiptForm
+            form={uploadForm}
+            fileInputKey={fileInputKey}
+            uploading={uploading}
+            selectedFile={selectedFile}
+            onChange={handleUploadChange}
+            onFileChange={(file) => setSelectedFile(file)}
+            onSubmit={handleUpload}
+            onCancel={closeUploadModal}
+          />
+        </Modal>
       </main>
     </div>
   );
@@ -511,7 +645,7 @@ const SummaryCard = ({ label, value, tone = "text-slate-950 dark:text-white" }) 
   </div>
 );
 
-const UploadReceiptCard = ({
+const UploadReceiptForm = ({
   form,
   fileInputKey,
   uploading,
@@ -519,105 +653,118 @@ const UploadReceiptCard = ({
   onChange,
   onFileChange,
   onSubmit,
-}) => (
-  <form
-    onSubmit={onSubmit}
-    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 md:p-6"
-  >
-    <div className="mb-5">
-      <h2 className="text-xl font-black text-slate-950 dark:text-white">
-        Upload receipt
-      </h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Add a receipt file and optional metadata for later review.
-      </p>
-    </div>
+  onCancel,
+}) => {
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <label className="sm:col-span-2">
-        <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-          Receipt file
-        </span>
-        <input
-          key={fileInputKey}
-          type="file"
+  return (
+    <form onSubmit={onSubmit}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <DocumentUploadField
+          label="Receipt file"
+          helperText="Upload a receipt image or PDF for your records."
           accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-          onChange={(event) => onFileChange(event.target.files?.[0] || null)}
-          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:file:bg-slate-100 dark:file:text-slate-950"
+          selectedFile={selectedFile}
+          onFileChange={onFileChange}
+          supportedTypes={["JPG", "PNG", "PDF"]}
+          detectedType={getDetectedFileType(selectedFile)}
+          inputKey={fileInputKey}
+          trustText="Files are stored privately and opened through protected access."
         />
-        {selectedFile && (
-          <span className="mt-2 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-            Selected: {selectedFile.name}
-          </span>
-        )}
-      </label>
 
-      <TextInput label="Vendor" name="vendor" value={form.vendor} onChange={onChange} />
-      <TextInput
-        label="Amount"
-        name="amount"
-        type="number"
-        step="0.01"
-        min="0"
-        value={form.amount}
-        onChange={onChange}
-      />
-      <label>
-        <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-          Purchase date
-        </span>
-        <input
-          type="date"
-          name="purchaseDate"
-          value={form.purchaseDate}
+        <TextInput label="Vendor" name="vendor" value={form.vendor} onChange={onChange} />
+        <TextInput
+          label="Amount"
+          name="amount"
+          type="number"
+          step="0.01"
+          min="0"
+          value={form.amount}
           onChange={onChange}
-          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
         />
-        <DateQuickButtons name="purchaseDate" onChange={onChange} />
-      </label>
-      <SelectInput
-        label="Category"
-        name="category"
-        value={form.category}
-        options={CATEGORY_OPTIONS}
-        onChange={onChange}
-      />
-      <label>
-        <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-          Tags
-        </span>
-        <input
-          type="text"
-          name="tags"
-          value={form.tags}
-          onChange={onChange}
-          placeholder="Use tags like business, tax, groceries, work, travel."
-          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-        />
-      </label>
-      <label className="sm:col-span-2">
-        <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-          Notes
-        </span>
-        <textarea
-          name="notes"
-          value={form.notes}
-          onChange={onChange}
-          rows="3"
-          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-        />
-      </label>
-    </div>
+      </div>
 
-    <button
-      type="submit"
-      disabled={uploading}
-      className="mt-5 w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
-    >
-      {uploading ? "Uploading..." : "Upload receipt"}
-    </button>
-  </form>
-);
+      <button
+        type="button"
+        onClick={() => setDetailsOpen((current) => !current)}
+        className="mt-4 rounded-xl px-1 py-2 text-sm font-black text-indigo-600 transition hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
+        aria-expanded={detailsOpen}
+      >
+        {detailsOpen ? "Hide details" : "Add more details"}
+      </button>
+
+      {detailsOpen && (
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label>
+              <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                Purchase date
+              </span>
+              <input
+                type="date"
+                name="purchaseDate"
+                value={form.purchaseDate}
+                onChange={onChange}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+              <DateQuickButtons name="purchaseDate" onChange={onChange} />
+            </label>
+            <SelectInput
+              label="Category"
+              name="category"
+              value={form.category}
+              options={CATEGORY_OPTIONS}
+              onChange={onChange}
+            />
+            <label>
+              <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                Tags
+              </span>
+              <input
+                type="text"
+                name="tags"
+                value={form.tags}
+                onChange={onChange}
+                placeholder="Use tags like business, tax, groceries, work, travel."
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </label>
+            <label className="sm:col-span-2">
+              <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                Notes
+              </span>
+              <textarea
+                name="notes"
+                value={form.notes}
+                onChange={onChange}
+                rows="3"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={uploading}
+          className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={uploading}
+          className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+        >
+          {uploading ? "Uploading..." : "Upload receipt"}
+        </button>
+      </div>
+    </form>
+  );
+};
 
 const shortcutButtonClass =
   "rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-bold transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800";
@@ -626,7 +773,7 @@ const shortcutActiveClass =
   "rounded-xl bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-950";
 
 const isFilterEmpty = (f) =>
-  !f.search && !f.status && !f.category && !f.from && !f.to && !f.includeArchived;
+  !f.search && !f.status && !f.category && !f.includeArchived && !f.archivedOnly && !f.from && !f.to;
 
 const FilterShortcuts = ({ filters, onApply }) => {
   const { from, to } = getMonthRange();
@@ -635,28 +782,28 @@ const FilterShortcuts = ({ filters, onApply }) => {
     { label: "All", filter: EMPTY_FILTERS, active: isFilterEmpty(filters) },
     {
       label: "This month",
-      filter: { from, to, includeArchived: false },
-      active: filters.from === from && filters.to === to && !filters.includeArchived,
+      filter: { ...EMPTY_FILTERS, from, to },
+      active: filters.from === from && filters.to === to && isFilterEmpty({ ...filters, from: "", to: "" }),
     },
     {
       label: "Missing details",
-      filter: { status: "uploaded" },
-      active: filters.status === "uploaded",
+      filter: { ...EMPTY_FILTERS, status: "uploaded" },
+      active: filters.status === "uploaded" && isFilterEmpty({ ...filters, status: "" }),
     },
     {
       label: "Reviewed",
-      filter: { status: "reviewed" },
-      active: filters.status === "reviewed",
+      filter: { ...EMPTY_FILTERS, status: "reviewed" },
+      active: filters.status === "reviewed" && isFilterEmpty({ ...filters, status: "" }),
     },
     {
       label: "Archived",
-      filter: { includeArchived: true },
-      active: filters.includeArchived,
+      filter: { ...EMPTY_FILTERS, archivedOnly: true },
+      active: filters.archivedOnly && isFilterEmpty({ ...filters, archivedOnly: false }),
     },
   ];
 
   return (
-    <div className="mb-6 flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2">
       {shortcuts.map((s) => (
         <button
           key={s.label}
@@ -672,80 +819,66 @@ const FilterShortcuts = ({ filters, onApply }) => {
 };
 
 const FilterCard = ({
+  open,
   filters,
   categories,
-  loading,
   onChange,
-  onRefresh,
   onReset,
-}) => (
-  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 md:p-6">
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+}) => {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
       <div>
-        <h2 className="text-xl font-black text-slate-950 dark:text-white">
-          Search and filter
-        </h2>
+        <h2 className="text-base font-black text-slate-950 dark:text-white">More filters</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Find receipts by vendor, notes, filename, tags, status, or category.
+          Narrow the inbox by status, category, or archived receipts.
         </p>
       </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SelectInput
+          label="Status"
+          name="status"
+          value={filters.status}
+          options={["", ...STATUS_OPTIONS]}
+          optionLabels={{ "": "All statuses" }}
+          onChange={onChange}
+        />
+        <SelectInput
+          label="Category"
+          name="category"
+          value={filters.category}
+          options={["", ...categories]}
+          optionLabels={{ "": "All categories" }}
+          onChange={onChange}
+        />
+        <label className="flex min-h-[50px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <input
+            type="checkbox"
+            name="includeArchived"
+            checked={filters.includeArchived}
+            onChange={onChange}
+            className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+          />
+          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+            Include archived receipts
+          </span>
+        </label>
+      </div>
+
       <button
         type="button"
-        onClick={onRefresh}
-        disabled={loading}
-        className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:text-slate-400 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        onClick={onReset}
+        className="mt-4 rounded-xl px-4 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
       >
-        Refresh
+        Clear filters
       </button>
     </div>
-
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <TextInput
-        label="Search"
-        name="search"
-        value={filters.search}
-        placeholder="Vendor, notes, filename, tag"
-        onChange={onChange}
-      />
-      <SelectInput
-        label="Status"
-        name="status"
-        value={filters.status}
-        options={["", ...STATUS_OPTIONS]}
-        optionLabels={{ "": "All statuses" }}
-        onChange={onChange}
-      />
-      <SelectInput
-        label="Category"
-        name="category"
-        value={filters.category}
-        options={["", ...categories]}
-        optionLabels={{ "": "All categories" }}
-        onChange={onChange}
-      />
-      <label className="flex min-h-[50px] items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 dark:border-slate-700">
-        <input
-          type="checkbox"
-          name="includeArchived"
-          checked={filters.includeArchived}
-          onChange={onChange}
-          className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-        />
-        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-          Include archived receipts
-        </span>
-      </label>
-    </div>
-
-    <button
-      type="button"
-      onClick={onReset}
-      className="mt-5 rounded-xl px-4 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
-    >
-      Clear filters
-    </button>
-  </div>
-);
+  );
+};
 
 const ReceiptCard = ({
   receipt,
@@ -761,6 +894,7 @@ const ReceiptCard = ({
   onArchive,
 }) => {
   const isArchived = receipt.status === "archived";
+  const shouldShowStatusBadge = receipt.status && receipt.status !== "uploaded";
   const displayName = receipt.vendor || receipt.originalFilename || "Unknown vendor";
 
   return (
@@ -773,7 +907,7 @@ const ReceiptCard = ({
           <p className="text-lg font-black text-slate-950 dark:text-white">
             {formatCurrency(receipt.amount) || ""}
           </p>
-          <StatusBadge status={receipt.status} />
+          {shouldShowStatusBadge && <StatusBadge status={receipt.status} />}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -806,8 +940,8 @@ const ReceiptCard = ({
 
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
         {receipt.purchaseDate ? formatDate(receipt.purchaseDate) : "No date"}
-        {receipt.category ? ` · ${receipt.category}` : ""}
-        {receipt.uploadedAt ? ` · ${formatDate(receipt.uploadedAt)}` : ""}
+        {receipt.category ? ` - ${receipt.category}` : ""}
+        {receipt.uploadedAt ? ` - ${formatDate(receipt.uploadedAt)}` : ""}
       </p>
 
       {Array.isArray(receipt.tags) && receipt.tags.length > 0 && (
@@ -1002,17 +1136,6 @@ const StatusBadge = ({ status }) => {
     </span>
   );
 };
-
-const MetaItem = ({ label, value }) => (
-  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-    <p className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-      {label}
-    </p>
-    <p className="mt-1 break-words text-sm font-black text-slate-900 dark:text-slate-100">
-      {value}
-    </p>
-  </div>
-);
 
 const EmptyState = ({ title, text }) => (
   <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center dark:border-slate-800 dark:bg-slate-950/60">
