@@ -20,10 +20,7 @@ const getNavSections = () => [
   },
   {
     label: "Groups",
-    items: [
-      { label: "My Groups", to: "/groups" },
-      { label: "Invitations", to: "/group-invitations" },
-    ],
+    items: [{ label: "Groups", to: "/groups" }],
   },
   {
     label: "Reports",
@@ -69,7 +66,11 @@ const isActiveItem = (pathname, search, hash, item) => {
   }
 
   if (targetPath === "/groups") {
-    return pathname === "/groups" || pathname.startsWith("/groups/");
+    return (
+      pathname === "/groups" ||
+      pathname.startsWith("/groups/") ||
+      pathname === "/group-invitations"
+    );
   }
 
   return pathname === targetPath;
