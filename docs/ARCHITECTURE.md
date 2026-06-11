@@ -782,7 +782,7 @@ They do not block the current v2.0.0 stable portfolio release:
   files, but newer domain collections such as liabilities, budgets, imports,
   groups, memberships, settlements, and opening balances are not included.
 - `server/scripts/backupMongo.mjs` backs up only users, incomes, expenses, and
-  telemetry events, and its filename still uses `finvexa`.
+  telemetry events, using Munmai-branded backup filenames.
 - `docs/AI_CONTEXT.md` is older than the current product architecture and still
   describes an earlier shared-expense phase.
 - `server/utils/taxPack.js` contains reusable Tax Pack helpers, while
