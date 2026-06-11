@@ -216,6 +216,14 @@ const Dashboard = () => {
       (sum, item) => sum + Number(item.amount || 0),
       0
     );
+    const allTimeIncomeTotal = normalizedIncome.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
+    const allTimeExpenseTotal = normalizedExpenses.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
 
     const periodLabel = new Date(selectedYear, selectedMonth, 1).toLocaleString(
       "default",
@@ -228,6 +236,9 @@ const Dashboard = () => {
       periodIncomeTotal,
       periodExpenseTotal,
       periodBalance: periodIncomeTotal - periodExpenseTotal,
+      allTimeIncomeTotal,
+      allTimeExpenseTotal,
+      allTimeBalance: allTimeIncomeTotal - allTimeExpenseTotal,
       periodLabel,
     };
   }, [data, selectedMonth, selectedYear]);
@@ -342,7 +353,7 @@ const Dashboard = () => {
                 Capture today, review later, and understand this month.
               </p>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <CommandAction
                   title="Add transaction"
                   description="Add what happened today."
@@ -355,15 +366,6 @@ const Dashboard = () => {
                   onClick={() => setReceiptUploadModalOpen(true)}
                   primary
                 />
-              </div>
-
-              <div className="mt-3">
-                <Link
-                  to="/imports"
-                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
-                >
-                  Import statement
-                </Link>
               </div>
             </div>
 
@@ -431,87 +433,91 @@ const Dashboard = () => {
         )}
 
         <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="xl:col-span-7">
-            <SectionHeading
-              title="Monthly Control"
-              description="A simple check on this month's spending pace."
-            />
-            <MonthlyControlCard budget={budgetSummary} onSetBudget={openBudgetModal} />
-          </div>
+          <div className="space-y-6 xl:col-span-7">
+            <div>
+              <SectionHeading
+                title="Monthly Control"
+                description="A simple check on this month's spending pace."
+              />
+              <MonthlyControlCard budget={budgetSummary} onSetBudget={openBudgetModal} />
+            </div>
 
-          <div className="xl:col-span-5">
-            <SectionHeading
-              title="Needs review"
-              description="Review only what needs attention."
-            />
-            <NeedsReviewCard
-              missingReceiptCount={data.expenses.filter((expense) => !String(expense?.receiptUrl || expense?.receipt || "").trim()).length}
-              budgetStatus={budgetSummary.status}
-              dueSoonCount={debtRealitySummary.dueSoonCount}
-            />
-          </div>
-        </section>
+            <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800 md:px-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                      Recent Transactions
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Latest 5 income and expense entries.
+                    </p>
+                  </div>
 
-        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-7">
-            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800 md:px-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                    Recent Transactions
-                  </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Latest 5 income and expense entries.
-                  </p>
+                  <Link
+                    to="/money/transactions"
+                    className="text-sm font-bold text-indigo-600 hover:underline"
+                  >
+                    View all
+                  </Link>
                 </div>
+              </div>
 
-                <Link
-                  to="/money/transactions"
-                  className="text-sm font-bold text-indigo-600 hover:underline"
-                >
-                  View all
-                </Link>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {loading ? (
+                  <div className="px-6 py-10 text-center font-medium text-slate-400 dark:text-slate-500">
+                    Refreshing data...
+                  </div>
+                ) : stats.recentTransactions.length === 0 ? (
+                  <div className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                    No transactions yet.
+                  </div>
+                ) : (
+                  stats.recentTransactions.map((item) => (
+                    <RecentTransactionRow
+                      key={`${item.transactionType}-${item._id}`}
+                      item={item}
+                    />
+                  ))
+                )}
               </div>
             </div>
-
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {loading ? (
-                <div className="px-6 py-10 text-center font-medium text-slate-400 dark:text-slate-500">
-                  Refreshing data...
-                </div>
-              ) : stats.recentTransactions.length === 0 ? (
-                <div className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
-                  No transactions yet.
-                </div>
-              ) : (
-                stats.recentTransactions.map((item) => (
-                  <RecentTransactionRow
-                    key={`${item.transactionType}-${item._id}`}
-                    item={item}
-                  />
-                ))
-              )}
-            </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6 xl:col-span-5">
-            <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-              Review / More
-            </p>
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">
-              Advanced workflows
-            </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Keep these available without making them daily homework.
-            </p>
+          <div className="space-y-4 xl:col-span-5 xl:self-start">
+            <OverallPositionCard balance={stats.allTimeBalance} />
+            <div>
+              <SectionHeading
+                title="Needs review"
+                description="Review only what needs attention."
+              />
+              <NeedsReviewCard
+                missingReceiptCount={data.expenses.filter((expense) => !String(expense?.receiptUrl || expense?.receipt || "").trim()).length}
+                budgetStatus={budgetSummary.status}
+                dueSoonCount={debtRealitySummary.dueSoonCount}
+              />
+            </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-2">
-              <SimpleLink to="/money/transactions" label="View transactions" />
-              <SimpleLink to="/monthly-summary" label="Monthly Summary" />
-              <SimpleLink to="/debt-reality" label="Debt Reality" />
-              <SimpleLink to="/groups" label="Groups" />
-              <SimpleLink to="/money/tax-pack" label="Tax Pack" />
-              <SimpleLink to="/opening-balance" label="Opening Balance" />
+            <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                Review / More
+              </p>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                More tools
+              </h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Use these when you need deeper tracking.
+              </p>
+
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                <SimpleLink to="/imports" label="Import Statements" />
+                <SimpleLink to="/money/transactions" label="Transactions" />
+                <SimpleLink to="/monthly-summary" label="Monthly Summary" />
+                <SimpleLink to="/debt-reality" label="Debt Reality" />
+                <SimpleLink to="/groups" label="Groups" />
+                <SimpleLink to="/money/tax-pack" label="Tax Pack" />
+                <SimpleLink to="/opening-balance" label="Opening Balance" />
+              </div>
             </div>
           </div>
         </section>
@@ -656,6 +662,26 @@ const SimpleLink = ({ to, label }) => (
   </Link>
 );
 
+const OverallPositionCard = ({ balance }) => (
+  <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+      Total position
+    </p>
+    <p
+      className={`text-3xl font-black ${
+        Number(balance || 0) < 0
+          ? "text-rose-600 dark:text-rose-400"
+          : "text-slate-900 dark:text-white"
+      }`}
+    >
+      {formatCurrency(balance)}
+    </p>
+    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+      All income minus all expenses already loaded on this dashboard.
+    </p>
+  </div>
+);
+
 const NeedsReviewCard = ({ missingReceiptCount, budgetStatus, dueSoonCount }) => {
   const items = [];
 
@@ -688,25 +714,24 @@ const NeedsReviewCard = ({ missingReceiptCount, budgetStatus, dueSoonCount }) =>
 
   if (items.length === 0) {
     return (
-      <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
-        <p className="text-xl font-black text-slate-900 dark:text-white">
+      <div className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-5">
+        <p className="text-lg font-black text-slate-900 dark:text-white">
           All caught up for now.
         </p>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Review only what needs attention. Nothing urgent is showing from the
-          data already loaded on this dashboard.
+          Nothing urgent is showing from the data already loaded here.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
+    <div className="space-y-2 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-5">
       {items.map((item) => (
         <Link
           key={item.label}
           to={item.to}
-          className="block rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 transition hover:border-amber-200 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:hover:bg-amber-950/50"
+          className="block rounded-2xl border border-amber-100 bg-amber-50 px-3.5 py-3 transition hover:border-amber-200 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:hover:bg-amber-950/50"
         >
           <p className="font-black text-amber-900 dark:text-amber-200">
             {item.label}
