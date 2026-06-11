@@ -16,6 +16,7 @@ import {
   uploadImportCsv,
 } from "../api/imports";
 import { getLiabilities } from "../api/liabilities";
+import DocumentUploadField from "../components/DocumentUploadField";
 import Sidebar from "../components/Sidebar";
 
 const classificationOptions = [
@@ -305,7 +306,6 @@ const ImportReview = () => {
   const [archivingHistoryBatchId, setArchivingHistoryBatchId] = useState("");
   const [revertingHistoryBatchId, setRevertingHistoryBatchId] = useState("");
   const pdfRowsSectionRef = useRef(null);
-  const pdfInputRef = useRef(null);
 
   const activeLiabilities = useMemo(
     () => liabilities.filter((liability) => liability.status === "active"),
@@ -548,7 +548,7 @@ const ImportReview = () => {
     });
   };
 
-  const clearPdfPreview = ({ focusInput = false } = {}) => {
+  const clearPdfPreview = () => {
     setStatementFile(null);
     setStatementInputKey((currentKey) => currentKey + 1);
     setPdfPreview(null);
@@ -557,12 +557,6 @@ const ImportReview = () => {
     setPdfConfirmStatus(null);
     setPdfConfirmResult(null);
     setPdfStatus(null);
-
-    if (focusInput) {
-      window.setTimeout(() => {
-        pdfInputRef.current?.focus();
-      }, 0);
-    }
   };
 
   const handleReviewParsedRows = () => {
@@ -997,32 +991,27 @@ const ImportReview = () => {
                       a review queue. PDF files are previewed before import.
                     </p>
                   </div>
-
-                  {statementFile && (
-                    <StatementTypeBadge type={statementFileType} />
-                  )}
                 </div>
 
                 <form onSubmit={handleStatementSubmit} className="space-y-4">
-                  <input
-                    key={statementInputKey}
-                    ref={pdfInputRef}
-                    type="file"
+                  <DocumentUploadField
+                    label="Statement file"
+                    helperText="Upload a CSV or text-based PDF bank statement for review."
                     accept=".csv,.pdf,text/csv,application/pdf"
-                    onChange={(event) =>
-                      handleStatementFileChange(event.target.files?.[0] || null)
+                    selectedFile={statementFile}
+                    onFileChange={handleStatementFileChange}
+                    supportedTypes={["CSV", "PDF"]}
+                    detectedType={
+                      statementFileType === "csv"
+                        ? "CSV"
+                        : statementFileType === "pdf"
+                        ? "PDF"
+                        : ""
                     }
-                    className={inputClass}
+                    disabled={uploading || previewingPdf}
+                    inputKey={statementInputKey}
+                    trustText="Rows are reviewed before anything is added to Munmai."
                   />
-
-                  {statementFile && (
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
-                      Selected file:{" "}
-                      <span className="font-bold text-slate-900 dark:text-slate-100">
-                        {statementFile.name}
-                      </span>
-                    </div>
-                  )}
 
                   <button
                     type="submit"
@@ -1064,7 +1053,7 @@ const ImportReview = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => clearPdfPreview({ focusInput: true })}
+                        onClick={() => clearPdfPreview()}
                         className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         Choose another file
@@ -1438,25 +1427,6 @@ const SourceBadge = ({ source }) => {
       }`}
     >
       {normalizedSource}
-    </span>
-  );
-};
-
-const StatementTypeBadge = ({ type }) => {
-  const label =
-    type === "csv" ? "CSV" : type === "pdf" ? "PDF" : "Unsupported";
-  const tone =
-    type === "csv"
-      ? "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-      : type === "pdf"
-      ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900/70 dark:bg-indigo-950/40 dark:text-indigo-300"
-      : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300";
-
-  return (
-    <span
-      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${tone}`}
-    >
-      {label}
     </span>
   );
 };
