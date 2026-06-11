@@ -622,15 +622,19 @@ const GroupSummary = () => {
         </section>
 
         {joinCode && (
-          <section className="mb-8 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Invite & Join Code</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Share this code so others can request to join this group.
-                </p>
-                <p className="mt-3 text-2xl font-black tracking-wide text-slate-900">
-                  {joinCode}
+          <section className="mb-8 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                    Join code
+                  </p>
+                  <p className="break-all rounded-xl bg-slate-50 px-3 py-1.5 text-sm font-black tracking-wide text-slate-900">
+                    {joinCode}
+                  </p>
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Share this code so others can request to join.
                 </p>
               </div>
               <JoinCodeCopyButton joinCode={joinCode} />
@@ -694,7 +698,6 @@ const GroupSummary = () => {
             activeMemberships={activeMemberships}
             pendingInvites={pendingInvites}
             pendingJoinRequests={pendingJoinRequests}
-            joinCode={joinCode}
             isOwner={isCurrentUserOwner}
             membersError={membersError}
             actionMessage={membershipActionMessage}
@@ -1053,7 +1056,6 @@ const MembersTab = ({
   activeMemberships,
   pendingInvites,
   pendingJoinRequests,
-  joinCode,
   isOwner,
   membersError,
   actionMessage,
@@ -1086,8 +1088,6 @@ const MembersTab = ({
       />
     ) : (
       <div className="space-y-6 p-5 md:p-6">
-        {joinCode && <JoinCodeCard joinCode={joinCode} />}
-
         {actionMessage?.text && (
           <div
             className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -1139,45 +1139,6 @@ const MembersTab = ({
     )}
   </PanelShell>
 );
-
-const JoinCodeCard = ({ joinCode }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(joinCode);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <section className="rounded-3xl border border-slate-100 bg-slate-50 p-4 md:p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-            Group join code
-          </p>
-          <p className="mt-1 text-xl font-black tracking-wide text-slate-900">
-            {joinCode}
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            Share this code so others can request to join this group.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 sm:w-auto"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </div>
-    </section>
-  );
-};
 
 const JoinCodeCopyButton = ({ joinCode }) => {
   const [copied, setCopied] = useState(false);
