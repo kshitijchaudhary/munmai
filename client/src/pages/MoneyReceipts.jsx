@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import DocumentUploadField from "../components/DocumentUploadField";
-import Modal from "../components/Modal";
+import ReceiptUploadModal from "../components/ReceiptUploadModal";
 import api from "../api/axios";
 import {
   archiveReceipt,
   getReceiptFile,
   getReceipts,
   updateReceipt,
-  uploadReceipt,
 } from "../api/receipts";
 
 const EMPTY_UPLOAD_FORM = {
@@ -99,22 +97,6 @@ const buildReceiptPayload = (form) => ({
   tags: form.tags,
 });
 
-const getDetectedFileType = (file) => {
-  if (!file) return "";
-
-  const mimeType = String(file.type || "").toLowerCase();
-  if (mimeType === "application/pdf") return "PDF";
-  if (mimeType === "image/jpeg") return "JPG";
-  if (mimeType === "image/png") return "PNG";
-
-  const name = String(file.name || "").toLowerCase();
-  if (name.endsWith(".pdf")) return "PDF";
-  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "JPG";
-  if (name.endsWith(".png")) return "PNG";
-
-  return "";
-};
-
 const getTodayDateString = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -170,15 +152,11 @@ const MoneyReceipts = () => {
   const [pagination, setPagination] = useState(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [openingReceiptId, setOpeningReceiptId] = useState("");
   const [editingReceiptId, setEditingReceiptId] = useState("");
   const [editForm, setEditForm] = useState(EMPTY_UPLOAD_FORM);
-  const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD_FORM);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [expenseCoverage, setExpenseCoverage] = useState({
@@ -258,31 +236,10 @@ const MoneyReceipts = () => {
       ? Math.round((expenseCoverage.withReceipts / expenseCoverage.total) * 100)
       : 0;
 
-  const resetUploadForm = () => {
-    setUploadForm(EMPTY_UPLOAD_FORM);
-    setSelectedFile(null);
-    setFileInputKey((current) => current + 1);
-  };
-
   const openUploadModal = () => {
     setError("");
     setSuccess("");
     setUploadModalOpen(true);
-  };
-
-  const closeUploadModal = () => {
-    if (uploading) {
-      return;
-    }
-
-    setUploadModalOpen(false);
-    setError("");
-    resetUploadForm();
-  };
-
-  const handleUploadChange = (event) => {
-    const { name, value } = event.target;
-    setUploadForm((current) => ({ ...current, [name]: value }));
   };
 
   const handleFilterChange = (event) => {
@@ -299,38 +256,6 @@ const MoneyReceipts = () => {
 
       return next;
     });
-  };
-
-  const handleUpload = async (event) => {
-    event.preventDefault();
-    setError("");
-    setSuccess("");
-
-    if (!selectedFile) {
-      setError("Receipt file is required.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("receipt", selectedFile);
-    Object.entries(buildReceiptPayload(uploadForm)).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && String(value).trim() !== "") {
-        formData.append(key, value);
-      }
-    });
-
-    try {
-      setUploading(true);
-      await uploadReceipt(formData);
-      setSuccess("Receipt uploaded.");
-      resetUploadForm();
-      setUploadModalOpen(false);
-      await loadReceipts();
-    } catch (uploadError) {
-      setError(getMessage(uploadError, "Failed to upload receipt."));
-    } finally {
-      setUploading(false);
-    }
   };
 
   const startEdit = (receipt) => {
@@ -609,28 +534,14 @@ const MoneyReceipts = () => {
           </div>
         </section>
 
-        <Modal
-          open={uploadModalOpen}
-          onClose={closeUploadModal}
-          title="Upload receipt"
-          description="Add a receipt file and optional metadata for later review."
-        >
-          {error && (
-            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
-              {error}
-            </div>
-          )}
-          <UploadReceiptForm
-            form={uploadForm}
-            fileInputKey={fileInputKey}
-            uploading={uploading}
-            selectedFile={selectedFile}
-            onChange={handleUploadChange}
-            onFileChange={(file) => setSelectedFile(file)}
-            onSubmit={handleUpload}
-            onCancel={closeUploadModal}
-          />
-        </Modal>
+        <ReceiptUploadModal
+          isOpen={uploadModalOpen}
+          onClose={() => setUploadModalOpen(false)}
+          onUploaded={async () => {
+            setSuccess("Receipt uploaded.");
+            await loadReceipts();
+          }}
+        />
       </main>
     </div>
   );
@@ -644,127 +555,6 @@ const SummaryCard = ({ label, value, tone = "text-slate-950 dark:text-white" }) 
     <p className={`break-words text-2xl font-black ${tone}`}>{value}</p>
   </div>
 );
-
-const UploadReceiptForm = ({
-  form,
-  fileInputKey,
-  uploading,
-  selectedFile,
-  onChange,
-  onFileChange,
-  onSubmit,
-  onCancel,
-}) => {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-
-  return (
-    <form onSubmit={onSubmit}>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <DocumentUploadField
-          label="Receipt file"
-          helperText="Upload a receipt image or PDF for your records."
-          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-          selectedFile={selectedFile}
-          onFileChange={onFileChange}
-          supportedTypes={["JPG", "PNG", "PDF"]}
-          detectedType={getDetectedFileType(selectedFile)}
-          inputKey={fileInputKey}
-          trustText="Files are stored privately and opened through protected access."
-        />
-
-        <TextInput label="Vendor" name="vendor" value={form.vendor} onChange={onChange} />
-        <TextInput
-          label="Amount"
-          name="amount"
-          type="number"
-          step="0.01"
-          min="0"
-          value={form.amount}
-          onChange={onChange}
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setDetailsOpen((current) => !current)}
-        className="mt-4 rounded-xl px-1 py-2 text-sm font-black text-indigo-600 transition hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
-        aria-expanded={detailsOpen}
-      >
-        {detailsOpen ? "Hide details" : "Add more details"}
-      </button>
-
-      {detailsOpen && (
-        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label>
-              <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                Purchase date
-              </span>
-              <input
-                type="date"
-                name="purchaseDate"
-                value={form.purchaseDate}
-                onChange={onChange}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              />
-              <DateQuickButtons name="purchaseDate" onChange={onChange} />
-            </label>
-            <SelectInput
-              label="Category"
-              name="category"
-              value={form.category}
-              options={CATEGORY_OPTIONS}
-              onChange={onChange}
-            />
-            <label>
-              <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                Tags
-              </span>
-              <input
-                type="text"
-                name="tags"
-                value={form.tags}
-                onChange={onChange}
-                placeholder="Use tags like business, tax, groceries, work, travel."
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              />
-            </label>
-            <label className="sm:col-span-2">
-              <span className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                Notes
-              </span>
-              <textarea
-                name="notes"
-                value={form.notes}
-                onChange={onChange}
-                rows="3"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              />
-            </label>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={uploading}
-          className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={uploading}
-          className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
-        >
-          {uploading ? "Uploading..." : "Upload receipt"}
-        </button>
-      </div>
-    </form>
-  );
-};
 
 const shortcutButtonClass =
   "rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-bold transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800";

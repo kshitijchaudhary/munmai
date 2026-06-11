@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../api/axios";
+import DocumentUploadField from "./DocumentUploadField";
 
 const expenseCategories = [
   "Rent",
@@ -131,7 +132,7 @@ const AddTransaction = ({
   const [submitting, setSubmitting] = useState(false);
   const [openingCurrentReceipt, setOpeningCurrentReceipt] = useState(false);
   const [formStatus, setFormStatus] = useState(null);
-  const fileInputRef = useRef(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const getInitialFormData = (transactionType = "expense") => ({
     amount: "",
@@ -147,6 +148,7 @@ const AddTransaction = ({
   });
 
   const [formData, setFormData] = useState(getInitialFormData(initialType));
+  const [showDetails, setShowDetails] = useState(false);
 
   const minAllowedDate = getMinAllowedDate();
   const maxAllowedDate = getMaxAllowedDate();
@@ -156,14 +158,13 @@ const AddTransaction = ({
 
   const resetFileInput = () => {
     setFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setFileInputKey((current) => current + 1);
   };
 
   const resetForm = (nextType = type, options = {}) => {
     const { clearStatus = true } = options;
     setFormData(getInitialFormData(nextType));
+    setShowDetails(false);
     if (clearStatus) {
       setFormStatus(null);
     }
@@ -203,6 +204,23 @@ const AddTransaction = ({
           : "0",
         taxCategory: editingTransaction.taxCategory || "",
       });
+      setShowDetails(
+        Boolean(
+          editingTransaction.notes ||
+            editingTransaction.receiptUrl ||
+            editingTransaction.deductible ||
+            editingTransaction.taxCategory ||
+            (nextType === "expense" &&
+              editingTransaction.expenseType &&
+              editingTransaction.expenseType !== "personal") ||
+            (nextType === "expense" &&
+              editingTransaction.category &&
+              editingTransaction.category !== "Other") ||
+            (nextType === "income" &&
+              editingTransaction.category &&
+              editingTransaction.category !== "Salary")
+        )
+      );
 
       resetFileInput();
     } else {
@@ -352,6 +370,22 @@ const AddTransaction = ({
     return data;
   };
 
+  const nameField = type === "income" ? "source" : "recipient";
+  const namePlaceholder = type === "income" ? "Source" : "Vendor / Payee";
+  const detectedReceiptType =
+    file?.type === "application/pdf" || file?.name?.toLowerCase().endsWith(".pdf")
+      ? "PDF"
+      : file?.type?.startsWith("image/") || /\.(jpe?g|png)$/i.test(file?.name || "")
+      ? "Image"
+      : "";
+  const saveLabel = submitting
+    ? isEditing
+      ? "Updating..."
+      : "Saving..."
+    : isEditing
+    ? `Update ${type}`
+    : `Save ${type}`;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -431,6 +465,7 @@ const AddTransaction = ({
         : `${type === "income" ? "Income" : "Expense"} saved successfully.`;
 
       resetForm(type, { clearStatus: false });
+      setShowDetails(false);
       setFormStatus({ type: "success", message: successMessage });
       onStatusMessage?.("success", successMessage);
 
@@ -453,19 +488,24 @@ const AddTransaction = ({
   };
 
   return (
-    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
+    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-xl font-bold">
-          {isEditing ? "Edit Transaction" : "Add New Transaction"}
-        </h3>
+        <div>
+          <h3 className="text-xl font-black text-slate-900 dark:text-white">
+            {isEditing ? "Edit Transaction" : "Add Transaction"}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Add the basics now. Details can wait.
+          </p>
+        </div>
 
-        {isEditing && (
+        {onCancelEdit && (
           <button
             type="button"
             onClick={handleCancelEdit}
-            className="text-sm font-semibold text-slate-600 hover:underline"
+            className="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300"
           >
-            Cancel
+            {isEditing ? "Cancel" : "Close"}
           </button>
         )}
       </div>
@@ -488,14 +528,14 @@ const AddTransaction = ({
                 className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${
                   selected
                     ? option.selectedClasses
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
                 } ${isEditing ? "cursor-not-allowed opacity-60" : ""}`}
               >
                 <span
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black ${
                     selected
                       ? option.iconClasses
-                      : "bg-slate-100 text-slate-500"
+                      : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"
                   }`}
                 >
                   {option.value === "income" ? "+" : "-"}
@@ -516,32 +556,44 @@ const AddTransaction = ({
         <div
           className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${
             formStatus.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+              : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
           }`}
         >
           {formStatus.message}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input
-          type="number"
-          name="amount"
-          placeholder="Amount"
-          required
-          min="0"
-          step="0.01"
-          className="w-full rounded-lg border p-2"
-          value={formData.amount}
-          onChange={handleChange}
-        />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <input
+            type="number"
+            name="amount"
+            placeholder="Amount"
+            required
+            min="0"
+            step="0.01"
+            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+            value={formData.amount}
+            onChange={handleChange}
+          />
 
-        <div className="space-y-2">
+          <input
+            type="text"
+            name={nameField}
+            placeholder={namePlaceholder}
+            required
+            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500"
+            value={formData[nameField]}
+            onChange={handleChange}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
           <input
             type="date"
             name="date"
-            className="border p-2 rounded-lg w-full"
+            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             value={formData.date}
             min={minAllowedDate}
             max={maxAllowedDate}
@@ -552,198 +604,167 @@ const AddTransaction = ({
             <button
               type="button"
               onClick={() => setQuickDate(getTodayString())}
-              className="rounded-full bg-slate-100 px-3 py-1 text-xs hover:bg-slate-200"
+              className="rounded-full bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
             >
               Today
             </button>
             <button
               type="button"
               onClick={() => setQuickDate(getYesterdayString())}
-              className="rounded-full bg-slate-100 px-3 py-1 text-xs hover:bg-slate-200"
+              className="rounded-full bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
             >
               Yesterday
             </button>
           </div>
         </div>
 
-        {type === "income" ? (
-          <>
-            <input
-              type="text"
-              name="source"
-              placeholder="Source"
-              required
-              className="w-full rounded-lg border p-2"
-              value={formData.source}
-              onChange={handleChange}
-            />
+        <button
+          type="button"
+          onClick={() => setShowDetails((current) => !current)}
+          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
+          aria-expanded={showDetails}
+        >
+          {showDetails ? "Hide details" : "Add details"}
+        </button>
 
-            <select
-              name="category"
-              className="w-full rounded-lg border p-2"
-              value={formData.category}
-              onChange={handleChange}
-            >
-              {incomeCategories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </>
-        ) : (
-          <>
-            <input
-              type="text"
-              name="recipient"
-              placeholder="Vendor / Payee"
-              required
-              className="w-full rounded-lg border p-2"
-              value={formData.recipient}
-              onChange={handleChange}
-            />
-
-            <select
-              name="category"
-              className="w-full rounded-lg border p-2"
-              value={formData.category}
-              onChange={handleChange}
-            >
-              {expenseCategories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-
-            <select
-              name="expenseType"
-              className="w-full rounded-lg border p-2"
-              value={formData.expenseType}
-              onChange={(e) => handleExpenseTypeChange(e.target.value)}
-            >
-              {expenseTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <label className="md:col-span-2 flex items-start gap-3 border border-slate-200 rounded-lg p-3">
-              <input
-                type="checkbox"
-                checked={formData.deductible}
-                disabled={formData.expenseType === "personal"}
-                onChange={(e) => handleDeductibleToggle(e.target.checked)}
-                className="mt-1"
-              />
-              <span className="text-sm text-slate-700">
-                <span className="block font-semibold text-slate-900">
-                  Include in Tax Pack
-                </span>
-                Track deductible amounts and build an export-ready freelance or
-                side-hustle record.
-              </span>
-            </label>
-
-            {formData.expenseType !== "personal" && (
-              <>
-                <select
-                  name="taxCategory"
-                  className="w-full rounded-lg border p-2"
-                  value={formData.taxCategory}
-                  onChange={handleChange}
-                >
-                  <option value="">
-                    {formData.deductible
-                      ? "Select tax category"
-                      : "Optional tax category"}
-                  </option>
-                  {taxCategories.map((category) => (
+        {showDetails && (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <select
+                name="category"
+                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                value={formData.category}
+                onChange={handleChange}
+              >
+                {(type === "income" ? incomeCategories : expenseCategories).map(
+                  (category) => (
                     <option key={category} value={category}>
                       {category}
                     </option>
-                  ))}
-                </select>
+                  )
+                )}
+              </select>
 
-                <input
-                  type="number"
-                  name="deductiblePercent"
-                  min="0"
-                  max="100"
-                  step="1"
-                  placeholder="Deductible %"
-                  disabled={!formData.deductible}
-                  className="w-full rounded-lg border p-2 disabled:bg-slate-100 disabled:text-slate-400"
-                  value={formData.deductible ? formData.deductiblePercent : "0"}
-                  onChange={handleChange}
-                />
-              </>
-            )}
-          </>
-        )}
+              {type === "expense" && (
+                <>
+                  <select
+                    name="expenseType"
+                    className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    value={formData.expenseType}
+                    onChange={(e) => handleExpenseTypeChange(e.target.value)}
+                  >
+                    {expenseTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
 
-        {type === "expense" && (
-          <div className="md:col-span-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*,.pdf"
-              className="border p-2 rounded-lg w-full"
-              onChange={(e) => setFile(e.target.files[0] || null)}
-            />
+                  <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 md:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.deductible}
+                      disabled={formData.expenseType === "personal"}
+                      onChange={(e) => handleDeductibleToggle(e.target.checked)}
+                      className="mt-1"
+                    />
+                    <span className="text-sm text-slate-700 dark:text-slate-300">
+                      <span className="block font-semibold text-slate-900 dark:text-white">
+                        Include in Tax Pack
+                      </span>
+                      Track deductible amounts and build an export-ready freelance
+                      or side-hustle record.
+                    </span>
+                  </label>
 
-            {file && (
-              <p className="text-xs text-slate-600 mt-1">
-                Selected receipt: <span className="font-semibold">{file.name}</span>
-              </p>
-            )}
+                  {formData.deductible && (
+                    <>
+                      <select
+                        name="taxCategory"
+                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        value={formData.taxCategory}
+                        onChange={handleChange}
+                      >
+                        <option value="">Select tax category</option>
+                        {taxCategories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
 
-            {hasExistingReceipt && !file && (
-              <button
-                type="button"
-                onClick={handleViewCurrentReceipt}
-                disabled={openingCurrentReceipt}
-                className="inline-block mt-1 text-xs font-semibold text-indigo-600 hover:underline disabled:text-slate-400 disabled:no-underline"
-              >
-                {openingCurrentReceipt ? "Opening..." : "Open current receipt"}
-              </button>
-            )}
+                      <input
+                        type="number"
+                        name="deductiblePercent"
+                        min="0"
+                        max="100"
+                        step="1"
+                        placeholder="Deductible %"
+                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        value={formData.deductiblePercent}
+                        onChange={handleChange}
+                      />
+                    </>
+                  )}
 
-            {isEditing && (
-              <p className="text-xs text-slate-500 mt-1">
-                Choose a new file only if you want to replace the current receipt.
-              </p>
-            )}
-            {!isEditing && formData.deductible && !file && (
-              <p className="text-xs text-amber-600 mt-1">
-                Add a receipt now to make this expense export-ready for Tax Pack.
-              </p>
-            )}
+                  <div className="md:col-span-2">
+                    <DocumentUploadField
+                      label="Receipt file"
+                      helperText="Attach a receipt image or PDF if you have one."
+                      supportedTypes={["JPG", "PNG", "PDF"]}
+                      accept="image/*,.pdf"
+                      selectedFile={file}
+                      onFileChange={setFile}
+                      detectedType={detectedReceiptType}
+                      inputKey={fileInputKey}
+                      trustText="Receipt files are stored with this expense record."
+                    />
+
+                    {hasExistingReceipt && !file && (
+                      <button
+                        type="button"
+                        onClick={handleViewCurrentReceipt}
+                        disabled={openingCurrentReceipt}
+                        className="mt-1 inline-block text-xs font-semibold text-indigo-600 hover:underline disabled:text-slate-400 disabled:no-underline dark:text-indigo-300"
+                      >
+                        {openingCurrentReceipt ? "Opening..." : "Open current receipt"}
+                      </button>
+                    )}
+
+                    {isEditing && (
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Choose a new file only if you want to replace the current
+                        receipt.
+                      </p>
+                    )}
+                    {!isEditing && formData.deductible && !file && (
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        Add a receipt now to make this expense export-ready for Tax
+                        Pack.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <textarea
+                name="notes"
+                placeholder="Notes (optional)"
+                rows="4"
+                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:col-span-2"
+                value={formData.notes}
+                onChange={handleChange}
+              />
+            </div>
           </div>
         )}
-
-        <textarea
-          name="notes"
-          placeholder="Notes (optional)"
-          rows="4"
-          className="w-full rounded-lg border p-2 md:col-span-2"
-          value={formData.notes}
-          onChange={handleChange}
-        />
 
         <button
           type="submit"
           disabled={submitting}
-          className="md:col-span-2 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:bg-blue-400"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white transition hover:bg-blue-700 disabled:bg-blue-400"
         >
-          {submitting
-            ? isEditing
-              ? "Updating..."
-              : "Saving..."
-            : isEditing
-            ? `Update ${type}`
-            : `Save ${type}`}
+          {saveLabel}
         </button>
       </form>
     </div>
