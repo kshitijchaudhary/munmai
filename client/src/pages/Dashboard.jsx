@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import api from "../api/axios";
 import { getBudgetSummary, updateBudgetLimit } from "../api/budget";
 import { getLiabilitySummary } from "../api/liabilities";
+import AddTransaction from "../components/AddTransaction";
 import Modal from "../components/Modal";
+import ReceiptUploadModal from "../components/ReceiptUploadModal";
 import Sidebar from "../components/Sidebar";
 import { AuthContext } from "../context/authContext";
 
@@ -97,7 +99,9 @@ const Dashboard = () => {
   const [debtRealitySummary, setDebtRealitySummary] = useState(
     buildEmptyDebtRealitySummary
   );
+  const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
+  const [receiptUploadModalOpen, setReceiptUploadModalOpen] = useState(false);
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
   const [budgetMessage, setBudgetMessage] = useState(null);
   const [savingBudget, setSavingBudget] = useState(false);
@@ -285,6 +289,11 @@ const Dashboard = () => {
   const hasAnyTransactions = stats.allTransactions.length > 0;
   const showOnboarding = !hasAnyTransactions;
 
+  const handleTransactionSaved = async () => {
+    setTransactionModalOpen(false);
+    await fetchDashboardData();
+  };
+
   if (loading && !hasAnyTransactions) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -337,13 +346,13 @@ const Dashboard = () => {
                 <CommandAction
                   title="Add transaction"
                   description="Add what happened today."
-                  to="/money/transactions#add-transaction"
+                  onClick={() => setTransactionModalOpen(true)}
                   primary
                 />
                 <CommandAction
                   title="Upload receipt"
                   description="Upload now, organize later."
-                  to="/money/receipts"
+                  onClick={() => setReceiptUploadModalOpen(true)}
                   primary
                 />
               </div>
@@ -551,6 +560,24 @@ const Dashboard = () => {
             </button>
           </form>
         </Modal>
+
+        <Modal
+          open={transactionModalOpen}
+          onClose={() => setTransactionModalOpen(false)}
+          title="Add Transaction"
+          description="Record income or expenses without leaving the dashboard."
+        >
+          <AddTransaction
+            onTransactionAdded={handleTransactionSaved}
+            onCancelEdit={() => setTransactionModalOpen(false)}
+          />
+        </Modal>
+
+        <ReceiptUploadModal
+          isOpen={receiptUploadModalOpen}
+          onClose={() => setReceiptUploadModalOpen(false)}
+          onUploaded={fetchDashboardData}
+        />
       </main>
     </div>
   );
@@ -572,25 +599,43 @@ const SectionHeading = ({ title, description, action }) => (
   </div>
 );
 
-const CommandAction = ({ title, description, to, primary = false }) => (
-  <Link
-    to={to}
-    className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${
-      primary
-        ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
-        : "border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-    }`}
-  >
-    <p className="font-black">{title}</p>
-    <p
-      className={`mt-1 text-sm ${
-        primary ? "text-white/75 dark:text-slate-600" : "text-slate-500 dark:text-slate-400"
-      }`}
+const CommandAction = ({ title, description, to, onClick, primary = false }) => {
+  const className = `rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
+    primary
+      ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
+      : "border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+  }`;
+
+  const content = (
+    <>
+      <p className="font-black">{title}</p>
+      <p
+        className={`mt-1 text-sm ${
+          primary ? "text-white/75 dark:text-slate-600" : "text-slate-500 dark:text-slate-400"
+        }`}
+      >
+        {description}
+      </p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      to={to}
+      className={className}
     >
-      {description}
-    </p>
-  </Link>
-);
+      {content}
+    </Link>
+  );
+};
 
 const MiniMoneyCard = ({ label, value, tone }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
