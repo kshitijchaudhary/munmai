@@ -340,81 +340,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        <section className="mb-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-          <div className="self-start rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-              Quick capture
-            </p>
-            <h2 className="mt-2 text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
-              Add what happened now.
-            </h2>
-
-            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <CommandAction
-                title="Add transaction"
-                description="Add what happened today."
-                onClick={() => setTransactionModalOpen(true)}
-                primary
-              />
-              <CommandAction
-                title="Upload receipt"
-                description="Upload now, organize later."
-                onClick={() => setReceiptUploadModalOpen(true)}
-                primary
-              />
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] border border-slate-100 bg-slate-50/70 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  This Month
-                </p>
-                <h3 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-                  {stats.periodLabel}
-                </h3>
-              </div>
-
-              <div className="flex gap-2">
-                <select
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(Number(event.target.value))}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                >
-                  {MONTH_OPTIONS.map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedYear}
-                  onChange={(event) => setSelectedYear(Number(event.target.value))}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                >
-                  {yearOptions.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3">
-              <MiniMoneyCard label="In" value={stats.periodIncomeTotal} tone="text-emerald-600 dark:text-emerald-400" />
-              <MiniMoneyCard label="Out" value={stats.periodExpenseTotal} tone="text-rose-600 dark:text-rose-400" />
-              <MiniMoneyCard
-                label="Net"
-                value={stats.periodBalance}
-                tone={stats.periodBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}
-              />
-            </div>
-          </div>
-        </section>
-
         {showOnboarding && (
           <section className="mb-8 rounded-3xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/30 md:p-6">
             <h2 className="text-xl font-black text-slate-900 dark:text-white">
@@ -427,8 +352,32 @@ const Dashboard = () => {
           </section>
         )}
 
-        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12 xl:items-start">
           <div className="space-y-6 xl:col-span-7">
+            <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                Quick capture
+              </p>
+              <h2 className="mt-2 text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
+                Add what happened now.
+              </h2>
+
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <CommandAction
+                  title="Add transaction"
+                  description="Add what happened today."
+                  onClick={() => setTransactionModalOpen(true)}
+                  primary
+                />
+                <CommandAction
+                  title="Upload receipt"
+                  description="Upload now, organize later."
+                  onClick={() => setReceiptUploadModalOpen(true)}
+                  primary
+                />
+              </div>
+            </div>
+
             <div>
               <SectionHeading
                 title="Monthly Control"
@@ -480,6 +429,55 @@ const Dashboard = () => {
           </div>
 
           <div className="space-y-4 xl:col-span-5 xl:self-start">
+            <div className="rounded-[2rem] border border-slate-100 bg-slate-50/70 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                    This Month
+                  </p>
+                  <h3 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
+                    {stats.periodLabel}
+                  </h3>
+                </div>
+
+                <div className="flex gap-2">
+                  <select
+                    value={selectedMonth}
+                    onChange={(event) => setSelectedMonth(Number(event.target.value))}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    {MONTH_OPTIONS.map((month) => (
+                      <option key={month.value} value={month.value}>
+                        {month.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedYear}
+                    onChange={(event) => setSelectedYear(Number(event.target.value))}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    {yearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <MiniMoneyCard label="In" value={stats.periodIncomeTotal} tone="text-emerald-600 dark:text-emerald-400" />
+                <MiniMoneyCard label="Out" value={stats.periodExpenseTotal} tone="text-rose-600 dark:text-rose-400" />
+                <MiniMoneyCard
+                  label="Net"
+                  value={stats.periodBalance}
+                  tone={stats.periodBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}
+                />
+              </div>
+            </div>
+
             <OverallPositionCard balance={stats.allTimeBalance} />
             <div>
               <SectionHeading
