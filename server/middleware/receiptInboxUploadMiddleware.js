@@ -12,8 +12,10 @@ const allowedMimeTypes = new Set([
   "application/pdf",
 ]);
 const allowedExtensions = new Set([".jpeg", ".jpg", ".png", ".pdf"]);
-const DEFAULT_WEEKLY_UPLOAD_LIMIT = 8;
+const DEFAULT_DAILY_UPLOAD_LIMIT = 3;
+const DEFAULT_WEEKLY_UPLOAD_LIMIT = 15;
 const DEFAULT_MAX_SIZE_MB = 10;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const DAYS_IN_WEEK = 7;
 const configuredUploadLimitMb = Number(
   process.env.RECEIPT_UPLOAD_MAX_SIZE_MB || ""
@@ -26,6 +28,13 @@ const configuredWeeklyUploadLimit = Number.parseInt(
   process.env.RECEIPT_UPLOAD_WEEKLY_LIMIT || DEFAULT_WEEKLY_UPLOAD_LIMIT,
   10
 );
+const configuredDailyUploadLimit = Number.parseInt(
+  process.env.RECEIPT_UPLOAD_DAILY_LIMIT || DEFAULT_DAILY_UPLOAD_LIMIT,
+  10
+);
+const dailyUploadLimit = Number.isInteger(configuredDailyUploadLimit)
+  ? configuredDailyUploadLimit
+  : DEFAULT_DAILY_UPLOAD_LIMIT;
 const weeklyUploadLimit = Number.isInteger(configuredWeeklyUploadLimit)
   ? configuredWeeklyUploadLimit
   : DEFAULT_WEEKLY_UPLOAD_LIMIT;
@@ -69,21 +78,41 @@ const getUserId = (req) => req.user?.id || req.user?._id;
 
 export const enforceReceiptUploadLimit = async (req, res, next) => {
   try {
-    if (weeklyUploadLimit <= 0) {
+    if (dailyUploadLimit <= 0 && weeklyUploadLimit <= 0) {
       return next();
     }
 
     const userId = getUserId(req);
-    const since = new Date(Date.now() - DAYS_IN_WEEK * 24 * 60 * 60 * 1000);
-    const recentUploadCount = await Receipt.countDocuments({
+    const dailySince = new Date(Date.now() - DAY_IN_MS);
+
+    if (dailyUploadLimit > 0) {
+      const dailyUploadCount = await Receipt.countDocuments({
+        user: userId,
+        uploadedAt: { $gte: dailySince },
+      });
+
+      if (dailyUploadCount >= dailyUploadLimit) {
+        return res.status(429).json({
+          message: `Free receipt upload limit reached. You can upload up to ${dailyUploadLimit} receipts per 24 hours.`,
+          code: "RECEIPT_DAILY_UPLOAD_LIMIT_REACHED",
+        });
+      }
+    }
+
+    if (weeklyUploadLimit <= 0) {
+      return next();
+    }
+
+    const weeklySince = new Date(Date.now() - DAYS_IN_WEEK * DAY_IN_MS);
+    const weeklyUploadCount = await Receipt.countDocuments({
       user: userId,
-      uploadedAt: { $gte: since },
+      uploadedAt: { $gte: weeklySince },
     });
 
-    if (recentUploadCount >= weeklyUploadLimit) {
+    if (weeklyUploadCount >= weeklyUploadLimit) {
       return res.status(429).json({
         message: `Free receipt upload limit reached. You can upload up to ${weeklyUploadLimit} receipts per week.`,
-        code: "RECEIPT_UPLOAD_LIMIT_REACHED",
+        code: "RECEIPT_WEEKLY_UPLOAD_LIMIT_REACHED",
       });
     }
 

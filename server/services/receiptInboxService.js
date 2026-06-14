@@ -7,12 +7,21 @@ import { getUploadDir } from "../utils/uploadPaths.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
-const DEFAULT_WEEKLY_UPLOAD_LIMIT = 8;
+const DEFAULT_DAILY_UPLOAD_LIMIT = 3;
+const DEFAULT_WEEKLY_UPLOAD_LIMIT = 15;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const DAYS_IN_WEEK = 7;
+const configuredDailyUploadLimit = Number.parseInt(
+  process.env.RECEIPT_UPLOAD_DAILY_LIMIT || DEFAULT_DAILY_UPLOAD_LIMIT,
+  10
+);
 const configuredWeeklyUploadLimit = Number.parseInt(
   process.env.RECEIPT_UPLOAD_WEEKLY_LIMIT || DEFAULT_WEEKLY_UPLOAD_LIMIT,
   10
 );
+const dailyUploadLimit = Number.isInteger(configuredDailyUploadLimit)
+  ? configuredDailyUploadLimit
+  : DEFAULT_DAILY_UPLOAD_LIMIT;
 const weeklyUploadLimit = Number.isInteger(configuredWeeklyUploadLimit)
   ? configuredWeeklyUploadLimit
   : DEFAULT_WEEKLY_UPLOAD_LIMIT;
@@ -120,22 +129,42 @@ const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$
 
 const shouldIncludeArchived = (value) => String(value || "").toLowerCase() === "true";
 
-const assertWeeklyUploadLimit = async (userId) => {
+const assertReceiptUploadLimits = async (userId) => {
+  if (dailyUploadLimit <= 0 && weeklyUploadLimit <= 0) {
+    return;
+  }
+
+  if (dailyUploadLimit > 0) {
+    const dailySince = new Date(Date.now() - DAY_IN_MS);
+    const dailyUploadCount = await Receipt.countDocuments({
+      user: userId,
+      uploadedAt: { $gte: dailySince },
+    });
+
+    if (dailyUploadCount >= dailyUploadLimit) {
+      throw createError(
+        `Free receipt upload limit reached. You can upload up to ${dailyUploadLimit} receipts per 24 hours.`,
+        429,
+        "RECEIPT_DAILY_UPLOAD_LIMIT_REACHED"
+      );
+    }
+  }
+
   if (weeklyUploadLimit <= 0) {
     return;
   }
 
-  const since = new Date(Date.now() - DAYS_IN_WEEK * 24 * 60 * 60 * 1000);
-  const recentUploadCount = await Receipt.countDocuments({
+  const weeklySince = new Date(Date.now() - DAYS_IN_WEEK * DAY_IN_MS);
+  const weeklyUploadCount = await Receipt.countDocuments({
     user: userId,
-    uploadedAt: { $gte: since },
+    uploadedAt: { $gte: weeklySince },
   });
 
-  if (recentUploadCount >= weeklyUploadLimit) {
+  if (weeklyUploadCount >= weeklyUploadLimit) {
     throw createError(
       `Free receipt upload limit reached. You can upload up to ${weeklyUploadLimit} receipts per week.`,
       429,
-      "RECEIPT_UPLOAD_LIMIT_REACHED"
+      "RECEIPT_WEEKLY_UPLOAD_LIMIT_REACHED"
     );
   }
 };
@@ -266,7 +295,7 @@ export const createReceipt = async (userId, file, metadata = {}) => {
     throw createError("Receipt file is required", 400);
   }
 
-  await assertWeeklyUploadLimit(userId);
+  await assertReceiptUploadLimits(userId);
 
   const normalizedMetadata = normalizeMetadataPayload(metadata);
   const linkedExpense = await assertOwnedLinkedExpense(

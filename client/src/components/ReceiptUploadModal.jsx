@@ -155,7 +155,7 @@ const ReceiptUploadModal = ({ isOpen, onClose, onUploaded }) => {
         />
 
         <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">
-          Receipt uploads are limited to 8 per week on the free version.
+          Free receipt uploads are limited to 3 per 24 hours and 15 per week.
         </p>
 
         <button
