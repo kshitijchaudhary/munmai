@@ -102,6 +102,8 @@ const Dashboard = () => {
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
   const [receiptUploadModalOpen, setReceiptUploadModalOpen] = useState(false);
+  const [showMonthlyControlDetails, setShowMonthlyControlDetails] =
+    useState(false);
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
   const [budgetMessage, setBudgetMessage] = useState(null);
   const [savingBudget, setSavingBudget] = useState(false);
@@ -340,18 +342,27 @@ const Dashboard = () => {
           </div>
         )}
 
-        <section className="mb-8 overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid gap-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <div className="p-6 md:p-8">
-              <p className="mb-2 text-sm font-semibold text-indigo-600">
-                {getGreeting()}, {displayName}
+        {showOnboarding && (
+          <section className="mb-8 rounded-3xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/30 md:p-6">
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">
+              Start simple.
+            </h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              Add one transaction or upload one receipt. You can organize the
+              rest later.
+            </p>
+          </section>
+        )}
+
+        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12 xl:items-start">
+          <div className="space-y-6 xl:col-span-7">
+            <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                Quick capture
               </p>
-              <h2 className="text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
-                Today's money
+              <h2 className="mt-2 text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
+                Add what happened now.
               </h2>
-              <p className="mt-3 max-w-xl text-slate-500 dark:text-slate-400">
-                Capture today, review later, and understand this month.
-              </p>
 
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <CommandAction
@@ -369,7 +380,65 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="border-t border-slate-100 bg-slate-50/70 p-6 dark:border-slate-800 dark:bg-slate-950/50 md:p-8 lg:border-l lg:border-t-0">
+            <div>
+              <SectionHeading
+                title="Monthly Control"
+                description="A simple check on this month's spending pace."
+              />
+              <MonthlyControlCard
+                budget={budgetSummary}
+                onSetBudget={openBudgetModal}
+                showDetails={showMonthlyControlDetails}
+                onToggleDetails={() =>
+                  setShowMonthlyControlDetails((current) => !current)
+                }
+              />
+            </div>
+
+            <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800 md:px-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                      Recent Transactions
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Latest 5 income and expense entries.
+                    </p>
+                  </div>
+
+                  <Link
+                    to="/money/transactions"
+                    className="text-sm font-bold text-indigo-600 hover:underline"
+                  >
+                    View all
+                  </Link>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {loading ? (
+                  <div className="px-6 py-10 text-center font-medium text-slate-400 dark:text-slate-500">
+                    Refreshing data...
+                  </div>
+                ) : stats.recentTransactions.length === 0 ? (
+                  <div className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                    No transactions yet.
+                  </div>
+                ) : (
+                  stats.recentTransactions.map((item) => (
+                    <RecentTransactionRow
+                      key={`${item.transactionType}-${item._id}`}
+                      item={item}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 xl:col-span-5 xl:self-start">
+            <div className="rounded-[2rem] border border-slate-100 bg-slate-50/70 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-widest text-slate-400">
@@ -417,74 +486,7 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-          </div>
-        </section>
 
-        {showOnboarding && (
-          <section className="mb-8 rounded-3xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/30 md:p-6">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">
-              Start simple.
-            </h2>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-              Add one transaction or upload one receipt. You can organize the
-              rest later.
-            </p>
-          </section>
-        )}
-
-        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-7">
-            <div>
-              <SectionHeading
-                title="Monthly Control"
-                description="A simple check on this month's spending pace."
-              />
-              <MonthlyControlCard budget={budgetSummary} onSetBudget={openBudgetModal} />
-            </div>
-
-            <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800 md:px-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                      Recent Transactions
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Latest 5 income and expense entries.
-                    </p>
-                  </div>
-
-                  <Link
-                    to="/money/transactions"
-                    className="text-sm font-bold text-indigo-600 hover:underline"
-                  >
-                    View all
-                  </Link>
-                </div>
-              </div>
-
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {loading ? (
-                  <div className="px-6 py-10 text-center font-medium text-slate-400 dark:text-slate-500">
-                    Refreshing data...
-                  </div>
-                ) : stats.recentTransactions.length === 0 ? (
-                  <div className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
-                    No transactions yet.
-                  </div>
-                ) : (
-                  stats.recentTransactions.map((item) => (
-                    <RecentTransactionRow
-                      key={`${item.transactionType}-${item._id}`}
-                      item={item}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4 xl:col-span-5 xl:self-start">
             <OverallPositionCard balance={stats.allTimeBalance} />
             <div>
               <SectionHeading
@@ -777,7 +779,12 @@ const getBudgetProgressTone = (status) => {
   return "bg-slate-300";
 };
 
-const MonthlyControlCard = ({ budget, onSetBudget }) => {
+const MonthlyControlCard = ({
+  budget,
+  onSetBudget,
+  showDetails,
+  onToggleDetails,
+}) => {
   const hasBudget = Number(budget.monthlySpendingLimit || 0) > 0;
   const status = budget.status || "no_budget";
   const percentUsed = Number(budget.percentUsed || 0);
@@ -863,26 +870,41 @@ const MonthlyControlCard = ({ budget, onSetBudget }) => {
             </p>
           )}
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <BudgetStat
-              label="Spending Limit"
-              value={formatCurrency(budget.monthlySpendingLimit)}
-            />
-            <BudgetStat
-              label="Spent This Month"
-              value={formatCurrency(budget.spentThisMonth)}
-            />
-            <BudgetStat
-              label="Remaining"
-              value={formatCurrency(budget.remaining)}
-              tone={
-                remaining < 0
-                  ? "text-rose-600 dark:text-rose-400"
-                  : "text-emerald-600 dark:text-emerald-400"
-              }
-            />
-            <BudgetStat label="Used" value={`${percentUsed.toFixed(2)}%`} />
-          </div>
+          <button
+            type="button"
+            onClick={onToggleDetails}
+            aria-expanded={showDetails}
+            aria-controls="monthly-control-details"
+            className="mt-4 text-sm font-bold text-indigo-600 transition hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            {showDetails ? "Hide details" : "Show details"}
+          </button>
+
+          {showDetails && (
+            <div
+              id="monthly-control-details"
+              className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
+            >
+              <BudgetStat
+                label="Spending Limit"
+                value={formatCurrency(budget.monthlySpendingLimit)}
+              />
+              <BudgetStat
+                label="Spent This Month"
+                value={formatCurrency(budget.spentThisMonth)}
+              />
+              <BudgetStat
+                label="Remaining"
+                value={formatCurrency(budget.remaining)}
+                tone={
+                  remaining < 0
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }
+              />
+              <BudgetStat label="Used" value={`${percentUsed.toFixed(2)}%`} />
+            </div>
+          )}
         </>
       )}
     </div>

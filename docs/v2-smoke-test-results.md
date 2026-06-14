@@ -136,7 +136,7 @@ All tests passed.
 - [x] What Munmai Stores page works
 - [x] Logged-in legal pages return to Settings
 - [x] Logged-out legal pages return to Login
-- [x] No old Finvexa/unmai references
+- [x] No old Finvexa/Munmai references
 
 Notes:
 All tests passed.
