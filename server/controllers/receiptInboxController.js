@@ -15,6 +15,7 @@ const asyncHandler = (handler) => async (req, res, next) => {
     if (error.statusCode && error.statusCode < 500) {
       return res.status(error.statusCode).json({
         message: error.message,
+        ...(error.code ? { code: error.code } : {}),
         requestId: req.requestId || "",
       });
     }

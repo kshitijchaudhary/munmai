@@ -7,11 +7,32 @@ import { getUploadDir } from "../utils/uploadPaths.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const DEFAULT_DAILY_UPLOAD_LIMIT = 3;
+const DEFAULT_WEEKLY_UPLOAD_LIMIT = 15;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const DAYS_IN_WEEK = 7;
+const configuredDailyUploadLimit = Number.parseInt(
+  process.env.RECEIPT_UPLOAD_DAILY_LIMIT || DEFAULT_DAILY_UPLOAD_LIMIT,
+  10
+);
+const configuredWeeklyUploadLimit = Number.parseInt(
+  process.env.RECEIPT_UPLOAD_WEEKLY_LIMIT || DEFAULT_WEEKLY_UPLOAD_LIMIT,
+  10
+);
+const dailyUploadLimit = Number.isInteger(configuredDailyUploadLimit)
+  ? configuredDailyUploadLimit
+  : DEFAULT_DAILY_UPLOAD_LIMIT;
+const weeklyUploadLimit = Number.isInteger(configuredWeeklyUploadLimit)
+  ? configuredWeeklyUploadLimit
+  : DEFAULT_WEEKLY_UPLOAD_LIMIT;
 const receiptInboxDir = path.join(getUploadDir(), "receipt-inbox");
 
-const createError = (message, statusCode = 400) => {
+const createError = (message, statusCode = 400, code = "") => {
   const error = new Error(message);
   error.statusCode = statusCode;
+  if (code) {
+    error.code = code;
+  }
   return error;
 };
 
@@ -107,6 +128,46 @@ const normalizePositiveInteger = (value, fallback, max = Number.MAX_SAFE_INTEGER
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const shouldIncludeArchived = (value) => String(value || "").toLowerCase() === "true";
+
+const assertReceiptUploadLimits = async (userId) => {
+  if (dailyUploadLimit <= 0 && weeklyUploadLimit <= 0) {
+    return;
+  }
+
+  if (dailyUploadLimit > 0) {
+    const dailySince = new Date(Date.now() - DAY_IN_MS);
+    const dailyUploadCount = await Receipt.countDocuments({
+      user: userId,
+      uploadedAt: { $gte: dailySince },
+    });
+
+    if (dailyUploadCount >= dailyUploadLimit) {
+      throw createError(
+        `Free receipt upload limit reached. You can upload up to ${dailyUploadLimit} receipts per 24 hours.`,
+        429,
+        "RECEIPT_DAILY_UPLOAD_LIMIT_REACHED"
+      );
+    }
+  }
+
+  if (weeklyUploadLimit <= 0) {
+    return;
+  }
+
+  const weeklySince = new Date(Date.now() - DAYS_IN_WEEK * DAY_IN_MS);
+  const weeklyUploadCount = await Receipt.countDocuments({
+    user: userId,
+    uploadedAt: { $gte: weeklySince },
+  });
+
+  if (weeklyUploadCount >= weeklyUploadLimit) {
+    throw createError(
+      `Free receipt upload limit reached. You can upload up to ${weeklyUploadLimit} receipts per week.`,
+      429,
+      "RECEIPT_WEEKLY_UPLOAD_LIMIT_REACHED"
+    );
+  }
+};
 
 const normalizeMetadataPayload = (payload = {}, { partial = false } = {}) => {
   const updates = {};
@@ -233,6 +294,8 @@ export const createReceipt = async (userId, file, metadata = {}) => {
   if (!file) {
     throw createError("Receipt file is required", 400);
   }
+
+  await assertReceiptUploadLimits(userId);
 
   const normalizedMetadata = normalizeMetadataPayload(metadata);
   const linkedExpense = await assertOwnedLinkedExpense(
