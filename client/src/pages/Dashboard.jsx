@@ -102,6 +102,8 @@ const Dashboard = () => {
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
   const [receiptUploadModalOpen, setReceiptUploadModalOpen] = useState(false);
+  const [showMonthlyControlDetails, setShowMonthlyControlDetails] =
+    useState(false);
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
   const [budgetMessage, setBudgetMessage] = useState(null);
   const [savingBudget, setSavingBudget] = useState(false);
@@ -383,7 +385,14 @@ const Dashboard = () => {
                 title="Monthly Control"
                 description="A simple check on this month's spending pace."
               />
-              <MonthlyControlCard budget={budgetSummary} onSetBudget={openBudgetModal} />
+              <MonthlyControlCard
+                budget={budgetSummary}
+                onSetBudget={openBudgetModal}
+                showDetails={showMonthlyControlDetails}
+                onToggleDetails={() =>
+                  setShowMonthlyControlDetails((current) => !current)
+                }
+              />
             </div>
 
             <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -770,7 +779,12 @@ const getBudgetProgressTone = (status) => {
   return "bg-slate-300";
 };
 
-const MonthlyControlCard = ({ budget, onSetBudget }) => {
+const MonthlyControlCard = ({
+  budget,
+  onSetBudget,
+  showDetails,
+  onToggleDetails,
+}) => {
   const hasBudget = Number(budget.monthlySpendingLimit || 0) > 0;
   const status = budget.status || "no_budget";
   const percentUsed = Number(budget.percentUsed || 0);
@@ -856,26 +870,41 @@ const MonthlyControlCard = ({ budget, onSetBudget }) => {
             </p>
           )}
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <BudgetStat
-              label="Spending Limit"
-              value={formatCurrency(budget.monthlySpendingLimit)}
-            />
-            <BudgetStat
-              label="Spent This Month"
-              value={formatCurrency(budget.spentThisMonth)}
-            />
-            <BudgetStat
-              label="Remaining"
-              value={formatCurrency(budget.remaining)}
-              tone={
-                remaining < 0
-                  ? "text-rose-600 dark:text-rose-400"
-                  : "text-emerald-600 dark:text-emerald-400"
-              }
-            />
-            <BudgetStat label="Used" value={`${percentUsed.toFixed(2)}%`} />
-          </div>
+          <button
+            type="button"
+            onClick={onToggleDetails}
+            aria-expanded={showDetails}
+            aria-controls="monthly-control-details"
+            className="mt-4 text-sm font-bold text-indigo-600 transition hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            {showDetails ? "Hide details" : "Show details"}
+          </button>
+
+          {showDetails && (
+            <div
+              id="monthly-control-details"
+              className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
+            >
+              <BudgetStat
+                label="Spending Limit"
+                value={formatCurrency(budget.monthlySpendingLimit)}
+              />
+              <BudgetStat
+                label="Spent This Month"
+                value={formatCurrency(budget.spentThisMonth)}
+              />
+              <BudgetStat
+                label="Remaining"
+                value={formatCurrency(budget.remaining)}
+                tone={
+                  remaining < 0
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }
+              />
+              <BudgetStat label="Used" value={`${percentUsed.toFixed(2)}%`} />
+            </div>
+          )}
         </>
       )}
     </div>
