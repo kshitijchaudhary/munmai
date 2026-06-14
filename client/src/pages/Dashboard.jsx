@@ -108,6 +108,7 @@ const Dashboard = () => {
   const [budgetMessage, setBudgetMessage] = useState(null);
   const [savingBudget, setSavingBudget] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [transactionDataLoaded, setTransactionDataLoaded] = useState(false);
   const [transactionError, setTransactionError] = useState("");
   const [budgetError, setBudgetError] = useState("");
   const [debtRealityError, setDebtRealityError] = useState("");
@@ -141,10 +142,14 @@ const Dashboard = () => {
         income: incomeResult.value.data || [],
         expenses: expenseResult.value.data || [],
       });
+      setTransactionDataLoaded(true);
       setTransactionError("");
     } else {
       setData({ income: [], expenses: [] });
-      setTransactionError("Failed to load transaction preview.");
+      setTransactionDataLoaded(false);
+      setTransactionError(
+        "We couldn't load your transaction totals yet. Refresh the dashboard to try again."
+      );
     }
 
     if (budgetResult.status === "fulfilled") {
@@ -299,8 +304,8 @@ const Dashboard = () => {
     }
   };
 
-  const hasAnyTransactions = stats.allTransactions.length > 0;
-  const showOnboarding = !hasAnyTransactions;
+  const hasAnyTransactions = transactionDataLoaded && stats.allTransactions.length > 0;
+  const showOnboarding = transactionDataLoaded && !hasAnyTransactions;
 
   const handleTransactionSaved = async () => {
     setTransactionModalOpen(false);
@@ -336,9 +341,24 @@ const Dashboard = () => {
           </p>
         </header>
 
-        {(transactionError || budgetError || debtRealityError) && (
+        {transactionError && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>{transactionError}</span>
+              <button
+                type="button"
+                onClick={fetchDashboardData}
+                className="inline-flex items-center justify-center rounded-xl bg-amber-900 px-3 py-2 text-xs font-black text-white transition hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
+              >
+                Refresh dashboard
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(budgetError || debtRealityError) && (
           <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
-            {transactionError || budgetError || debtRealityError}
+            {budgetError || debtRealityError}
           </div>
         )}
 
@@ -421,6 +441,10 @@ const Dashboard = () => {
                   <div className="px-6 py-10 text-center font-medium text-slate-400 dark:text-slate-500">
                     Refreshing data...
                   </div>
+                ) : transactionError ? (
+                  <div className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                    Recent transactions could not be loaded. Refresh the page to try again.
+                  </div>
                 ) : stats.recentTransactions.length === 0 ? (
                   <div className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
                     No transactions yet.
@@ -477,24 +501,42 @@ const Dashboard = () => {
               </div>
 
               <div className="grid grid-cols-1 gap-3">
-                <MiniMoneyCard label="In" value={stats.periodIncomeTotal} tone="text-emerald-600 dark:text-emerald-400" />
-                <MiniMoneyCard label="Out" value={stats.periodExpenseTotal} tone="text-rose-600 dark:text-rose-400" />
+                <MiniMoneyCard
+                  label="In"
+                  value={stats.periodIncomeTotal}
+                  tone="text-emerald-600 dark:text-emerald-400"
+                  available={transactionDataLoaded}
+                />
+                <MiniMoneyCard
+                  label="Out"
+                  value={stats.periodExpenseTotal}
+                  tone="text-rose-600 dark:text-rose-400"
+                  available={transactionDataLoaded}
+                />
                 <MiniMoneyCard
                   label="Net"
                   value={stats.periodBalance}
                   tone={stats.periodBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}
+                  available={transactionDataLoaded}
                 />
               </div>
             </div>
 
-            <OverallPositionCard balance={stats.allTimeBalance} />
+            <OverallPositionCard
+              balance={stats.allTimeBalance}
+              available={transactionDataLoaded}
+            />
             <div>
               <SectionHeading
                 title="Needs review"
                 description="Review only what needs attention."
               />
               <NeedsReviewCard
-                missingReceiptCount={data.expenses.filter((expense) => !String(expense?.receiptUrl || expense?.receipt || "").trim()).length}
+                missingReceiptCount={
+                  transactionDataLoaded
+                    ? data.expenses.filter((expense) => !String(expense?.receiptUrl || expense?.receipt || "").trim()).length
+                    : null
+                }
                 budgetStatus={budgetSummary.status}
                 dueSoonCount={debtRealitySummary.dueSoonCount}
               />
@@ -645,12 +687,14 @@ const CommandAction = ({ title, description, to, onClick, primary = false }) => 
   );
 };
 
-const MiniMoneyCard = ({ label, value, tone }) => (
+const MiniMoneyCard = ({ label, value, tone, available = true }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
     <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
       {label}
     </p>
-    <p className={`text-2xl font-black ${tone}`}>{formatCurrency(value)}</p>
+    <p className={`text-2xl font-black ${available ? tone : "text-slate-400 dark:text-slate-500"}`}>
+      {available ? formatCurrency(value) : "Unavailable"}
+    </p>
   </div>
 );
 
@@ -664,19 +708,21 @@ const SimpleLink = ({ to, label }) => (
   </Link>
 );
 
-const OverallPositionCard = ({ balance }) => (
+const OverallPositionCard = ({ balance, available = true }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
       Total position
     </p>
     <p
       className={`text-3xl font-black ${
-        Number(balance || 0) < 0
+        !available
+          ? "text-slate-400 dark:text-slate-500"
+          : Number(balance || 0) < 0
           ? "text-rose-600 dark:text-rose-400"
           : "text-slate-900 dark:text-white"
       }`}
     >
-      {formatCurrency(balance)}
+      {available ? formatCurrency(balance) : "Unavailable"}
     </p>
     <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
       All income minus all expenses already loaded on this dashboard.
@@ -686,6 +732,7 @@ const OverallPositionCard = ({ balance }) => (
 
 const NeedsReviewCard = ({ missingReceiptCount, budgetStatus, dueSoonCount }) => {
   const items = [];
+  const receiptReviewUnavailable = missingReceiptCount === null;
 
   if (missingReceiptCount > 0) {
     items.push({
@@ -718,10 +765,12 @@ const NeedsReviewCard = ({ missingReceiptCount, budgetStatus, dueSoonCount }) =>
     return (
       <div className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-5">
         <p className="text-lg font-black text-slate-900 dark:text-white">
-          All caught up for now.
+          {receiptReviewUnavailable ? "Review data is partially unavailable." : "All caught up for now."}
         </p>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Nothing urgent is showing from the data already loaded here.
+          {receiptReviewUnavailable
+            ? "Refresh the dashboard to check receipt coverage."
+            : "Nothing urgent is showing from the data already loaded here."}
         </p>
       </div>
     );

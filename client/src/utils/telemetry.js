@@ -1,6 +1,26 @@
 import { getApiBaseUrl } from "../api/baseUrl";
+import { hasValidToken } from "./authToken";
 
 const TELEMETRY_BASE_URL = getApiBaseUrl();
+
+const getStoredTelemetryUser = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const savedUser = window.localStorage.getItem("user");
+    const user = savedUser ? JSON.parse(savedUser) : null;
+
+    if (!hasValidToken(user)) {
+      return null;
+    }
+
+    return user;
+  } catch {
+    return null;
+  }
+};
 
 const getSafeRoute = () => {
   const pathname = window.location.pathname;
@@ -13,17 +33,27 @@ const getSafeRoute = () => {
 };
 
 const postTelemetry = async (path, payload) => {
+  const user = getStoredTelemetryUser();
+
+  if (!user?.token) {
+    return;
+  }
+
   try {
     await fetch(`${TELEMETRY_BASE_URL}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${user.token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        userId: user._id || user.id || payload.userId || null,
+      }),
       keepalive: true,
     });
-  } catch (error) {
-    console.error("Telemetry post failed:", error);
+  } catch {
+    // Telemetry must never interrupt user flows or create console noise.
   }
 };
 
