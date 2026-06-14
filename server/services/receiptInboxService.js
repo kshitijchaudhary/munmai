@@ -7,11 +7,23 @@ import { getUploadDir } from "../utils/uploadPaths.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const DEFAULT_WEEKLY_UPLOAD_LIMIT = 8;
+const DAYS_IN_WEEK = 7;
+const configuredWeeklyUploadLimit = Number.parseInt(
+  process.env.RECEIPT_UPLOAD_WEEKLY_LIMIT || DEFAULT_WEEKLY_UPLOAD_LIMIT,
+  10
+);
+const weeklyUploadLimit = Number.isInteger(configuredWeeklyUploadLimit)
+  ? configuredWeeklyUploadLimit
+  : DEFAULT_WEEKLY_UPLOAD_LIMIT;
 const receiptInboxDir = path.join(getUploadDir(), "receipt-inbox");
 
-const createError = (message, statusCode = 400) => {
+const createError = (message, statusCode = 400, code = "") => {
   const error = new Error(message);
   error.statusCode = statusCode;
+  if (code) {
+    error.code = code;
+  }
   return error;
 };
 
@@ -107,6 +119,26 @@ const normalizePositiveInteger = (value, fallback, max = Number.MAX_SAFE_INTEGER
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const shouldIncludeArchived = (value) => String(value || "").toLowerCase() === "true";
+
+const assertWeeklyUploadLimit = async (userId) => {
+  if (weeklyUploadLimit <= 0) {
+    return;
+  }
+
+  const since = new Date(Date.now() - DAYS_IN_WEEK * 24 * 60 * 60 * 1000);
+  const recentUploadCount = await Receipt.countDocuments({
+    user: userId,
+    uploadedAt: { $gte: since },
+  });
+
+  if (recentUploadCount >= weeklyUploadLimit) {
+    throw createError(
+      `Free receipt upload limit reached. You can upload up to ${weeklyUploadLimit} receipts per week.`,
+      429,
+      "RECEIPT_UPLOAD_LIMIT_REACHED"
+    );
+  }
+};
 
 const normalizeMetadataPayload = (payload = {}, { partial = false } = {}) => {
   const updates = {};
@@ -233,6 +265,8 @@ export const createReceipt = async (userId, file, metadata = {}) => {
   if (!file) {
     throw createError("Receipt file is required", 400);
   }
+
+  await assertWeeklyUploadLimit(userId);
 
   const normalizedMetadata = normalizeMetadataPayload(metadata);
   const linkedExpense = await assertOwnedLinkedExpense(

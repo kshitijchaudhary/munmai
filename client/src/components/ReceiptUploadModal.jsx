@@ -154,6 +154,10 @@ const ReceiptUploadModal = ({ isOpen, onClose, onUploaded }) => {
           trustText="Files are stored privately and opened through protected access."
         />
 
+        <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">
+          Receipt uploads are limited to 8 per week on the free version.
+        </p>
+
         <button
           type="button"
           onClick={() => setDetailsOpen((current) => !current)}
