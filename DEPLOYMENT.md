@@ -41,6 +41,9 @@ FORCE_HTTPS=true
 REQUEST_BODY_LIMIT=2mb
 UPLOAD_LIMIT_MB=5
 UPLOAD_DIR=/var/data/munmai/uploads
+RECEIPT_UPLOAD_DAILY_LIMIT=3
+RECEIPT_UPLOAD_WEEKLY_LIMIT=15
+RECEIPT_UPLOAD_MAX_SIZE_MB=10
 ALLOW_LOCALHOST_EMAIL_LINKS=false
 SMTP_HOST=<smtp-host>
 SMTP_PORT=<smtp-port>
@@ -108,6 +111,12 @@ UPLOAD_DIR=/var/data/munmai/uploads
 ```
 
 Without a persistent disk, uploaded receipts can disappear after deploys, restarts, or instance replacement. Object storage is a future scaling improvement, but not required for Phase 1 deployment.
+
+Receipt upload guardrail overrides are optional. The backend defaults to 3
+uploads per rolling 24 hours, 15 uploads per rolling 7 days, and a 10 MB max
+file size per receipt. Set `RECEIPT_UPLOAD_DAILY_LIMIT`,
+`RECEIPT_UPLOAD_WEEKLY_LIMIT`, and `RECEIPT_UPLOAD_MAX_SIZE_MB` in Render only
+when production limits need to change.
 
 ## Local Commands
 

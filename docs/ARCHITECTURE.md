@@ -743,7 +743,9 @@ Vercel:
 
 Required production environment:
 - Backend: `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL`, `CLIENT_ORIGINS`,
-  `SERVER_URL`, SMTP settings, upload/body limits.
+  `SERVER_URL`, SMTP settings, upload/body limits, and optional Receipt Inbox
+  guardrail overrides: `RECEIPT_UPLOAD_DAILY_LIMIT`,
+  `RECEIPT_UPLOAD_WEEKLY_LIMIT`, `RECEIPT_UPLOAD_MAX_SIZE_MB`.
 - Frontend: `VITE_API_URL`.
 
 ## Operational Tooling
