@@ -165,6 +165,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a fuller system overview.
 - v1.8.0 Import History + Reporting Integration: added import history with batch rows, archive, revert workflow, and import-source counts in Monthly Summary.
 - v1.8.1 Phase 2 Stabilization + Demo Cleanup: polished import history UX, safe import revert clarity, trust/legal pages, and Settings links.
 - v1.9.0 Receipt Inbox Prototype: added standalone receipt upload, metadata management, category presets, purchase date field, search/filter controls, status filter, include archived toggle, edit, archive, and receipt coverage summary.
+- v2.0.0 Phase 2 Stable: consolidated import history, receipt inbox, tax pack, trust/legal, dashboard, and deployment readiness into a stable phase release.
+- v2.0.1 Navigation & Demo UX Polish: improved navigation, demo flow clarity, and authenticated app polish.
+- v2.0.2 Document Upload UI Polish: added reusable document upload UI patterns and simplified receipt/import upload flows.
+- v2.0.3 Groups Workflow UX Polish: simplified Groups navigation, hub workflow, join-code visibility, and group action clarity.
+- v2.1.0 Simple Daily Workflow: redesigned the Dashboard around quick capture, receipt upload, monthly view, and daily money actions.
+- v2.1.1 Munmai Branding Cleanup: removed remaining legacy Finvexa naming and aligned deployment/documentation references with Munmai.
+- v2.1.2 Daily Dashboard Polish: reduced Dashboard copy noise, fixed layout gaps, and hid detailed Monthly Control stats behind progressive disclosure.
+- v2.1.3 Receipt Upload Guardrails: added daily/weekly receipt upload limits, max file size protection, pre-upload blocking, and friendly upload errors.
+- v2.1.4 Stale Dashboard Session Recovery: improved expired-session redirects, Dashboard unavailable states, and unauthenticated telemetry handling.
 
 ## Local Setup
 
@@ -213,6 +222,9 @@ CLIENT_ORIGINS=http://localhost:5173,https://munmai.com
 FORCE_HTTPS=false
 REQUEST_BODY_LIMIT=1mb
 UPLOAD_DIR=./uploads
+RECEIPT_UPLOAD_DAILY_LIMIT=3
+RECEIPT_UPLOAD_WEEKLY_LIMIT=15
+RECEIPT_UPLOAD_MAX_SIZE_MB=10
 
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
@@ -220,6 +232,11 @@ SMTP_USER=example@example.com
 SMTP_PASS=replace_with_smtp_password
 SMTP_FROM="Munmai <no-reply@example.com>"
 ```
+
+Receipt upload guardrail variables are optional because the backend uses safe
+defaults. They control standalone Receipt Inbox uploads: daily rolling upload
+count, weekly rolling upload count, and max file size in MB. Render production
+can override these values if storage or usage needs change.
 
 ### Frontend: `client/.env`
 
