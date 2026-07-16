@@ -306,13 +306,18 @@ const Dashboard = () => {
 
   const hasAnyTransactions = transactionDataLoaded && stats.allTransactions.length > 0;
   const showOnboarding = transactionDataLoaded && !hasAnyTransactions;
+  const dashboardLoadError =
+    transactionError || budgetError || debtRealityError
+      ? "We couldn't load your dashboard data yet. Refresh the dashboard to try again."
+      : "";
+  const isDashboardRetrying = loading && Boolean(dashboardLoadError);
 
   const handleTransactionSaved = async () => {
     setTransactionModalOpen(false);
     await fetchDashboardData();
   };
 
-  if (loading && !hasAnyTransactions) {
+  if (loading && !hasAnyTransactions && !dashboardLoadError) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
         <Sidebar />
@@ -341,24 +346,19 @@ const Dashboard = () => {
           </p>
         </header>
 
-        {transactionError && (
+        {dashboardLoadError && (
           <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span>{transactionError}</span>
+              <span>{dashboardLoadError}</span>
               <button
                 type="button"
                 onClick={fetchDashboardData}
-                className="inline-flex items-center justify-center rounded-xl bg-amber-900 px-3 py-2 text-xs font-black text-white transition hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
+                disabled={isDashboardRetrying}
+                className="inline-flex items-center justify-center rounded-xl bg-amber-900 px-3 py-2 text-xs font-black text-white transition hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-amber-700/60 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100 dark:disabled:bg-amber-300/60"
               >
-                Refresh dashboard
+                {isDashboardRetrying ? "Refreshing..." : "Refresh dashboard"}
               </button>
             </div>
-          </div>
-        )}
-
-        {(budgetError || debtRealityError) && (
-          <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
-            {budgetError || debtRealityError}
           </div>
         )}
 
@@ -408,6 +408,7 @@ const Dashboard = () => {
               <MonthlyControlCard
                 budget={budgetSummary}
                 onSetBudget={openBudgetModal}
+                loadError={budgetError}
                 showDetails={showMonthlyControlDetails}
                 onToggleDetails={() =>
                   setShowMonthlyControlDetails((current) => !current)
@@ -831,6 +832,7 @@ const getBudgetProgressTone = (status) => {
 const MonthlyControlCard = ({
   budget,
   onSetBudget,
+  loadError,
   showDetails,
   onToggleDetails,
 }) => {
@@ -853,33 +855,43 @@ const MonthlyControlCard = ({
               Monthly Control
             </h3>
             <span
-              className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-widest ring-1 ${getBudgetStatusTone(
-                status
-              )}`}
+              className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-widest ring-1 ${
+                loadError
+                  ? "bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-950 dark:text-slate-400 dark:ring-slate-800"
+                  : getBudgetStatusTone(status)
+              }`}
             >
-              {budgetStatusLabels[status] || status}
+              {loadError ? "Unavailable" : budgetStatusLabels[status] || status}
             </span>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {budgetInsights[status] || budgetInsights.no_budget}
+            {loadError
+              ? "Monthly Control could not be loaded. Use Refresh dashboard above to try again."
+              : budgetInsights[status] || budgetInsights.no_budget}
           </p>
-          {budget.topCategory && (
+          {!loadError && budget.topCategory && (
             <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
               Top spending category: {budget.topCategory}
             </p>
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={onSetBudget}
-          className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
-        >
-          {hasBudget ? "Edit Spending Limit" : "Set Spending Limit"}
-        </button>
+        {!loadError && (
+          <button
+            type="button"
+            onClick={onSetBudget}
+            className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
+          >
+            {hasBudget ? "Edit Spending Limit" : "Set Spending Limit"}
+          </button>
+        )}
       </div>
 
-      {!hasBudget ? (
+      {loadError ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
+          Monthly spending pace is temporarily unavailable.
+        </div>
+      ) : !hasBudget ? (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
           Set a monthly spending limit to track your pace.
         </div>
