@@ -1,17 +1,32 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAuth } from '@/auth/auth-context';
 import { PrimaryButton } from '@/components/primary-button';
 import { SummaryCard } from '@/components/summary-card';
 import { colors } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { signOut, user } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const currentMonth = new Date().toLocaleDateString('en-US', {
     month: 'long',
     year: 'numeric',
   });
+  const displayName = user?.name.trim() || 'there';
+  const avatarLetter = displayName.charAt(0).toUpperCase();
+
+  const handleSignOut = () => {
+    if (isSigningOut) {
+      return;
+    }
+
+    setIsSigningOut(true);
+    void signOut();
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -20,21 +35,25 @@ export default function DashboardScreen() {
           <View style={styles.header}>
             <View style={styles.greetingBlock}>
               <Text style={styles.eyebrow}>MUNMAI</Text>
-              <Text style={styles.greeting}>Welcome back</Text>
+              <Text style={styles.greeting}>Welcome back, {displayName}</Text>
               <Text style={styles.headerCopy}>Here is your money at a glance.</Text>
             </View>
 
             <View style={styles.profileCard}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>M</Text>
+                <Text style={styles.avatarText}>{avatarLetter}</Text>
               </View>
-              <View>
-                <Text style={styles.profileLabel}>Profile</Text>
+              <View style={styles.profileCopy}>
+                <Text numberOfLines={1} style={styles.profileLabel}>
+                  {user?.username ? `@${user.username}` : user?.email}
+                </Text>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityState={{ busy: isSigningOut, disabled: isSigningOut }}
+                  disabled={isSigningOut}
                   hitSlop={8}
-                  onPress={() => router.replace('/sign-in')}>
-                  <Text style={styles.signOut}>Sign out</Text>
+                  onPress={handleSignOut}>
+                  <Text style={styles.signOut}>{isSigningOut ? 'Signing out…' : 'Sign out'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -133,6 +152,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   profileCard: {
+    maxWidth: 190,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -141,6 +161,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: colors.surface,
     padding: 10,
+  },
+  profileCopy: {
+    flexShrink: 1,
   },
   avatar: {
     width: 34,

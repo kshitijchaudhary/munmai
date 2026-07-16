@@ -5,7 +5,10 @@ import { colors } from '@/constants/theme';
 type ButtonTone = 'accent' | 'income' | 'expense' | 'neutral';
 
 type PrimaryButtonProps = {
+  disabled?: boolean;
   label: string;
+  loading?: boolean;
+  loadingLabel?: string;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
   tone?: ButtonTone;
@@ -19,24 +22,33 @@ const toneColors: Record<ButtonTone, string> = {
 };
 
 export function PrimaryButton({
+  disabled = false,
   label,
+  loading = false,
+  loadingLabel = 'Please wait…',
   onPress,
   style,
   tone = 'accent',
 }: PrimaryButtonProps) {
   const usesDarkText = tone === 'income' || tone === 'expense';
+  const isDisabled = disabled || loading;
 
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ busy: loading, disabled: isDisabled }}
+      disabled={isDisabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: toneColors[tone] },
         style,
-        pressed && styles.pressed,
+        pressed && !isDisabled && styles.pressed,
+        isDisabled && styles.disabled,
       ]}>
-      <Text style={[styles.label, usesDarkText && styles.darkLabel]}>{label}</Text>
+      <Text style={[styles.label, usesDarkText && styles.darkLabel]}>
+        {loading ? loadingLabel : label}
+      </Text>
     </Pressable>
   );
 }
@@ -60,5 +72,8 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.82,
     transform: [{ scale: 0.99 }],
+  },
+  disabled: {
+    opacity: 0.55,
   },
 });

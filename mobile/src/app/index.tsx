@@ -1,5 +1,9 @@
 import { Redirect } from 'expo-router';
 
+import { useAuth } from '@/auth/auth-context';
+
 export default function Index() {
-  return <Redirect href="/sign-in" />;
+  const { status } = useAuth();
+
+  return <Redirect href={status === 'authenticated' ? '/dashboard' : '/sign-in'} />;
 }

@@ -3,20 +3,32 @@ import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native'
 import { colors } from '@/constants/theme';
 
 type TextFieldProps = TextInputProps & {
+  error?: string;
   label: string;
 };
 
-export function TextField({ label, style, ...inputProps }: TextFieldProps) {
+export function TextField({
+  accessibilityLabel,
+  error,
+  label,
+  style,
+  ...inputProps
+}: TextFieldProps) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        accessibilityLabel={inputProps.accessibilityLabel ?? label}
+        accessibilityLabel={accessibilityLabel ?? label}
         placeholderTextColor={colors.textMuted}
         selectionColor={colors.accent}
-        style={[styles.input, style]}
         {...inputProps}
+        style={[styles.input, error && styles.inputError, style]}
       />
+      {error ? (
+        <Text accessibilityLiveRegion="polite" style={styles.error}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -40,5 +52,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  inputError: {
+    borderColor: colors.expense,
+  },
+  error: {
+    color: colors.expense,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
