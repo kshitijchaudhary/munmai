@@ -1,13 +1,26 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { PrimaryButton } from '@/components/primary-button';
 import { colors } from '@/constants/theme';
+import { getAuthExitTransition } from '@/navigation/routes';
 
 function AuthNavigator() {
   const { restoreError, retryRestoration, signOut, status } = useAuth();
+  const router = useRouter();
+  const previousStatus = useRef(status);
+
+  useEffect(() => {
+    const transition = getAuthExitTransition(previousStatus.current, status);
+    previousStatus.current = status;
+
+    if (transition?.method === 'replace') {
+      router.replace(transition.target);
+    }
+  }, [router, status]);
 
   if (status === 'restoring') {
     return (
@@ -48,15 +61,15 @@ function AuthNavigator() {
           contentStyle: { backgroundColor: colors.background },
           headerShown: false,
         }}>
-        <Stack.Screen name="index" />
         <Stack.Protected guard={!isAuthenticated}>
           <Stack.Screen name="sign-in" />
           <Stack.Screen name="register" />
         </Stack.Protected>
         <Stack.Protected guard={isAuthenticated}>
-          <Stack.Screen name="dashboard" />
-          <Stack.Screen name="add-transaction" />
+          <Stack.Screen name="(app)" />
         </Stack.Protected>
+        <Stack.Screen name="dashboard" />
+        <Stack.Screen name="add-transaction" />
       </Stack>
     </>
   );

@@ -6,7 +6,7 @@ import {
   formatTransactionDate,
   parseDashboardData,
 } from '../src/dashboard/dashboard-model.ts';
-import { createRequestCoordinator } from '../src/dashboard/request-coordinator.ts';
+import { createRequestCoordinator } from '../src/utils/request-coordinator.ts';
 
 const referenceDate = new Date(2026, 6, 15, 12);
 
