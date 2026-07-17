@@ -16,6 +16,7 @@ import { useAuth } from '@/auth/auth-context';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { colors } from '@/constants/theme';
+import { PUBLIC_ROUTES } from '@/navigation/routes';
 
 type SignInField = 'email' | 'password';
 type SignInErrors = Partial<Record<SignInField, string>>;
@@ -161,7 +162,7 @@ export default function SignInScreen() {
 
               <View style={styles.footerRow}>
                 <Text style={styles.footerText}>New to Munmai?</Text>
-                <Link href="/register" asChild>
+                <Link href={PUBLIC_ROUTES.register} asChild>
                   <Pressable accessibilityRole="link" hitSlop={8}>
                     <Text style={styles.link}>Create an account</Text>
                   </Pressable>

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getDashboardData, type DashboardData } from '@/api/dashboard';
 import { getErrorMessage } from '@/api/client';
 import { isNormalizedApiError } from '@/auth/types';
-import { createRequestCoordinator } from '@/dashboard/request-coordinator';
+import { createRequestCoordinator } from '@/utils/request-coordinator';
 
 type LoadMode = 'initial' | 'refresh';
 
@@ -13,6 +13,7 @@ export interface DashboardDataState {
   isLoading: boolean;
   isRefreshing: boolean;
   refresh: () => void;
+  refreshAfterMutation: () => void;
   retry: () => void;
 }
 
@@ -101,6 +102,13 @@ export function useDashboardData(): DashboardDataState {
     void load('refresh');
   }, [load]);
 
+  const refreshAfterMutation = useCallback(() => {
+    coordinator.current.invalidate();
+    activeController.current?.abort();
+    activeController.current = null;
+    void load('refresh');
+  }, [load]);
+
   const retry = useCallback(() => {
     void load('initial');
   }, [load]);
@@ -111,6 +119,7 @@ export function useDashboardData(): DashboardDataState {
     isLoading,
     isRefreshing,
     refresh,
+    refreshAfterMutation,
     retry,
   };
 }

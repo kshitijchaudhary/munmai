@@ -17,6 +17,7 @@ import { isNormalizedApiError } from '@/auth/types';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { colors } from '@/constants/theme';
+import { PUBLIC_ROUTES } from '@/navigation/routes';
 
 type RegisterField = 'name' | 'email' | 'username' | 'password' | 'confirmPassword';
 type RegisterErrors = Partial<Record<RegisterField, string>>;
@@ -89,7 +90,7 @@ export default function RegisterScreen() {
       const response = await register({ name, email, username, password, confirmPassword });
 
       router.replace({
-        pathname: '/sign-in',
+        pathname: PUBLIC_ROUTES.signIn,
         params: { registrationMessage: response.message },
       });
     } catch (error) {
@@ -218,7 +219,7 @@ export default function RegisterScreen() {
 
               <View style={styles.footerRow}>
                 <Text style={styles.footerText}>Already have an account?</Text>
-                <Link href="/sign-in" asChild>
+                <Link href={PUBLIC_ROUTES.signIn} asChild>
                   <Pressable accessibilityRole="link" hitSlop={8}>
                     <Text style={styles.link}>Sign In</Text>
                   </Pressable>
