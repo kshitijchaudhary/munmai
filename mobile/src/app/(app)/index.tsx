@@ -1,4 +1,9 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  type Href,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 import { useCallback } from 'react';
 import {
   Platform,
@@ -149,10 +154,12 @@ export default function DashboardScreen() {
               <PrimaryButton
                 label="Add income"
                 onPress={() =>
-                  router.navigate({
-                    pathname: PUBLIC_ROUTES.add,
-                    params: { intent: String(Date.now()), type: 'income' },
-                  })
+                  router.navigate(
+                    {
+                      pathname: PUBLIC_ROUTES.add,
+                      params: { intent: String(Date.now()), type: 'income' },
+                    } as unknown as Href,
+                  )
                 }
                 style={styles.actionButton}
                 tone="income"
@@ -160,10 +167,12 @@ export default function DashboardScreen() {
               <PrimaryButton
                 label="Add expense"
                 onPress={() =>
-                  router.navigate({
-                    pathname: PUBLIC_ROUTES.add,
-                    params: { intent: String(Date.now()), type: 'expense' },
-                  })
+                  router.navigate(
+                    {
+                      pathname: PUBLIC_ROUTES.add,
+                      params: { intent: String(Date.now()), type: 'expense' },
+                    } as unknown as Href,
+                  )
                 }
                 style={styles.actionButton}
                 tone="expense"
