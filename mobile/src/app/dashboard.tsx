@@ -1,21 +1,32 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
+import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { PrimaryButton } from '@/components/primary-button';
+import { RecentTransactionRow } from '@/components/recent-transaction-row';
 import { SummaryCard } from '@/components/summary-card';
 import { colors } from '@/constants/theme';
+import { formatCurrency } from '@/dashboard/dashboard-model';
+import { useDashboardData } from '@/dashboard/use-dashboard-data';
+
+const refreshColors = [colors.accent];
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { signOut, user } = useAuth();
+  const { data, error, isLoading, isRefreshing, refresh, retry } = useDashboardData();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const currentMonth = new Date().toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
   const displayName = user?.name.trim() || 'there';
   const avatarLetter = displayName.charAt(0).toUpperCase();
 
@@ -30,7 +41,18 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          Platform.OS === 'web' ? undefined : (
+            <RefreshControl
+              colors={refreshColors}
+              onRefresh={refresh}
+              refreshing={isRefreshing}
+              tintColor={colors.accent}
+            />
+          )
+        }>
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.greetingBlock}>
@@ -59,17 +81,55 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeading}>
-              <Text style={styles.sectionTitle}>This month</Text>
-              <Text style={styles.month}>{currentMonth}</Text>
+          {error && data ? (
+            <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.errorBanner}>
+              <View style={styles.errorBannerCopy}>
+                <Text style={styles.errorBannerTitle}>Refresh failed</Text>
+                <Text style={styles.errorBannerMessage}>{error}</Text>
+              </View>
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={refresh}>
+                <Text style={styles.retryLink}>Retry</Text>
+              </Pressable>
             </View>
-            <View style={styles.summaryRow}>
-              <SummaryCard label="In" tone="income" value="$0.00" />
-              <SummaryCard label="Out" tone="expense" value="$0.00" />
-              <SummaryCard label="Net" tone="net" value="$0.00" />
+          ) : null}
+
+          {isLoading && !data ? (
+            <DashboardStatusCard
+              loading
+              message="Getting your latest income and expenses."
+              title="Loading your dashboard"
+            />
+          ) : null}
+
+          {!isLoading && error && !data ? (
+            <DashboardStatusCard message={error} onRetry={retry} title="Dashboard unavailable" />
+          ) : null}
+
+          {data ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHeading}>
+                <Text style={styles.sectionTitle}>This month</Text>
+                <Text style={styles.month}>{data.summary.monthLabel}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <SummaryCard
+                  label="In"
+                  tone="income"
+                  value={formatCurrency(data.summary.incomeTotal)}
+                />
+                <SummaryCard
+                  label="Out"
+                  tone="expense"
+                  value={formatCurrency(data.summary.expenseTotal)}
+                />
+                <SummaryCard
+                  label="Net"
+                  tone="net"
+                  value={formatCurrency(data.summary.netTotal)}
+                />
+              </View>
             </View>
-          </View>
+          ) : null}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Quick add</Text>
@@ -93,16 +153,33 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent transactions</Text>
-            <View style={styles.emptyCard}>
-              <View style={styles.emptyIcon}>
-                <Text style={styles.emptyIconText}>+</Text>
+          {data ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHeading}>
+                <Text style={styles.sectionTitle}>Recent transactions</Text>
+                <Text style={styles.month}>Latest 5</Text>
               </View>
-              <Text style={styles.emptyTitle}>Start with one transaction.</Text>
-              <Text style={styles.emptyCopy}>Your recent activity will appear here.</Text>
+
+              {data.recentTransactions.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <View style={styles.emptyIcon}>
+                    <Text style={styles.emptyIconText}>+</Text>
+                  </View>
+                  <Text style={styles.emptyTitle}>Start with one transaction.</Text>
+                  <Text style={styles.emptyCopy}>Your recent activity will appear here.</Text>
+                </View>
+              ) : (
+                <View style={styles.transactionCard}>
+                  {data.recentTransactions.map((transaction) => (
+                    <RecentTransactionRow
+                      key={`${transaction.type}-${transaction.id}`}
+                      transaction={transaction}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
-          </View>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -209,6 +286,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1,
+    borderColor: colors.expense,
+    borderRadius: 16,
+    backgroundColor: colors.expenseSoft,
+    padding: 14,
+  },
+  errorBannerCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  errorBannerTitle: {
+    color: colors.expense,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  errorBannerMessage: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  retryLink: {
+    color: colors.expense,
+    fontSize: 14,
+    fontWeight: '800',
+  },
   actionRow: {
     flexDirection: 'row',
     gap: 12,
@@ -251,5 +357,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
+  },
+  transactionCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
   },
 });
