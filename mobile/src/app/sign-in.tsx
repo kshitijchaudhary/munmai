@@ -1,4 +1,5 @@
-import { Link, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,12 +11,63 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getErrorMessage } from '@/api/client';
+import { useAuth } from '@/auth/auth-context';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { colors } from '@/constants/theme';
 
+type SignInField = 'email' | 'password';
+type SignInErrors = Partial<Record<SignInField, string>>;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function SignInScreen() {
-  const router = useRouter();
+  const { registrationMessage } = useLocalSearchParams<{ registrationMessage?: string }>();
+  const { authMessage, clearAuthMessage, signIn } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<SignInErrors>({});
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInProgress = useRef(false);
+
+  const validate = () => {
+    const nextErrors: SignInErrors = {};
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      nextErrors.email = 'Email is required.';
+    } else if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      nextErrors.email = 'Enter a valid email address.';
+    }
+
+    if (!password) {
+      nextErrors.password = 'Password is required.';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const submit = async () => {
+    if (submissionInProgress.current || !validate()) {
+      return;
+    }
+
+    submissionInProgress.current = true;
+    setIsSubmitting(true);
+    setRequestError(null);
+    clearAuthMessage();
+
+    try {
+      await signIn({ email, password });
+    } catch (error) {
+      setRequestError(getErrorMessage(error, 'Unable to sign in. Please try again.'));
+      submissionInProgress.current = false;
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -40,24 +92,72 @@ export default function SignInScreen() {
                 <Text style={styles.subtitle}>Sign in to continue tracking your day.</Text>
               </View>
 
+              {registrationMessage ? (
+                <View style={styles.successNotice}>
+                  <Text accessibilityLiveRegion="polite" style={styles.successTitle}>
+                    {registrationMessage}
+                  </Text>
+                  <Text style={styles.noticeCopy}>Verify your email before signing in.</Text>
+                </View>
+              ) : null}
+
+              {authMessage ? (
+                <View style={styles.infoNotice}>
+                  <Text accessibilityLiveRegion="assertive" style={styles.noticeCopy}>
+                    {authMessage}
+                  </Text>
+                </View>
+              ) : null}
+
+              {requestError ? (
+                <View style={styles.errorNotice}>
+                  <Text accessibilityLiveRegion="assertive" style={styles.errorText}>
+                    {requestError}
+                  </Text>
+                </View>
+              ) : null}
+
               <View style={styles.fields}>
                 <TextField
                   autoCapitalize="none"
                   autoComplete="email"
+                  error={errors.email}
                   keyboardType="email-address"
                   label="Email *"
+                  onChangeText={(value) => {
+                    setEmail(value);
+                    setErrors((current) => ({ ...current, email: undefined }));
+                  }}
                   placeholder="you@example.com"
+                  returnKeyType="next"
+                  textContentType="emailAddress"
+                  value={email}
                 />
                 <TextField
                   autoCapitalize="none"
                   autoComplete="current-password"
+                  error={errors.password}
                   label="Password *"
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    setErrors((current) => ({ ...current, password: undefined }));
+                  }}
+                  onSubmitEditing={() => void submit()}
                   placeholder="Enter your password"
+                  returnKeyType="done"
                   secureTextEntry
+                  textContentType="password"
+                  value={password}
                 />
               </View>
 
-              <PrimaryButton label="Sign In" onPress={() => router.replace('/dashboard')} />
+              <PrimaryButton
+                disabled={isSubmitting}
+                label="Sign In"
+                loading={isSubmitting}
+                loadingLabel="Signing in…"
+                onPress={() => void submit()}
+              />
 
               <View style={styles.footerRow}>
                 <Text style={styles.footerText}>New to Munmai?</Text>
@@ -143,6 +243,44 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 15,
     lineHeight: 22,
+  },
+  successNotice: {
+    gap: 5,
+    borderWidth: 1,
+    borderColor: colors.income,
+    borderRadius: 14,
+    backgroundColor: colors.incomeSoft,
+    padding: 14,
+  },
+  successTitle: {
+    color: colors.income,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  infoNotice: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 14,
+    backgroundColor: colors.accentSoft,
+    padding: 14,
+  },
+  noticeCopy: {
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  errorNotice: {
+    borderWidth: 1,
+    borderColor: colors.expense,
+    borderRadius: 14,
+    backgroundColor: colors.expenseSoft,
+    padding: 14,
+  },
+  errorText: {
+    color: colors.expense,
+    fontSize: 14,
+    lineHeight: 20,
   },
   fields: {
     gap: 16,
