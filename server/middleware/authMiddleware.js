@@ -16,17 +16,23 @@ export const protect = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Attach user to request
-      req.user = await User.findById(decoded.id).select("-password");
+      // Attach user to request only when the token still references an account
+      const user = await User.findById(decoded.id).select("-password");
 
-      next();
+      if (!user) {
+        return res.status(401).json({ message: "Not authorized, token failed" });
+      }
+
+      req.user = user;
+
+      return next();
 
     } catch (error) {
-      res.status(401).json({ message: "Not authorized, token failed" });
+      return res.status(401).json({ message: "Not authorized, token failed" });
     }
 
   } else {
-    res.status(401).json({ message: "Not authorized, no token" });
+    return res.status(401).json({ message: "Not authorized, no token" });
   }
 };
 
