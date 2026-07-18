@@ -17,7 +17,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.munmai"
     },
     "web": {
       "output": "static",
@@ -29,6 +30,14 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#08111F"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Munmai to access your photos when you choose a receipt image.",
+          "cameraPermission": "Allow Munmai to use your camera when you take a receipt photo.",
+          "microphonePermission": false
         }
       ],
       "expo-secure-store"
