@@ -217,10 +217,10 @@ Full-Stack Developer in Canada
 
 ![Dashboard](docs/screenshots/dashboard.png)
 ![Today](docs/screenshots/today.png)
-![Today](docs/screenshots/activity.png)
-![Today](docs/screenshots/capture.png)
-![Today](docs/screenshots/insights.png)
-![Today](docs/screenshots/spaces.png)
+![Activity](docs/screenshots/activity.png)
+![Capture](docs/screenshots/capture.png)
+![Insights](docs/screenshots/insights.png)
+![Spaces](docs/screenshots/spaces.png)
 
 ![Receipt Inbox](docs/screenshots/receipt-inbox.png)
 
