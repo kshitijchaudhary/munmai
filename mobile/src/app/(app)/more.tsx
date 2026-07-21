@@ -1,13 +1,16 @@
+import { type Href, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
 import { PrimaryButton } from '@/components/primary-button';
 import { colors } from '@/constants/theme';
+import { PUBLIC_ROUTES } from '@/navigation/routes';
 
 export default function MoreScreen() {
   const { signOut, user } = useAuth();
+  const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const displayName = user?.name.trim() || 'Munmai user';
   const avatarLetter = displayName.charAt(0).toUpperCase();
@@ -61,6 +64,19 @@ export default function MoreScreen() {
               tone="neutral"
             />
           </View>
+
+          <Pressable
+            accessibilityHint="Opens your shared group spaces"
+            accessibilityRole="button"
+            onPress={() => router.push(PUBLIC_ROUTES.groups as Href)}
+            style={({ pressed }) => [styles.groupsCard, pressed && styles.groupsCardPressed]}>
+            <View style={styles.groupsMark}><Text style={styles.groupsMarkText}>G</Text></View>
+            <View style={styles.groupsCopy}>
+              <Text style={styles.groupsTitle}>Groups</Text>
+              <Text style={styles.groupsSubtitle}>Shared spending, balances, and members</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -107,6 +123,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     padding: 22,
   },
+  groupsCard: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    padding: 16,
+  },
+  groupsCardPressed: { opacity: 0.72 },
+  groupsMark: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.accentSoft },
+  groupsMarkText: { color: colors.accent, fontSize: 19, fontWeight: '900' },
+  groupsCopy: { flex: 1, gap: 3 },
+  groupsTitle: { color: colors.text, fontSize: 17, fontWeight: '900' },
+  groupsSubtitle: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
+  chevron: { color: colors.textMuted, fontSize: 28 },
   avatar: {
     width: 58,
     height: 58,

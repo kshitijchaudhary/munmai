@@ -9,6 +9,7 @@ export const PUBLIC_ROUTES = {
   add: '/add',
   analytics: '/analytics',
   more: '/more',
+  groups: '/groups',
   signIn: '/sign-in',
   register: '/register',
 } as const;
