@@ -127,6 +127,7 @@ export default function AuthenticatedTabsLayout() {
               ),
             }}
           />
+          <Tabs.Screen name="groups" options={{ href: null }} />
         </Tabs>
       </View>
     </View>
