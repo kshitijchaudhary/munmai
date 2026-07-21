@@ -108,7 +108,7 @@ export function validateSettlement(
   else {
     const memberIds = new Set(members.map((member) => member.user.id));
     if (direction.from.id === direction.to.id) errors.direction = 'Settlement members must be different.';
-    else if (!memberIds.has(direction.from.id) || !memberIds.has(direction.to.id)) errors.direction = 'Both people must be active group members.';
+    else if (!memberIds.has(direction.from.id) || !memberIds.has(direction.to.id)) errors.direction = 'Both people must be active Space members.';
     if (amountCents && amountCents > direction.outstandingCents) errors.amount = 'Amount cannot exceed the outstanding balance.';
   }
   return errors;

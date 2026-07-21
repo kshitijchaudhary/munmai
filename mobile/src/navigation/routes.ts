@@ -7,20 +7,29 @@ export const PUBLIC_ROUTES = {
   home: '/',
   transactions: '/transactions',
   add: '/add',
+  transactionForm: '/add/transaction',
   analytics: '/analytics',
-  more: '/more',
+  account: '/more',
   groups: '/groups',
   signIn: '/sign-in',
   register: '/register',
 } as const;
 
 export const AUTHENTICATED_TABS = [
-  { route: 'index', label: 'Home', href: PUBLIC_ROUTES.home },
-  { route: 'transactions', label: 'Transactions', href: PUBLIC_ROUTES.transactions },
-  { route: 'add', label: 'Add', href: PUBLIC_ROUTES.add },
-  { route: 'analytics', label: 'Analytics', href: PUBLIC_ROUTES.analytics },
-  { route: 'more', label: 'More', href: PUBLIC_ROUTES.more },
+  { route: 'index', label: 'Today', href: PUBLIC_ROUTES.home },
+  { route: 'transactions', label: 'Activity', href: PUBLIC_ROUTES.transactions },
+  { route: 'add', label: 'Capture', href: PUBLIC_ROUTES.add },
+  { route: 'analytics', label: 'Insights', href: PUBLIC_ROUTES.analytics },
+  { route: 'groups', label: 'Spaces', href: PUBLIC_ROUTES.groups },
 ] as const;
+
+export type AuthenticatedTabHref = (typeof AUTHENTICATED_TABS)[number]['href'];
+
+export function getAuthenticatedTabHref(
+  routeName: string,
+): AuthenticatedTabHref | null {
+  return AUTHENTICATED_TABS.find((tab) => tab.route === routeName)?.href ?? null;
+}
 
 export function getHomeAfterTransactionTarget(type: TransactionType) {
   return {
@@ -51,5 +60,5 @@ export function getLegacyRedirectTarget(
     return PUBLIC_ROUTES.signIn;
   }
 
-  return route === 'dashboard' ? PUBLIC_ROUTES.home : PUBLIC_ROUTES.add;
+  return route === 'dashboard' ? PUBLIC_ROUTES.home : PUBLIC_ROUTES.transactionForm;
 }

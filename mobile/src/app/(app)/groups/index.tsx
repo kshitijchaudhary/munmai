@@ -1,4 +1,4 @@
-import { type Href, useRouter } from 'expo-router';
+import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,28 +6,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { GroupCard } from '@/components/group-card';
 import { colors } from '@/constants/theme';
-import { buildGroupRoute } from '@/groups/group-routes';
+import { buildGroupAddExpenseRoute, buildGroupRoute } from '@/groups/group-routes';
 import type { GroupListItem } from '@/groups/group-model';
 import { useGroups } from '@/groups/use-groups';
 
 export default function GroupsScreen() {
   const router = useRouter();
+  const { intent } = useLocalSearchParams<{ intent?: string }>();
+  const isChoosingForSplit = intent === 'split';
   const { data, error, isLoading, isRefreshing, refresh, retry } = useGroups();
   const renderItem = useCallback<ListRenderItem<GroupListItem>>(({ item }) => (
-    <GroupCard group={item} onPress={() => router.push(buildGroupRoute(item.id) as Href)} />
-  ), [router]);
+    <GroupCard
+      group={item}
+      onPress={() =>
+        router.push(
+          (isChoosingForSplit
+            ? buildGroupAddExpenseRoute(item.id)
+            : buildGroupRoute(item.id)) as Href,
+        )
+      }
+    />
+  ), [isChoosingForSplit, router]);
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
-      {isLoading && data === null ? <View style={styles.state}><DashboardStatusCard loading title="Loading groups" message="Opening your shared spaces." /></View> : null}
-      {!isLoading && data === null && error ? <View style={styles.state}><DashboardStatusCard title={error.kind === 'offline' ? "You're offline" : 'Groups unavailable'} message={error.message} onRetry={retry} /></View> : null}
+      {isLoading && data === null ? <View style={styles.state}><DashboardStatusCard loading title="Loading Spaces" message="Opening your shared money spaces." /></View> : null}
+      {!isLoading && data === null && error ? <View style={styles.state}><DashboardStatusCard title={error.kind === 'offline' ? "You're offline" : 'Spaces unavailable'} message={error.message} onRetry={retry} /></View> : null}
       {data ? (
         <FlatList
           contentContainerStyle={data.length ? styles.content : styles.emptyContent}
           data={data}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={<View style={styles.heading}><Text style={styles.eyebrow}>GROUP HUB</Text><Text style={styles.title}>Shared spaces</Text><Text style={styles.subtitle}>Track shared costs and see where everyone stands.</Text>{error ? <Text accessibilityRole="alert" style={styles.error}>{error.kind === 'offline' ? "You're offline. Showing saved results." : 'Refresh failed. Showing your current list.'}</Text> : null}</View>}
-          ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No groups yet</Text><Text style={styles.emptyText}>Groups you join or create on Munmai will appear here.</Text></View>}
+          ListHeaderComponent={<View style={styles.heading}><Text style={styles.eyebrow}>SPACES</Text><Text style={styles.title}>{isChoosingForSplit ? 'Choose a Space' : 'Your Spaces'}</Text><Text style={styles.subtitle}>{isChoosingForSplit ? 'Select where you want to split this expense.' : 'Track shared costs and see where everyone stands.'}</Text>{error ? <Text accessibilityRole="alert" style={styles.error}>{error.kind === 'offline' ? "You're offline. Showing saved results." : 'Refresh failed. Showing your current list.'}</Text> : null}</View>}
+          ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No Spaces yet</Text><Text style={styles.emptyText}>Shared Spaces you join on Munmai will appear here.</Text></View>}
           refreshControl={<RefreshControl colors={[colors.accent]} tintColor={colors.accent} refreshing={isRefreshing} onRefresh={refresh} />}
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}

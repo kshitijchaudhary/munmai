@@ -90,8 +90,8 @@ export default function TransactionsScreen() {
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <View style={styles.content}>
         <View style={styles.heading}>
-          <Text style={styles.eyebrow}>TRANSACTIONS</Text>
-          <Text style={styles.title}>Your money activity</Text>
+          <Text style={styles.eyebrow}>ACTIVITY</Text>
+          <Text style={styles.title}>Money in and out</Text>
           <Text style={styles.subtitle}>Income and expenses, together in one place.</Text>
         </View>
 
@@ -112,7 +112,7 @@ export default function TransactionsScreen() {
             <DashboardStatusCard
               loading
               message="Bringing your income and expenses together."
-              title="Loading transactions"
+              title="Loading activity"
             />
           </View>
         ) : null}
@@ -122,7 +122,7 @@ export default function TransactionsScreen() {
             <DashboardStatusCard
               message={error.message}
               onRetry={retry}
-              title={error.kind === 'offline' ? "You're offline" : 'Transactions unavailable'}
+              title={error.kind === 'offline' ? "You're offline" : 'Activity unavailable'}
             />
           </View>
         ) : null}

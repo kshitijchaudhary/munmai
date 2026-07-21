@@ -22,11 +22,15 @@ import { useAddTransactionForm } from '@/transactions/use-add-transaction-form';
 
 interface AddTransactionScreenProps {
   initialType: TransactionType;
+  receiptFirst?: boolean;
 }
 
 const transactionTypes = ['income', 'expense'] as const;
 
-export function AddTransactionScreen({ initialType }: AddTransactionScreenProps) {
+export function AddTransactionScreen({
+  initialType,
+  receiptFirst = false,
+}: AddTransactionScreenProps) {
   const router = useRouter();
   const {
     chooseFromLibrary,
@@ -67,6 +71,20 @@ export function AddTransactionScreen({ initialType }: AddTransactionScreenProps)
         ? 'Saving income…'
         : 'Saving expense…';
 
+  const receiptField = !isIncome ? (
+    <ReceiptPickerField
+      disabled={formDisabled}
+      isPicking={isPicking}
+      onChooseFromLibrary={() => void chooseFromLibrary()}
+      onOpenSettings={() => void openSettings()}
+      onRemove={removeReceipt}
+      onTakePhoto={() => void takePhoto()}
+      permissionIssue={permissionIssue}
+      pickerError={pickerError}
+      receipt={receipt}
+    />
+  ) : null;
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -77,10 +95,16 @@ export function AddTransactionScreen({ initialType }: AddTransactionScreenProps)
           keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             <View style={styles.heading}>
-              <Text style={styles.eyebrow}>NEW TRANSACTION</Text>
-              <Text style={styles.title}>Add money in or out</Text>
+              <Text style={styles.eyebrow}>
+                {receiptFirst ? 'CAPTURE' : 'NEW TRANSACTION'}
+              </Text>
+              <Text style={styles.title}>
+                {receiptFirst ? 'Scan a receipt' : 'Add money in or out'}
+              </Text>
               <Text style={styles.subtitle}>
-                Save the essentials now. Add one receipt image to an expense when needed.
+                {receiptFirst
+                  ? 'Take a photo or choose one receipt image, then confirm the expense details.'
+                  : 'Save the essentials now. Add one receipt image to an expense when needed.'}
               </Text>
             </View>
 
@@ -113,6 +137,8 @@ export function AddTransactionScreen({ initialType }: AddTransactionScreenProps)
                   <Text style={styles.progressText}>Uploading the receipt image now…</Text>
                 </View>
               ) : null}
+
+              {receiptFirst ? receiptField : null}
 
               <View style={styles.selectorGroup}>
                 <Text style={styles.label}>Type</Text>
@@ -184,19 +210,7 @@ export function AddTransactionScreen({ initialType }: AddTransactionScreenProps)
                 />
               </View>
 
-              {!isIncome ? (
-                <ReceiptPickerField
-                  disabled={formDisabled}
-                  isPicking={isPicking}
-                  onChooseFromLibrary={() => void chooseFromLibrary()}
-                  onOpenSettings={() => void openSettings()}
-                  onRemove={removeReceipt}
-                  onTakePhoto={() => void takePhoto()}
-                  permissionIssue={permissionIssue}
-                  pickerError={pickerError}
-                  receipt={receipt}
-                />
-              ) : null}
+              {!receiptFirst ? receiptField : null}
 
               <Text style={styles.helperText}>
                 {isIncome

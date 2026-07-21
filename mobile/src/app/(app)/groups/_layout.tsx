@@ -12,8 +12,8 @@ export default function GroupsLayout() {
       headerTintColor: colors.text,
       headerShadowVisible: false,
     }}>
-      <Stack.Screen name="index" options={{ title: 'Groups' }} />
-      <Stack.Screen name="[groupId]/index" options={{ title: 'Group' }} />
+      <Stack.Screen name="index" options={{ title: 'Spaces' }} />
+      <Stack.Screen name="[groupId]/index" options={{ title: 'Space' }} />
       <Stack.Screen name="[groupId]/add-expense" options={{ title: 'Add shared expense' }} />
       <Stack.Screen name="[groupId]/settlements/index" options={{ title: 'Settlements' }} />
       <Stack.Screen name="[groupId]/settlements/new" options={{ title: 'Record settlement' }} />

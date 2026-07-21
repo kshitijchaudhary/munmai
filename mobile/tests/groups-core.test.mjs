@@ -67,7 +67,7 @@ test('financial activity parses valid shared expenses newest first', () => {
 test('shared expense validation covers required fields and participant membership', () => {
   const invalid = validateSharedExpense({ amount: '0', description: ' ', paidBy: 'outsider', participantIds: [] }, members);
   assert.ok(invalid.amount && invalid.description && invalid.paidBy && invalid.participants);
-  assert.match(validateSharedExpense({ amount: '5', description: 'Taxi', paidBy: ownerId, participantIds: ['outsider'] }, members).participants, /current group member/i);
+  assert.match(validateSharedExpense({ amount: '5', description: 'Taxi', paidBy: ownerId, participantIds: ['outsider'] }, members).participants, /current Space member/i);
 });
 
 test('equal split payload is normalized and includes only backend-supported fields', () => {

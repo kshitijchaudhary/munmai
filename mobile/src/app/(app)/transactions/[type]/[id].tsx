@@ -34,11 +34,11 @@ export default function TransactionDetailScreen() {
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <View style={styles.shell}>
         <Pressable
-          accessibilityLabel="Back to Transactions"
+          accessibilityLabel="Back to Activity"
           accessibilityRole="button"
           onPress={goBack}
           style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}>
-          <Text style={styles.backText}>‹ Transactions</Text>
+          <Text style={styles.backText}>‹ Activity</Text>
         </Pressable>
 
         {status === 'loading' ? (

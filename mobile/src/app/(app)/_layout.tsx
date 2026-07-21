@@ -1,36 +1,40 @@
 import { Tabs } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TabIcon } from '@/components/tab-icon';
-import { colors } from '@/constants/theme';
-import { AUTHENTICATED_TABS } from '@/navigation/routes';
+import { colors, layout, radii } from '@/constants/theme';
+import {
+  AUTHENTICATED_TABS,
+  getAuthenticatedTabHref,
+} from '@/navigation/routes';
+import { CAPTURE_TAB_ICON } from '@/navigation/tab-icons';
 
-const homeIcon = { ios: 'house.fill', android: 'home', web: 'home' } as const;
-const transactionsIcon = {
+const todayIcon = { ios: 'house.fill', android: 'home', web: 'home' } as const;
+const activityIcon = {
   ios: 'list.bullet.rectangle',
   android: 'receipt_long',
   web: 'receipt_long',
 } as const;
-const addIcon = { ios: 'plus', android: 'add', web: 'add' } as const;
-const analyticsIcon = {
+const insightsIcon = {
   ios: 'chart.bar.fill',
   android: 'analytics',
   web: 'analytics',
 } as const;
-const moreIcon = { ios: 'ellipsis', android: 'more_horiz', web: 'more_horiz' } as const;
+const spacesIcon = { ios: 'person.2.fill', android: 'group', web: 'group' } as const;
 
-const [homeTab, transactionsTab, addTab, analyticsTab, moreTab] = AUTHENTICATED_TABS;
+const [todayTab, activityTab, captureTab, insightsTab, spacesTab] = AUTHENTICATED_TABS;
 
 export default function AuthenticatedTabsLayout() {
   const insets = useSafeAreaInsets();
+  const [isCaptureFocused, setIsCaptureFocused] = useState(false);
   const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
   const tabBarStyle = useMemo(
     () => [
       styles.tabBar,
       {
-        height: 64 + bottomInset,
+        height: layout.tabBarBaseHeight + bottomInset,
         paddingBottom: bottomInset,
       },
     ],
@@ -42,8 +46,9 @@ export default function AuthenticatedTabsLayout() {
       <View style={styles.shell}>
         <Tabs
           backBehavior="initialRoute"
-          screenOptions={{
+          screenOptions={({ route }) => ({
             headerShown: false,
+            href: getAuthenticatedTabHref(route.name),
             sceneStyle: styles.scene,
             tabBarActiveTintColor: colors.text,
             tabBarHideOnKeyboard: true,
@@ -51,29 +56,29 @@ export default function AuthenticatedTabsLayout() {
             tabBarItemStyle: styles.tabBarItem,
             tabBarLabelStyle: styles.tabBarLabel,
             tabBarStyle,
-          }}>
+          })}>
           <Tabs.Screen
-            name={homeTab.route}
+            name={todayTab.route}
             options={{
-              title: homeTab.label,
+              title: todayTab.label,
               tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={homeIcon} tintColor={color} />
+                <TabIcon focused={focused} name={todayIcon} tintColor={color} />
               ),
             }}
           />
           <Tabs.Screen
-            name={transactionsTab.route}
+            name={activityTab.route}
             options={{
-              title: transactionsTab.label,
+              title: activityTab.label,
               tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={transactionsIcon} tintColor={color} />
+                <TabIcon focused={focused} name={activityIcon} tintColor={color} />
               ),
             }}
           />
           <Tabs.Screen
-            name={addTab.route}
+            name={captureTab.route}
             options={{
-              title: addTab.label,
+              title: captureTab.label,
               tabBarButton: ({
                 'aria-label': ariaLabel,
                 'aria-selected': ariaSelected,
@@ -89,45 +94,54 @@ export default function AuthenticatedTabsLayout() {
                   aria-label={ariaLabel}
                   aria-selected={ariaSelected}
                   disabled={disabled}
+                  onBlur={() => setIsCaptureFocused(false)}
+                  onFocus={() => setIsCaptureFocused(true)}
                   onLongPress={onLongPress}
                   onPress={onPress}
                   role={role}
                   style={({ pressed }) => [
                     style,
-                    styles.addTabButton,
-                    ariaSelected && styles.addTabButtonActive,
-                    pressed && styles.addTabButtonPressed,
-                    disabled && styles.addTabButtonDisabled,
+                    styles.captureTabButton,
+                    isCaptureFocused && styles.captureTabButtonFocused,
+                    ariaSelected && styles.captureTabButtonActive,
+                    pressed && styles.captureTabButtonPressed,
+                    disabled && styles.captureTabButtonDisabled,
                   ]}
                   testID={testID}>
                   {children}
                 </Pressable>
               ),
               tabBarIcon: ({ color, focused }) => (
-                <TabIcon emphasized focused={focused} name={addIcon} tintColor={color} />
+                <TabIcon
+                  emphasized
+                  focused={focused}
+                  name={CAPTURE_TAB_ICON}
+                  tintColor={color}
+                />
               ),
-              tabBarIconStyle: styles.addIcon,
+              tabBarIconStyle: styles.captureIcon,
             }}
           />
           <Tabs.Screen
-            name={analyticsTab.route}
+            name={insightsTab.route}
             options={{
-              title: analyticsTab.label,
+              title: insightsTab.label,
               tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={analyticsIcon} tintColor={color} />
+                <TabIcon focused={focused} name={insightsIcon} tintColor={color} />
               ),
             }}
           />
           <Tabs.Screen
-            name={moreTab.route}
+            name={spacesTab.route}
             options={{
-              title: moreTab.label,
+              title: spacesTab.label,
               tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={moreIcon} tintColor={color} />
+                <TabIcon focused={focused} name={spacesIcon} tintColor={color} />
               ),
             }}
           />
-          <Tabs.Screen name="groups" options={{ href: null }} />
+          <Tabs.Screen name="add/transaction" options={{ href: null }} />
+          <Tabs.Screen name="more" options={{ href: null }} />
         </Tabs>
       </View>
     </View>
@@ -142,7 +156,7 @@ const styles = StyleSheet.create({
   },
   shell: {
     width: '100%',
-    maxWidth: 560,
+    maxWidth: layout.appShellMaxWidth,
     flex: 1,
     overflow: 'hidden',
     borderLeftWidth: Platform.OS === 'web' ? 1 : 0,
@@ -173,23 +187,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  addTabButton: {
+  captureTabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
+    borderRadius: radii.md,
   },
-  addTabButtonActive: {
+  captureTabButtonActive: {
     backgroundColor: colors.accentSoft,
   },
-  addTabButtonPressed: {
+  captureTabButtonFocused: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  captureTabButtonPressed: {
     opacity: 0.72,
     transform: [{ scale: 0.96 }],
   },
-  addTabButtonDisabled: {
+  captureTabButtonDisabled: {
     opacity: 0.4,
   },
-  addIcon: {
+  captureIcon: {
     overflow: 'visible',
   },
 });

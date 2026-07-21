@@ -24,7 +24,7 @@ export function useGroupDetail(groupId: string | null) {
 
   const load = useCallback(async (refresh: boolean) => {
     if (!groupId) {
-      setError({ kind: 'malformed', message: 'This group link is invalid.' });
+      setError({ kind: 'malformed', message: 'This Space link is invalid.' });
       setIsLoading(false);
       return;
     }
@@ -45,7 +45,7 @@ export function useGroupDetail(groupId: string | null) {
       if (!coordinator.current.isCurrent(requestId)) return;
       const parsed = parseSummaryResponse(summaryResponse);
       if (!parsed) {
-        setError({ kind: 'malformed', message: 'Munmai received incomplete group data.' });
+        setError({ kind: 'malformed', message: 'Munmai received incomplete Space data.' });
         return;
       }
       setData({
@@ -61,7 +61,7 @@ export function useGroupDetail(groupId: string | null) {
       const status = isNormalizedApiError(requestError) ? requestError.status : undefined;
       setError({
         kind: status === 403 || status === 404 ? 'inaccessible' : isNormalizedApiError(requestError) && requestError.isNetworkError ? 'offline' : 'request',
-        message: getErrorMessage(requestError, 'This group could not be loaded.'),
+        message: getErrorMessage(requestError, 'This Space could not be loaded.'),
       });
     } finally {
       if (coordinator.current.isCurrent(requestId)) {

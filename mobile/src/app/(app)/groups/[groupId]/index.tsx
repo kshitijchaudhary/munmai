@@ -41,10 +41,10 @@ export default function GroupDetailScreen() {
   }, [detail.refresh]));
 
   if (detail.isLoading && detail.data === null) {
-    return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard loading title="Loading group" message="Refreshing balances, activity, and members." /></View></SafeAreaView>;
+    return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard loading title="Loading Space" message="Refreshing balances, activity, and members." /></View></SafeAreaView>;
   }
   if (!detail.isLoading && detail.data === null) {
-    return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard title={detail.error?.kind === 'offline' ? "You're offline" : detail.error?.kind === 'inaccessible' ? 'Group unavailable' : 'Unable to open group'} message={detail.error?.message ?? 'This group link is invalid.'} onRetry={groupId ? detail.retry : undefined} /></View></SafeAreaView>;
+    return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard title={detail.error?.kind === 'offline' ? "You're offline" : detail.error?.kind === 'inaccessible' ? 'Space unavailable' : 'Unable to open Space'} message={detail.error?.message ?? 'This Space link is invalid.'} onRetry={groupId ? detail.retry : undefined} /></View></SafeAreaView>;
   }
   if (!detail.data) return null;
 
@@ -53,7 +53,7 @@ export default function GroupDetailScreen() {
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl colors={[colors.accent]} tintColor={colors.accent} refreshing={detail.isRefreshing} onRefresh={detail.refresh} />} showsVerticalScrollIndicator={false}>
         <View style={styles.heading}><Text style={styles.eyebrow}>SHARED SPACE</Text><Text style={styles.title}>{data.group.name}</Text><Text style={styles.subtitle}>{data.members.length} members · {data.summary.expenseCount} shared expenses</Text></View>
-        {detail.error ? <Text accessibilityRole="alert" style={styles.error}>{detail.error.kind === 'offline' ? "You're offline. Showing the last loaded group." : 'Refresh failed. Existing group data is still shown.'}</Text> : null}
+        {detail.error ? <Text accessibilityRole="alert" style={styles.error}>{detail.error.kind === 'offline' ? "You're offline. Showing the last loaded Space." : 'Refresh failed. Existing Space data is still shown.'}</Text> : null}
         {settlementSuccess.isVisible ? <View accessibilityLiveRegion="polite" style={styles.successBanner}><View style={styles.successCopy}><Text style={styles.successTitle}>Settlement recorded</Text><Text style={styles.muted}>Balances and activity have been refreshed.</Text></View><Pressable accessibilityLabel="Dismiss settlement confirmation" accessibilityRole="button" onPress={settlementSuccess.dismiss} style={({ pressed }) => [styles.dismissButton, pressed && styles.pressed]}><Text style={styles.dismissText}>Dismiss</Text></Pressable></View> : null}
         <View accessibilityRole="tablist" style={styles.tabs}>
           {sections.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: section === item }} onPress={() => setSection(item)} style={({ pressed }) => [styles.tab, section === item && styles.tabActive, pressed && styles.pressed]}><Text style={[styles.tabText, section === item && styles.tabTextActive]}>{item.charAt(0).toUpperCase() + item.slice(1)}</Text></Pressable>)}

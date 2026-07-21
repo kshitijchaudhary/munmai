@@ -31,7 +31,7 @@ export function useGroups() {
       if (coordinator.current.isCurrent(requestId) && !(isNormalizedApiError(requestError) && requestError.isAuthenticationFailure)) {
         setError({
           kind: isNormalizedApiError(requestError) && requestError.isNetworkError ? 'offline' : 'request',
-          message: getErrorMessage(requestError, 'Your groups could not be loaded.'),
+          message: getErrorMessage(requestError, 'Your Spaces could not be loaded.'),
         });
       }
     } finally {

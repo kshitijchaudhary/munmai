@@ -28,7 +28,7 @@ export default function AddSharedExpenseScreen() {
   }, [close, form]);
 
   if (detail.isLoading && !detail.data) return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard loading title="Loading members" message="Preparing an equal split." /></View></SafeAreaView>;
-  if (!detail.data) return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard title="Unable to add expense" message={detail.error?.message ?? 'This group link is invalid.'} onRetry={groupId ? detail.retry : undefined} /></View></SafeAreaView>;
+  if (!detail.data) return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard title="Unable to add expense" message={detail.error?.message ?? 'This Space link is invalid.'} onRetry={groupId ? detail.retry : undefined} /></View></SafeAreaView>;
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
