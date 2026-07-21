@@ -4,28 +4,67 @@ import test from 'node:test';
 import {
   AUTHENTICATED_TABS,
   getAuthExitTransition,
+  getAuthenticatedTabHref,
   getHomeAfterTransactionTarget,
   getLegacyRedirectTarget,
   PUBLIC_ROUTES,
 } from '../src/navigation/routes.ts';
 
 test('authenticated tabs use the required five-tab order', () => {
+  assert.equal(AUTHENTICATED_TABS.length, 5);
   assert.deepEqual(
     AUTHENTICATED_TABS.map((tab) => tab.label),
-    ['Home', 'Transactions', 'Add', 'Analytics', 'More'],
+    ['Today', 'Activity', 'Capture', 'Insights', 'Spaces'],
+  );
+  assert.deepEqual(
+    AUTHENTICATED_TABS.filter((tab) => getAuthenticatedTabHref(tab.route) !== null)
+      .map((tab) => tab.route),
+    ['index', 'transactions', 'add', 'analytics', 'groups'],
   );
 });
 
-test('Add is the exact center tab', () => {
+test('Capture is the exact center tab', () => {
   assert.equal(AUTHENTICATED_TABS.length, 5);
-  assert.equal(AUTHENTICATED_TABS[Math.floor(AUTHENTICATED_TABS.length / 2)].route, 'add');
+  assert.deepEqual(AUTHENTICATED_TABS[Math.floor(AUTHENTICATED_TABS.length / 2)], {
+    route: 'add',
+    label: 'Capture',
+    href: '/add',
+  });
 });
 
-test('Analytics uses the public /analytics route', () => {
+test('Insights preserves the public /analytics route', () => {
   const analyticsTab = AUTHENTICATED_TABS.find((tab) => tab.route === 'analytics');
 
   assert.equal(PUBLIC_ROUTES.analytics, '/analytics');
   assert.equal(analyticsTab?.href, '/analytics');
+});
+
+test('Spaces maps directly to the existing authenticated groups functionality', () => {
+  const spacesTab = AUTHENTICATED_TABS.find((tab) => tab.label === 'Spaces');
+
+  assert.equal(PUBLIC_ROUTES.groups, '/groups');
+  assert.deepEqual(spacesTab, {
+    route: 'groups',
+    label: 'Spaces',
+    href: '/groups',
+  });
+});
+
+test('account remains accessible without occupying a visible tab', () => {
+  assert.equal(PUBLIC_ROUTES.account, '/more');
+  assert.equal(AUTHENTICATED_TABS.some((tab) => tab.href === PUBLIC_ROUTES.account), false);
+  assert.equal(getAuthenticatedTabHref('more'), null);
+});
+
+test('nested Capture routes stay navigable without becoming tab items', () => {
+  assert.equal(PUBLIC_ROUTES.transactionForm, '/add/transaction');
+  assert.equal(
+    AUTHENTICATED_TABS.some((tab) => tab.href === PUBLIC_ROUTES.transactionForm),
+    false,
+  );
+  assert.equal(getAuthenticatedTabHref('add/transaction'), null);
+  assert.equal(getAuthenticatedTabHref('add/future-screen'), null);
+  assert.equal(getAuthenticatedTabHref('add'), '/add');
 });
 
 test('logout replaces the active route and Back cannot reopen legacy /dashboard', () => {
@@ -50,7 +89,7 @@ test('direct /dashboard navigation redirects safely for either auth state', () =
 });
 
 test('direct /add-transaction navigation redirects safely for either auth state', () => {
-  assert.equal(getLegacyRedirectTarget('add-transaction', true), '/add');
+  assert.equal(getLegacyRedirectTarget('add-transaction', true), '/add/transaction');
   assert.equal(getLegacyRedirectTarget('add-transaction', false), '/sign-in');
 });
 

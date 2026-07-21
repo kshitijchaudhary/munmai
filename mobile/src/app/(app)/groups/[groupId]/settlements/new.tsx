@@ -49,7 +49,7 @@ export default function NewSettlementScreen() {
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.heading}><Text style={styles.eyebrow}>RECORD PAYMENT</Text><Text style={styles.title}>{detail.data.group.name}</Text><Text style={styles.subtitle}>Confirm a payment already made between group members.</Text></View>
+          <View style={styles.heading}><Text style={styles.eyebrow}>RECORD PAYMENT</Text><Text style={styles.title}>{detail.data.group.name}</Text><Text style={styles.subtitle}>Confirm a payment already made between Space members.</Text></View>
           <View style={styles.directionCard}><Text style={styles.directionLabel}>FROM</Text><Text style={styles.directionName}>{direction.from.name}{direction.from.id === user?.id ? ' (you)' : ''}</Text><Text style={styles.arrow}>↓</Text><Text style={styles.directionLabel}>TO</Text><Text style={styles.directionName}>{direction.to.name}{direction.to.id === user?.id ? ' (you)' : ''}</Text><View style={styles.outstandingRow}><Text style={styles.outstandingLabel}>Outstanding</Text><Text style={styles.outstandingAmount}>{formatCurrency(centsToAmount(direction.outstandingCents))}</Text></View></View>
           {form.errors.direction ? <Text accessibilityRole="alert" style={styles.error}>{form.errors.direction}</Text> : null}
           <TextField label="Settlement amount (CAD)" error={form.errors.amount} keyboardType="decimal-pad" placeholder="0.00" value={form.values.amount} onChangeText={(value) => form.setField('amount', value)} />

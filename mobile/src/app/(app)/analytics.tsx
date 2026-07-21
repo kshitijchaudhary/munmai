@@ -23,7 +23,7 @@ export default function AnalyticsScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <View style={styles.heading}>
-            <Text style={styles.eyebrow}>ANALYTICS</Text>
+            <Text style={styles.eyebrow}>INSIGHTS</Text>
             <Text style={styles.title}>Your monthly snapshot</Text>
             <Text style={styles.subtitle}>
               A simple view of money in, money out, and what remains this month.
@@ -34,12 +34,12 @@ export default function AnalyticsScreen() {
             <DashboardStatusCard
               loading
               message="Calculating your current-month totals."
-              title="Loading analytics"
+              title="Loading insights"
             />
           ) : null}
 
           {!isLoading && error && !data ? (
-            <DashboardStatusCard message={error} onRetry={retry} title="Analytics unavailable" />
+            <DashboardStatusCard message={error} onRetry={retry} title="Insights unavailable" />
           ) : null}
 
           {data ? (
@@ -69,7 +69,7 @@ export default function AnalyticsScreen() {
           ) : null}
 
           <View style={styles.comingSoonCard}>
-            <Text style={styles.comingSoonTitle}>More analytics coming soon</Text>
+            <Text style={styles.comingSoonTitle}>More insights coming soon</Text>
             <Text style={styles.comingSoonCopy}>
               Munmai will keep this space focused as new insights are added.
             </Text>

@@ -1,191 +1,135 @@
 import { type Href, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/auth-context';
 import { PrimaryButton } from '@/components/primary-button';
-import { colors } from '@/constants/theme';
+import { ScreenContainer } from '@/components/screen-container';
+import { ScreenHeader } from '@/components/screen-header';
+import { SurfaceCard } from '@/components/surface-card';
+import {
+  colors,
+  fontWeights,
+  radii,
+  spacing,
+  touchTargets,
+  typography,
+} from '@/constants/theme';
 import { PUBLIC_ROUTES } from '@/navigation/routes';
 
-export default function MoreScreen() {
+export default function AccountScreen() {
   const { signOut, user } = useAuth();
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const displayName = user?.name.trim() || 'Munmai user';
   const avatarLetter = displayName.charAt(0).toUpperCase();
 
-  const handleSignOut = () => {
-    if (isSigningOut) {
+  const handleClose = () => {
+    if (router.canGoBack()) {
+      router.back();
       return;
     }
 
+    router.replace(PUBLIC_ROUTES.home as Href);
+  };
+
+  const handleSignOut = () => {
+    if (isSigningOut) return;
     setIsSigningOut(true);
     void signOut();
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <View style={styles.heading}>
-            <Text style={styles.eyebrow}>MORE</Text>
-            <Text style={styles.title}>Your Munmai profile</Text>
-          </View>
-
-          <View style={styles.profileCard}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{avatarLetter}</Text>
-            </View>
-            <Text style={styles.name}>{displayName}</Text>
-            <Text style={styles.username}>{user?.username ? `@${user.username}` : 'No username'}</Text>
-
-            <View style={styles.details}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Email</Text>
-                <Text numberOfLines={2} style={styles.detailValue}>
-                  {user?.email || 'Unavailable'}
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Account ID</Text>
-                <Text numberOfLines={1} style={styles.detailValue}>
-                  {user?.id || 'Unavailable'}
-                </Text>
-              </View>
-            </View>
-
-            <PrimaryButton
-              disabled={isSigningOut}
-              label="Sign out"
-              loading={isSigningOut}
-              loadingLabel="Signing out…"
-              onPress={handleSignOut}
-              tone="neutral"
-            />
-          </View>
-
+    <ScreenContainer>
+      <ScreenHeader
+        action={
           <Pressable
-            accessibilityHint="Opens your shared group spaces"
+            accessibilityLabel="Close account"
             accessibilityRole="button"
-            onPress={() => router.push(PUBLIC_ROUTES.groups as Href)}
-            style={({ pressed }) => [styles.groupsCard, pressed && styles.groupsCardPressed]}>
-            <View style={styles.groupsMark}><Text style={styles.groupsMarkText}>G</Text></View>
-            <View style={styles.groupsCopy}>
-              <Text style={styles.groupsTitle}>Groups</Text>
-              <Text style={styles.groupsSubtitle}>Shared spending, balances, and members</Text>
-            </View>
-            <Text style={styles.chevron}>›</Text>
+            onPress={handleClose}
+            style={({ pressed }) => [
+              styles.closeButton,
+              pressed && styles.closeButtonPressed,
+            ]}>
+            <Text style={styles.closeLabel}>Done</Text>
           </Pressable>
+        }
+        eyebrow="Account"
+        subtitle="Your profile and session controls."
+        title="Your Munmai profile"
+      />
+
+      <SurfaceCard>
+        <View style={styles.identity}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{avatarLetter}</Text>
+          </View>
+          <View style={styles.identityCopy}>
+            <Text style={styles.name}>{displayName}</Text>
+            <Text style={styles.username}>
+              {user?.username ? `@${user.username}` : 'No username'}
+            </Text>
+          </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        <View style={styles.details}>
+          <Text style={styles.detailLabel}>Email</Text>
+          <Text numberOfLines={2} style={styles.detailValue}>
+            {user?.email || 'Unavailable'}
+          </Text>
+        </View>
+
+        <PrimaryButton
+          disabled={isSigningOut}
+          label="Sign out"
+          loading={isSigningOut}
+          loadingLabel="Signing out…"
+          onPress={handleSignOut}
+          tone="neutral"
+        />
+      </SurfaceCard>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 30,
-    paddingTop: 24,
-  },
-  content: {
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    gap: 26,
-    paddingHorizontal: 20,
-  },
-  heading: {
-    gap: 7,
-  },
-  eyebrow: {
-    color: colors.accent,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1.6,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 29,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  profileCard: {
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
-    padding: 22,
-  },
-  groupsCard: {
-    minHeight: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 13,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    padding: 16,
-  },
-  groupsCardPressed: { opacity: 0.72 },
-  groupsMark: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.accentSoft },
-  groupsMarkText: { color: colors.accent, fontSize: 19, fontWeight: '900' },
-  groupsCopy: { flex: 1, gap: 3 },
-  groupsTitle: { color: colors.text, fontSize: 17, fontWeight: '900' },
-  groupsSubtitle: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
-  chevron: { color: colors.textMuted, fontSize: 28 },
-  avatar: {
-    width: 58,
-    height: 58,
+  closeButton: {
+    minWidth: touchTargets.minimum,
+    minHeight: touchTargets.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 19,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.sm,
+  },
+  closeButtonPressed: { opacity: 0.68 },
+  closeLabel: { color: colors.accent, fontSize: typography.body, fontWeight: fontWeights.strong },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  avatar: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.lg,
     backgroundColor: colors.accentSoft,
   },
-  avatarText: {
-    color: colors.accent,
-    fontSize: 26,
-    fontWeight: '900',
-  },
-  name: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  username: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
+  avatarText: { color: colors.accent, fontSize: 24, fontWeight: fontWeights.heavy },
+  identityCopy: { minWidth: 0, flex: 1, gap: spacing.xxs },
+  name: { color: colors.text, fontSize: 21, fontWeight: fontWeights.heavy },
+  username: { color: colors.textMuted, fontSize: typography.body },
   details: {
-    gap: 0,
-    overflow: 'hidden',
+    gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
-    marginVertical: 8,
-  },
-  detailRow: {
-    gap: 5,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    padding: 14,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceRaised,
+    padding: spacing.sm,
   },
   detailLabel: {
     color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: typography.label,
+    fontWeight: fontWeights.strong,
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  detailValue: {
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  detailValue: { color: colors.text, fontSize: typography.body, lineHeight: 20 },
 });

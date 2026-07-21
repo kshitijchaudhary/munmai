@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
+import { AvatarButton } from '@/components/avatar-button';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecentTransactionRow } from '@/components/recent-transaction-row';
@@ -42,6 +43,13 @@ export default function DashboardScreen() {
     retry,
   } = useDashboardData();
   const displayName = user?.name.trim() || 'there';
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? 'Good morning' : currentHour < 18 ? 'Good afternoon' : 'Good evening';
+  const dateContext = new Intl.DateTimeFormat('en-CA', {
+    day: 'numeric',
+    month: 'long',
+    weekday: 'long',
+  }).format(new Date());
   const creationMessage =
     created === 'income'
       ? 'Income was saved successfully.'
@@ -77,10 +85,15 @@ export default function DashboardScreen() {
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.greetingBlock}>
-              <Text style={styles.eyebrow}>MUNMAI</Text>
-              <Text style={styles.greeting}>Welcome back, {displayName}</Text>
-              <Text style={styles.headerCopy}>Here is your money at a glance.</Text>
+              <Text style={styles.eyebrow}>TODAY</Text>
+              <Text style={styles.greeting}>{greeting}, {displayName}</Text>
+              <Text style={styles.headerCopy}>{dateContext}</Text>
             </View>
+            <AvatarButton
+              label="Open account"
+              name={displayName}
+              onPress={() => router.push(PUBLIC_ROUTES.account as Href)}
+            />
           </View>
 
           {creationMessage ? (
@@ -149,14 +162,14 @@ export default function DashboardScreen() {
           ) : null}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick add</Text>
+            <Text style={styles.sectionTitle}>Quick capture</Text>
             <View style={styles.actionRow}>
               <PrimaryButton
                 label="Add income"
                 onPress={() =>
                   router.navigate(
                     {
-                      pathname: PUBLIC_ROUTES.add,
+                      pathname: PUBLIC_ROUTES.transactionForm,
                       params: { intent: String(Date.now()), type: 'income' },
                     } as unknown as Href,
                   )
@@ -169,7 +182,7 @@ export default function DashboardScreen() {
                 onPress={() =>
                   router.navigate(
                     {
-                      pathname: PUBLIC_ROUTES.add,
+                      pathname: PUBLIC_ROUTES.transactionForm,
                       params: { intent: String(Date.now()), type: 'expense' },
                     } as unknown as Href,
                   )
@@ -223,12 +236,14 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    maxWidth: 680,
+    maxWidth: 520,
     alignSelf: 'center',
     gap: 30,
     paddingHorizontal: 20,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 8,
   },
   greetingBlock: {

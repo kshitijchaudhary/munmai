@@ -72,7 +72,7 @@ test('validates positive decimal amounts and different active members', () => {
   const sameMember = { ...direction, to: currentUser };
   assert.match(validateSettlement({ amount: '10', note: '' }, sameMember, members).direction, /different/i);
   const outsiderDirection = { ...direction, to: user(thirdUserId, 'Casey') };
-  assert.match(validateSettlement({ amount: '10', note: '' }, outsiderDirection, members).direction, /active group members/i);
+  assert.match(validateSettlement({ amount: '10', note: '' }, outsiderDirection, members).direction, /active Space members/i);
 });
 
 test('builds a normalized partial-settlement payload', () => {

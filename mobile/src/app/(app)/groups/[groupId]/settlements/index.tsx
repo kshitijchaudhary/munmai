@@ -28,13 +28,13 @@ export default function SettlementHistoryScreen() {
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
-      {history.isLoading && history.data === null ? <View style={styles.state}><DashboardStatusCard loading title="Loading settlements" message="Checking the group's recorded payments." /></View> : null}
+      {history.isLoading && history.data === null ? <View style={styles.state}><DashboardStatusCard loading title="Loading settlements" message="Checking this Space's recorded payments." /></View> : null}
       {!history.isLoading && history.data === null ? <View style={styles.state}><DashboardStatusCard title={history.error?.kind === 'offline' ? "You're offline" : history.error?.kind === 'inaccessible' ? 'History unavailable' : 'Unable to load settlements'} message={history.error?.message ?? 'This settlement history link is invalid.'} onRetry={groupId ? history.retry : undefined} /></View> : null}
       {history.data ? <FlatList
         contentContainerStyle={history.data.length ? styles.content : styles.emptyContent}
         data={history.data}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View style={styles.heading}><Text style={styles.eyebrow}>SETTLEMENTS</Text><Text style={styles.title}>Recorded payments</Text><Text style={styles.subtitle}>Payments that have already been applied to this group's balances.</Text>{history.error ? <Text accessibilityRole="alert" style={styles.error}>{history.error.kind === 'offline' ? "You're offline. Showing the last loaded history." : 'Refresh failed. Existing history is still shown.'}</Text> : null}</View>}
+        ListHeaderComponent={<View style={styles.heading}><Text style={styles.eyebrow}>SETTLEMENTS</Text><Text style={styles.title}>Recorded payments</Text><Text style={styles.subtitle}>Payments that have already been applied to this Space's balances.</Text>{history.error ? <Text accessibilityRole="alert" style={styles.error}>{history.error.kind === 'offline' ? "You're offline. Showing the last loaded history." : 'Refresh failed. Existing history is still shown.'}</Text> : null}</View>}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No settlements yet</Text><Text style={styles.emptyText}>Recorded payments will appear here after a balance is settled.</Text></View>}
         refreshControl={<RefreshControl colors={[colors.accent]} tintColor={colors.accent} refreshing={history.isRefreshing} onRefresh={history.refresh} />}
         renderItem={renderItem}

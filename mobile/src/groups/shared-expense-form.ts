@@ -28,10 +28,10 @@ export function validateSharedExpense(values: SharedExpenseFormValues, members: 
   const memberIds = new Set(members.map((member) => member.user.id));
   if (!Number.isFinite(amount) || amount <= 0) errors.amount = 'Enter an amount greater than 0.';
   if (!values.description.trim()) errors.description = 'Description is required.';
-  if (!memberIds.has(values.paidBy)) errors.paidBy = 'Select a current group member.';
+  if (!memberIds.has(values.paidBy)) errors.paidBy = 'Select a current Space member.';
   const participants = [...new Set(values.participantIds)];
   if (participants.length === 0) errors.participants = 'Select at least one participant.';
-  else if (participants.some((id) => !memberIds.has(id))) errors.participants = 'Every participant must be a current group member.';
+  else if (participants.some((id) => !memberIds.has(id))) errors.participants = 'Every participant must be a current Space member.';
   return errors;
 }
 
