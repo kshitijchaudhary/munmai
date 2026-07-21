@@ -27,13 +27,15 @@ export interface GroupBalance {
 
 export interface GroupSummary {
   expenseCount: number;
+  settlementCount: number;
   totalExpenses: number;
+  totalSettlements: number;
   totalYouOwe: number;
   totalYouAreOwed: number;
   netBalance: number;
 }
 
-export interface GroupActivity {
+export interface SharedExpenseActivity {
   id: string;
   kind: 'shared-expense';
   title: string;
@@ -42,6 +44,19 @@ export interface GroupActivity {
   paidBy: GroupUser;
   participants: GroupUser[];
 }
+
+export interface SettlementActivity {
+  id: string;
+  kind: 'settlement';
+  title: string;
+  amount: number;
+  occurredAt: string;
+  from: GroupUser;
+  to: GroupUser;
+  note: string;
+}
+
+export type GroupActivity = SharedExpenseActivity | SettlementActivity;
 
 export interface GroupDetailData {
   group: GroupListItem;
@@ -159,16 +174,18 @@ export function parseSummaryResponse(value: unknown): Pick<GroupDetailData, 'gro
   const groups = parseGroupsResponse(source?.group ? [{ ...source.group, members: [] }] : []);
   const summary = record(source?.summary);
   const expenseCount = money(summary?.expenseCount);
+  const settlementCount = money(summary?.settlementCount);
   const totalExpenses = money(summary?.totalExpenses);
+  const totalSettlements = money(summary?.totalSettlements);
   const totalYouOwe = money(summary?.totalYouOwe);
   const totalYouAreOwed = money(summary?.totalYouAreOwed);
   const netBalance = typeof summary?.netBalance === 'number' && Number.isFinite(summary.netBalance)
     ? summary.netBalance
     : null;
-  if (!groups[0] || [expenseCount, totalExpenses, totalYouOwe, totalYouAreOwed, netBalance].some((item) => item === null)) return null;
+  if (!groups[0] || [expenseCount, settlementCount, totalExpenses, totalSettlements, totalYouOwe, totalYouAreOwed, netBalance].some((item) => item === null)) return null;
   return {
     group: groups[0],
-    summary: { expenseCount: expenseCount!, totalExpenses: totalExpenses!, totalYouOwe: totalYouOwe!, totalYouAreOwed: totalYouAreOwed!, netBalance: netBalance! },
+    summary: { expenseCount: expenseCount!, settlementCount: settlementCount!, totalExpenses: totalExpenses!, totalSettlements: totalSettlements!, totalYouOwe: totalYouOwe!, totalYouAreOwed: totalYouAreOwed!, netBalance: netBalance! },
     balances: parseBalancesResponse(source?.balances),
   };
 }

@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getErrorMessage } from '@/api/client';
-import { getGroupActivity, getGroupMemberships, getGroupSummary, getSettlementHistory } from '@/api/groups';
+import { getSettlementHistory } from '@/api/groups';
 import { isNormalizedApiError } from '@/auth/types';
-import {
-  parseActivityResponse,
-  parseMembershipsResponse,
-  parseSummaryResponse,
-  type GroupDetailData,
-} from '@/groups/group-model';
+import { parseSettlementHistory, type SettlementRecord } from '@/groups/settlement-model';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
-import { mergeFinancialActivity, parseSettlementHistory } from '@/groups/settlement-model';
 
-interface GroupDetailError { kind: 'offline' | 'inaccessible' | 'malformed' | 'request'; message: string }
+interface SettlementHistoryError {
+  kind: 'offline' | 'inaccessible' | 'request';
+  message: string;
+}
 
-export function useGroupDetail(groupId: string | null) {
-  const [data, setData] = useState<GroupDetailData | null>(null);
-  const [error, setError] = useState<GroupDetailError | null>(null);
+export function useSettlementHistory(groupId: string | null) {
+  const [data, setData] = useState<SettlementRecord[] | null>(null);
+  const [error, setError] = useState<SettlementHistoryError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const coordinator = useRef(createRequestCoordinator());
@@ -24,7 +21,7 @@ export function useGroupDetail(groupId: string | null) {
 
   const load = useCallback(async (refresh: boolean) => {
     if (!groupId) {
-      setError({ kind: 'malformed', message: 'This group link is invalid.' });
+      setError({ kind: 'inaccessible', message: 'This settlement history link is invalid.' });
       setIsLoading(false);
       return;
     }
@@ -36,32 +33,14 @@ export function useGroupDetail(groupId: string | null) {
     if (refresh) setIsRefreshing(true);
     else setIsLoading(true);
     try {
-      const [summaryResponse, membershipsResponse, activityResponse, settlementResponse] = await Promise.all([
-        getGroupSummary(groupId, abortController.signal),
-        getGroupMemberships(groupId, abortController.signal),
-        getGroupActivity(groupId, abortController.signal),
-        getSettlementHistory(groupId, abortController.signal),
-      ]);
-      if (!coordinator.current.isCurrent(requestId)) return;
-      const parsed = parseSummaryResponse(summaryResponse);
-      if (!parsed) {
-        setError({ kind: 'malformed', message: 'Munmai received incomplete group data.' });
-        return;
-      }
-      setData({
-        ...parsed,
-        members: parseMembershipsResponse(membershipsResponse),
-        activity: mergeFinancialActivity(
-          parseActivityResponse(activityResponse),
-          parseSettlementHistory(settlementResponse),
-        ),
-      });
+      const response = await getSettlementHistory(groupId, abortController.signal);
+      if (coordinator.current.isCurrent(requestId)) setData(parseSettlementHistory(response));
     } catch (requestError) {
       if (!coordinator.current.isCurrent(requestId) || (isNormalizedApiError(requestError) && requestError.isAuthenticationFailure)) return;
       const status = isNormalizedApiError(requestError) ? requestError.status : undefined;
       setError({
         kind: status === 403 || status === 404 ? 'inaccessible' : isNormalizedApiError(requestError) && requestError.isNetworkError ? 'offline' : 'request',
-        message: getErrorMessage(requestError, 'This group could not be loaded.'),
+        message: getErrorMessage(requestError, 'Settlement history could not be loaded.'),
       });
     } finally {
       if (coordinator.current.isCurrent(requestId)) {
@@ -80,7 +59,10 @@ export function useGroupDetail(groupId: string | null) {
   }, [load]);
 
   return {
-    data, error, isLoading, isRefreshing,
+    data,
+    error,
+    isLoading,
+    isRefreshing,
     refresh: useCallback(() => void load(true), [load]),
     retry: useCallback(() => void load(false), [load]),
   };
