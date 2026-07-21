@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getErrorMessage } from '@/api/client';
-import { createTransaction } from '@/api/transactions';
+import {
+  createExpense,
+  createTransaction,
+  uploadExpenseReceipt,
+} from '@/api/transactions';
 import { isNormalizedApiError } from '@/auth/types';
+import {
+  createPendingExpenseReceiptWorkflow,
+  executeExpenseReceiptWorkflow,
+  type ExpenseReceiptWorkflowStage,
+  type PendingExpenseReceiptWorkflow,
+} from '@/receipts/expense-receipt-workflow';
+import type { ReceiptImage } from '@/receipts/receipt-image';
 import {
   buildTransactionRequest,
   createInitialTransactionFormValues,
@@ -14,6 +25,8 @@ import {
 } from '@/transactions/transaction-form';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
 
+type SubmissionStage = 'idle' | 'saving' | 'uploading-receipt' | 'receipt-upload-failed';
+
 interface UseAddTransactionFormOptions {
   initialType: TransactionType;
   onSuccess: (type: TransactionType) => void;
@@ -21,12 +34,42 @@ interface UseAddTransactionFormOptions {
 
 export interface AddTransactionFormState {
   errors: TransactionFormErrors;
+  isFormLocked: boolean;
   isSubmitting: boolean;
+  receiptUploadFailed: boolean;
   requestError: string | null;
+  retryReceiptUpload: () => Promise<void>;
   selectType: (type: TransactionType) => void;
-  submit: () => Promise<void>;
+  submissionStage: SubmissionStage;
+  submit: (receipt: ReceiptImage | null) => Promise<void>;
   updateField: (field: TransactionFormField, value: string) => void;
   values: TransactionFormValues;
+}
+
+const workflowServices = {
+  createExpense,
+  uploadReceipt: uploadExpenseReceipt,
+};
+
+function transactionErrorMessage(error: unknown): string {
+  if (isNormalizedApiError(error) && error.isAuthenticationFailure) {
+    return 'Your session expired. Please sign in again.';
+  }
+
+  return getErrorMessage(error, 'The transaction could not be saved. Please try again.');
+}
+
+function receiptUploadErrorMessage(error: unknown): string {
+  if (isNormalizedApiError(error) && error.isAuthenticationFailure) {
+    return 'The expense was saved, but your session expired before the receipt upload completed. Sign in again before retrying.';
+  }
+
+  const detail = getErrorMessage(
+    error,
+    'The receipt upload could not be completed. Check your connection and retry.',
+  );
+
+  return `Expense saved, but the receipt was not uploaded. ${detail}`;
 }
 
 export function useAddTransactionForm({
@@ -36,9 +79,13 @@ export function useAddTransactionForm({
   const [values, setValues] = useState(() => createInitialTransactionFormValues(initialType));
   const [errors, setErrors] = useState<TransactionFormErrors>({});
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStage, setSubmissionStage] = useState<SubmissionStage>('idle');
+  const [pendingReceiptWorkflow, setPendingReceiptWorkflow] =
+    useState<PendingExpenseReceiptWorkflow | null>(null);
   const coordinator = useRef(createRequestCoordinator());
   const activeController = useRef<AbortController | null>(null);
+  const isSubmitting = submissionStage === 'saving' || submissionStage === 'uploading-receipt';
+  const isFormLocked = pendingReceiptWorkflow !== null;
 
   useEffect(() => {
     const requestCoordinator = coordinator.current;
@@ -50,24 +97,147 @@ export function useAddTransactionForm({
     };
   }, []);
 
-  const selectType = useCallback((type: TransactionType) => {
-    setValues((current) => ({ ...current, type }));
-    setErrors({});
-    setRequestError(null);
-  }, []);
+  const selectType = useCallback(
+    (type: TransactionType) => {
+      if (isFormLocked) {
+        return;
+      }
 
-  const updateField = useCallback((field: TransactionFormField, value: string) => {
-    setValues((current) => ({ ...current, [field]: value }));
-    setErrors((current) => ({ ...current, [field]: undefined }));
-    setRequestError(null);
-  }, []);
-
-  const submit = useCallback(async () => {
-    const nextErrors = validateTransactionForm(values);
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
+      setValues((current) => ({ ...current, type }));
+      setErrors({});
       setRequestError(null);
+    },
+    [isFormLocked],
+  );
+
+  const updateField = useCallback(
+    (field: TransactionFormField, value: string) => {
+      if (isFormLocked) {
+        return;
+      }
+
+      setValues((current) => ({ ...current, [field]: value }));
+      setErrors((current) => ({ ...current, [field]: undefined }));
+      setRequestError(null);
+    },
+    [isFormLocked],
+  );
+
+  const updateWorkflowStage = useCallback(
+    (requestId: number, stage: ExpenseReceiptWorkflowStage) => {
+      if (!coordinator.current.isCurrent(requestId)) {
+        return;
+      }
+
+      setSubmissionStage(stage === 'saving-expense' ? 'saving' : 'uploading-receipt');
+    },
+    [],
+  );
+
+  const finishSuccessfulSubmission = useCallback(
+    (type: TransactionType) => {
+      setPendingReceiptWorkflow(null);
+      setValues(createInitialTransactionFormValues());
+      setSubmissionStage('idle');
+      onSuccess(type);
+    },
+    [onSuccess],
+  );
+
+  const submit = useCallback(
+    async (receipt: ReceiptImage | null) => {
+      if (pendingReceiptWorkflow) {
+        return;
+      }
+
+      const nextErrors = validateTransactionForm(values);
+
+      if (Object.keys(nextErrors).length > 0) {
+        setErrors(nextErrors);
+        setRequestError(null);
+        return;
+      }
+
+      const requestId = coordinator.current.begin();
+
+      if (requestId === null) {
+        return;
+      }
+
+      const controller = new AbortController();
+      activeController.current = controller;
+      setErrors({});
+      setRequestError(null);
+      setSubmissionStage('saving');
+
+      try {
+        const request = buildTransactionRequest(values);
+
+        if (request.type === 'expense' && receipt) {
+          const pending = createPendingExpenseReceiptWorkflow(request.payload, receipt);
+          const result = await executeExpenseReceiptWorkflow(
+            pending,
+            workflowServices,
+            controller.signal,
+            (stage) => updateWorkflowStage(requestId, stage),
+          );
+
+          if (!coordinator.current.isCurrent(requestId)) {
+            return;
+          }
+
+          if (result.status === 'complete') {
+            finishSuccessfulSubmission('expense');
+            return;
+          }
+
+          if (result.status === 'upload-failed') {
+            setPendingReceiptWorkflow(result.pending);
+            setSubmissionStage('receipt-upload-failed');
+            setRequestError(receiptUploadErrorMessage(result.error));
+            return;
+          }
+
+          setSubmissionStage('idle');
+          setRequestError(transactionErrorMessage(result.error));
+          return;
+        }
+
+        await createTransaction(request, controller.signal);
+
+        if (!coordinator.current.isCurrent(requestId)) {
+          return;
+        }
+
+        finishSuccessfulSubmission(request.type);
+      } catch (error) {
+        if (!coordinator.current.isCurrent(requestId)) {
+          return;
+        }
+
+        setSubmissionStage('idle');
+        setRequestError(transactionErrorMessage(error));
+      } finally {
+        if (!coordinator.current.isCurrent(requestId)) {
+          return;
+        }
+
+        coordinator.current.finish(requestId);
+
+        if (activeController.current === controller) {
+          activeController.current = null;
+        }
+
+        setSubmissionStage((current) =>
+          current === 'saving' || current === 'uploading-receipt' ? 'idle' : current,
+        );
+      }
+    },
+    [finishSuccessfulSubmission, pendingReceiptWorkflow, updateWorkflowStage, values],
+  );
+
+  const retryReceiptUpload = useCallback(async () => {
+    if (!pendingReceiptWorkflow) {
       return;
     }
 
@@ -79,32 +249,33 @@ export function useAddTransactionForm({
 
     const controller = new AbortController();
     activeController.current = controller;
-    setErrors({});
     setRequestError(null);
-    setIsSubmitting(true);
+    setSubmissionStage('uploading-receipt');
 
     try {
-      const request = buildTransactionRequest(values);
-      await createTransaction(request, controller.signal);
+      const result = await executeExpenseReceiptWorkflow(
+        pendingReceiptWorkflow,
+        workflowServices,
+        controller.signal,
+        (stage) => updateWorkflowStage(requestId, stage),
+      );
 
       if (!coordinator.current.isCurrent(requestId)) {
         return;
       }
 
-      setValues(createInitialTransactionFormValues());
-      onSuccess(request.type);
-    } catch (error) {
-      if (!coordinator.current.isCurrent(requestId)) {
+      if (result.status === 'complete') {
+        finishSuccessfulSubmission('expense');
         return;
       }
 
-      if (isNormalizedApiError(error) && error.isAuthenticationFailure) {
-        setRequestError('Your session expired. Please sign in again.');
-      } else {
-        setRequestError(
-          getErrorMessage(error, 'The transaction could not be saved. Please try again.'),
-        );
-      }
+      setPendingReceiptWorkflow(result.pending);
+      setSubmissionStage('receipt-upload-failed');
+      setRequestError(
+        result.status === 'upload-failed'
+          ? receiptUploadErrorMessage(result.error)
+          : transactionErrorMessage(result.error),
+      );
     } finally {
       if (!coordinator.current.isCurrent(requestId)) {
         return;
@@ -116,15 +287,21 @@ export function useAddTransactionForm({
         activeController.current = null;
       }
 
-      setIsSubmitting(false);
+      setSubmissionStage((current) =>
+        current === 'uploading-receipt' ? 'receipt-upload-failed' : current,
+      );
     }
-  }, [onSuccess, values]);
+  }, [finishSuccessfulSubmission, pendingReceiptWorkflow, updateWorkflowStage]);
 
   return {
     errors,
+    isFormLocked,
     isSubmitting,
+    receiptUploadFailed: submissionStage === 'receipt-upload-failed',
     requestError,
+    retryReceiptUpload,
     selectType,
+    submissionStage,
     submit,
     updateField,
     values,
