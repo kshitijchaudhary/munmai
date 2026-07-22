@@ -4,7 +4,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -26,6 +26,11 @@ import { RecentTransactionRow } from '@/components/recent-transaction-row';
 import { colors } from '@/constants/theme';
 import { useDashboardData } from '@/dashboard/use-dashboard-data';
 import { PUBLIC_ROUTES } from '@/navigation/routes';
+import {
+  getTransactionSuccessMessage,
+  getTransactionSuccessReplacement,
+  scheduleTransactionSuccessDismiss,
+} from '@/transactions/transaction-success-feedback';
 
 const refreshColors = [colors.accent];
 
@@ -39,9 +44,11 @@ export default function DashboardScreen() {
     isLoading,
     isRefreshing,
     refresh,
-    refreshAfterMutation,
     retry,
   } = useDashboardData();
+  const [creationMessage, setCreationMessage] = useState(() =>
+    getTransactionSuccessMessage(created),
+  );
   const displayName = user?.name.trim() || 'there';
   const currentHour = new Date().getHours();
   const greeting = currentHour < 12 ? 'Good morning' : currentHour < 18 ? 'Good afternoon' : 'Good evening';
@@ -50,22 +57,31 @@ export default function DashboardScreen() {
     month: 'long',
     weekday: 'long',
   }).format(new Date());
-  const creationMessage =
-    created === 'income'
-      ? 'Income was saved successfully.'
-      : created === 'expense'
-        ? 'Expense was saved successfully.'
-        : null;
+
+  useEffect(() => {
+    const message = getTransactionSuccessMessage(created);
+    const replacement = getTransactionSuccessReplacement(created);
+
+    if (!message || !replacement) {
+      return;
+    }
+
+    setCreationMessage(message);
+    router.replace(replacement as Href);
+  }, [created, router]);
+
+  useEffect(() => {
+    if (!creationMessage) {
+      return;
+    }
+
+    return scheduleTransactionSuccessDismiss(() => setCreationMessage(null));
+  }, [creationMessage]);
 
   useFocusEffect(
     useCallback(() => {
-      if (creationMessage) {
-        refreshAfterMutation();
-        return;
-      }
-
       refresh();
-    }, [creationMessage, refresh, refreshAfterMutation]),
+    }, [refresh]),
   );
 
   return (
@@ -105,7 +121,7 @@ export default function DashboardScreen() {
               <Pressable
                 accessibilityRole="button"
                 hitSlop={8}
-                onPress={() => router.setParams({ created: undefined })}>
+                onPress={() => setCreationMessage(null)}>
                 <Text style={styles.dismissLink}>Dismiss</Text>
               </Pressable>
             </View>

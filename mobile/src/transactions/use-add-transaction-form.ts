@@ -3,8 +3,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getErrorMessage } from '@/api/client';
 import {
   createExpense,
+  createIncome,
   createTransaction,
   uploadExpenseReceipt,
+  uploadIncomeProof,
 } from '@/api/transactions';
 import { isNormalizedApiError } from '@/auth/types';
 import {
@@ -13,6 +15,12 @@ import {
   type ExpenseReceiptWorkflowStage,
   type PendingExpenseReceiptWorkflow,
 } from '@/receipts/expense-receipt-workflow';
+import {
+  createPendingIncomeProofWorkflow,
+  executeIncomeProofWorkflow,
+  type IncomeProofWorkflowStage,
+  type PendingIncomeProofWorkflow,
+} from '@/receipts/income-proof-workflow';
 import type { ReceiptImage } from '@/receipts/receipt-image';
 import {
   buildTransactionRequest,
@@ -24,8 +32,17 @@ import {
   validateTransactionForm,
 } from '@/transactions/transaction-form';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
+import {
+  completeAttachmentSubmissionState,
+  discardAttachmentRetryState,
+  type AttachmentSubmissionStage,
+} from '@/transactions/transaction-attachment-retry';
+import { getTransactionAttachmentUploadFailureMessage } from '@/transactions/transaction-attachment-copy';
+import { transactionDataRefresh } from '@/transactions/transaction-data-refresh';
 
-type SubmissionStage = 'idle' | 'saving' | 'uploading-receipt' | 'receipt-upload-failed';
+type PendingAttachmentWorkflow =
+  | { transactionType: 'expense'; workflow: PendingExpenseReceiptWorkflow }
+  | { transactionType: 'income'; workflow: PendingIncomeProofWorkflow };
 
 interface UseAddTransactionFormOptions {
   initialType: TransactionType;
@@ -36,11 +53,12 @@ export interface AddTransactionFormState {
   errors: TransactionFormErrors;
   isFormLocked: boolean;
   isSubmitting: boolean;
-  receiptUploadFailed: boolean;
+  attachmentUploadFailed: boolean;
+  discardPendingAttachment: () => void;
   requestError: string | null;
-  retryReceiptUpload: () => Promise<void>;
+  retryAttachmentUpload: () => Promise<void>;
   selectType: (type: TransactionType) => void;
-  submissionStage: SubmissionStage;
+  submissionStage: AttachmentSubmissionStage;
   submit: (receipt: ReceiptImage | null) => Promise<void>;
   updateField: (field: TransactionFormField, value: string) => void;
   values: TransactionFormValues;
@@ -51,6 +69,20 @@ const workflowServices = {
   uploadReceipt: uploadExpenseReceipt,
 };
 
+const incomeWorkflowServices = {
+  createIncome,
+  uploadProof: uploadIncomeProof,
+};
+
+function getMutationCallbacks(transactionType: TransactionType) {
+  return {
+    onDocumentUploaded: (transactionId: string) =>
+      transactionDataRefresh.notifyAttachmentChanged(transactionType, transactionId),
+    onTransactionCreated: (transactionId: string) =>
+      transactionDataRefresh.notifyTransactionCreated(transactionType, transactionId),
+  };
+}
+
 function transactionErrorMessage(error: unknown): string {
   if (isNormalizedApiError(error) && error.isAuthenticationFailure) {
     return 'Your session expired. Please sign in again.';
@@ -59,17 +91,25 @@ function transactionErrorMessage(error: unknown): string {
   return getErrorMessage(error, 'The transaction could not be saved. Please try again.');
 }
 
-function receiptUploadErrorMessage(error: unknown): string {
-  if (isNormalizedApiError(error) && error.isAuthenticationFailure) {
-    return 'The expense was saved, but your session expired before the receipt upload completed. Sign in again before retrying.';
+function attachmentUploadErrorMessage(
+  error: unknown,
+  transactionType: TransactionType,
+): string {
+  const transactionLabel = transactionType === 'income' ? 'income' : 'expense';
+  const attachmentLabel = transactionType === 'income' ? 'proof of income' : 'receipt';
+
+  if (process.env.NODE_ENV === 'development') {
+    console.error(
+      `${transactionType === 'income' ? 'Income document' : 'Expense receipt'} upload failed`,
+      error,
+    );
   }
 
-  const detail = getErrorMessage(
-    error,
-    'The receipt upload could not be completed. Check your connection and retry.',
-  );
+  if (isNormalizedApiError(error) && error.isAuthenticationFailure) {
+    return `The ${transactionLabel} was saved, but your session expired before the ${attachmentLabel} upload completed. Sign in again before retrying.`;
+  }
 
-  return `Expense saved, but the receipt was not uploaded. ${detail}`;
+  return getTransactionAttachmentUploadFailureMessage(transactionType);
 }
 
 export function useAddTransactionForm({
@@ -79,13 +119,14 @@ export function useAddTransactionForm({
   const [values, setValues] = useState(() => createInitialTransactionFormValues(initialType));
   const [errors, setErrors] = useState<TransactionFormErrors>({});
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [submissionStage, setSubmissionStage] = useState<SubmissionStage>('idle');
-  const [pendingReceiptWorkflow, setPendingReceiptWorkflow] =
-    useState<PendingExpenseReceiptWorkflow | null>(null);
+  const [submissionStage, setSubmissionStage] =
+    useState<AttachmentSubmissionStage>('idle');
+  const [pendingAttachmentWorkflow, setPendingAttachmentWorkflow] =
+    useState<PendingAttachmentWorkflow | null>(null);
   const coordinator = useRef(createRequestCoordinator());
   const activeController = useRef<AbortController | null>(null);
-  const isSubmitting = submissionStage === 'saving' || submissionStage === 'uploading-receipt';
-  const isFormLocked = pendingReceiptWorkflow !== null;
+  const isSubmitting = submissionStage === 'saving' || submissionStage === 'uploading-attachment';
+  const isFormLocked = pendingAttachmentWorkflow !== null;
 
   useEffect(() => {
     const requestCoordinator = coordinator.current;
@@ -129,16 +170,52 @@ export function useAddTransactionForm({
         return;
       }
 
-      setSubmissionStage(stage === 'saving-expense' ? 'saving' : 'uploading-receipt');
+      setSubmissionStage(stage === 'saving-expense' ? 'saving' : 'uploading-attachment');
+    },
+    [],
+  );
+
+  const discardPendingAttachment = useCallback(() => {
+    if (!pendingAttachmentWorkflow || isSubmitting) {
+      return;
+    }
+
+    const discardedState = discardAttachmentRetryState(
+      pendingAttachmentWorkflow.transactionType,
+      createInitialTransactionFormValues(pendingAttachmentWorkflow.transactionType),
+    );
+
+    coordinator.current.invalidate();
+    activeController.current?.abort();
+    activeController.current = null;
+    setPendingAttachmentWorkflow(discardedState.pendingAttachmentWorkflow);
+    setValues(discardedState.values);
+    setErrors(discardedState.errors);
+    setRequestError(discardedState.requestError);
+    setSubmissionStage(discardedState.submissionStage);
+  }, [isSubmitting, pendingAttachmentWorkflow]);
+
+  const updateIncomeWorkflowStage = useCallback(
+    (requestId: number, stage: IncomeProofWorkflowStage) => {
+      if (!coordinator.current.isCurrent(requestId)) {
+        return;
+      }
+
+      setSubmissionStage(stage === 'saving-income' ? 'saving' : 'uploading-attachment');
     },
     [],
   );
 
   const finishSuccessfulSubmission = useCallback(
     (type: TransactionType) => {
-      setPendingReceiptWorkflow(null);
-      setValues(createInitialTransactionFormValues());
-      setSubmissionStage('idle');
+      const completedState = completeAttachmentSubmissionState(
+        createInitialTransactionFormValues(),
+      );
+      setPendingAttachmentWorkflow(completedState.pendingAttachmentWorkflow);
+      setValues(completedState.values);
+      setErrors(completedState.errors);
+      setRequestError(completedState.requestError);
+      setSubmissionStage(completedState.submissionStage);
       onSuccess(type);
     },
     [onSuccess],
@@ -146,7 +223,7 @@ export function useAddTransactionForm({
 
   const submit = useCallback(
     async (receipt: ReceiptImage | null) => {
-      if (pendingReceiptWorkflow) {
+      if (pendingAttachmentWorkflow) {
         return;
       }
 
@@ -180,6 +257,7 @@ export function useAddTransactionForm({
             workflowServices,
             controller.signal,
             (stage) => updateWorkflowStage(requestId, stage),
+            getMutationCallbacks('expense'),
           );
 
           if (!coordinator.current.isCurrent(requestId)) {
@@ -192,9 +270,12 @@ export function useAddTransactionForm({
           }
 
           if (result.status === 'upload-failed') {
-            setPendingReceiptWorkflow(result.pending);
-            setSubmissionStage('receipt-upload-failed');
-            setRequestError(receiptUploadErrorMessage(result.error));
+            setPendingAttachmentWorkflow({
+              transactionType: 'expense',
+              workflow: result.pending,
+            });
+            setSubmissionStage('attachment-upload-failed');
+            setRequestError(attachmentUploadErrorMessage(result.error, 'expense'));
             return;
           }
 
@@ -203,12 +284,50 @@ export function useAddTransactionForm({
           return;
         }
 
-        await createTransaction(request, controller.signal);
+        if (request.type === 'income' && receipt) {
+          const pending = createPendingIncomeProofWorkflow(request.payload, receipt);
+          const result = await executeIncomeProofWorkflow(
+            pending,
+            incomeWorkflowServices,
+            controller.signal,
+            (stage) => updateIncomeWorkflowStage(requestId, stage),
+            getMutationCallbacks('income'),
+          );
+
+          if (!coordinator.current.isCurrent(requestId)) {
+            return;
+          }
+
+          if (result.status === 'complete') {
+            finishSuccessfulSubmission('income');
+            return;
+          }
+
+          if (result.status === 'upload-failed') {
+            setPendingAttachmentWorkflow({
+              transactionType: 'income',
+              workflow: result.pending,
+            });
+            setSubmissionStage('attachment-upload-failed');
+            setRequestError(attachmentUploadErrorMessage(result.error, 'income'));
+            return;
+          }
+
+          setSubmissionStage('idle');
+          setRequestError(transactionErrorMessage(result.error));
+          return;
+        }
+
+        const createdTransaction = await createTransaction(request, controller.signal);
 
         if (!coordinator.current.isCurrent(requestId)) {
           return;
         }
 
+        transactionDataRefresh.notifyTransactionCreated(
+          request.type,
+          createdTransaction._id,
+        );
         finishSuccessfulSubmission(request.type);
       } catch (error) {
         if (!coordinator.current.isCurrent(requestId)) {
@@ -229,15 +348,21 @@ export function useAddTransactionForm({
         }
 
         setSubmissionStage((current) =>
-          current === 'saving' || current === 'uploading-receipt' ? 'idle' : current,
+          current === 'saving' || current === 'uploading-attachment' ? 'idle' : current,
         );
       }
     },
-    [finishSuccessfulSubmission, pendingReceiptWorkflow, updateWorkflowStage, values],
+    [
+      finishSuccessfulSubmission,
+      pendingAttachmentWorkflow,
+      updateIncomeWorkflowStage,
+      updateWorkflowStage,
+      values,
+    ],
   );
 
-  const retryReceiptUpload = useCallback(async () => {
-    if (!pendingReceiptWorkflow) {
+  const retryAttachmentUpload = useCallback(async () => {
+    if (!pendingAttachmentWorkflow) {
       return;
     }
 
@@ -250,14 +375,46 @@ export function useAddTransactionForm({
     const controller = new AbortController();
     activeController.current = controller;
     setRequestError(null);
-    setSubmissionStage('uploading-receipt');
+    setSubmissionStage('uploading-attachment');
 
     try {
-      const result = await executeExpenseReceiptWorkflow(
-        pendingReceiptWorkflow,
-        workflowServices,
+      if (pendingAttachmentWorkflow.transactionType === 'expense') {
+        const result = await executeExpenseReceiptWorkflow(
+          pendingAttachmentWorkflow.workflow,
+          workflowServices,
+          controller.signal,
+          (stage) => updateWorkflowStage(requestId, stage),
+          getMutationCallbacks('expense'),
+        );
+
+        if (!coordinator.current.isCurrent(requestId)) {
+          return;
+        }
+
+        if (result.status === 'complete') {
+          finishSuccessfulSubmission('expense');
+          return;
+        }
+
+        setPendingAttachmentWorkflow({
+          transactionType: 'expense',
+          workflow: result.pending,
+        });
+        setSubmissionStage('attachment-upload-failed');
+        setRequestError(
+          result.status === 'upload-failed'
+            ? attachmentUploadErrorMessage(result.error, 'expense')
+            : transactionErrorMessage(result.error),
+        );
+        return;
+      }
+
+      const result = await executeIncomeProofWorkflow(
+        pendingAttachmentWorkflow.workflow,
+        incomeWorkflowServices,
         controller.signal,
-        (stage) => updateWorkflowStage(requestId, stage),
+        (stage) => updateIncomeWorkflowStage(requestId, stage),
+        getMutationCallbacks('income'),
       );
 
       if (!coordinator.current.isCurrent(requestId)) {
@@ -265,15 +422,18 @@ export function useAddTransactionForm({
       }
 
       if (result.status === 'complete') {
-        finishSuccessfulSubmission('expense');
+        finishSuccessfulSubmission('income');
         return;
       }
 
-      setPendingReceiptWorkflow(result.pending);
-      setSubmissionStage('receipt-upload-failed');
+      setPendingAttachmentWorkflow({
+        transactionType: 'income',
+        workflow: result.pending,
+      });
+      setSubmissionStage('attachment-upload-failed');
       setRequestError(
         result.status === 'upload-failed'
-          ? receiptUploadErrorMessage(result.error)
+          ? attachmentUploadErrorMessage(result.error, 'income')
           : transactionErrorMessage(result.error),
       );
     } finally {
@@ -288,18 +448,24 @@ export function useAddTransactionForm({
       }
 
       setSubmissionStage((current) =>
-        current === 'uploading-receipt' ? 'receipt-upload-failed' : current,
+        current === 'uploading-attachment' ? 'attachment-upload-failed' : current,
       );
     }
-  }, [finishSuccessfulSubmission, pendingReceiptWorkflow, updateWorkflowStage]);
+  }, [
+    finishSuccessfulSubmission,
+    pendingAttachmentWorkflow,
+    updateIncomeWorkflowStage,
+    updateWorkflowStage,
+  ]);
 
   return {
     errors,
     isFormLocked,
     isSubmitting,
-    receiptUploadFailed: submissionStage === 'receipt-upload-failed',
+    attachmentUploadFailed: submissionStage === 'attachment-upload-failed',
+    discardPendingAttachment,
     requestError,
-    retryReceiptUpload,
+    retryAttachmentUpload,
     selectType,
     submissionStage,
     submit,

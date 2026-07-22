@@ -1,6 +1,7 @@
 export const RECEIPT_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
-export type ReceiptImageMimeType = 'image/jpeg' | 'image/png';
+export type SupportingDocumentKind = 'income-proof' | 'receipt';
+export type ReceiptImageMimeType = 'application/pdf' | 'image/jpeg' | 'image/png';
 export type ReceiptImageValidationCode = 'invalid-metadata' | 'unsupported-type' | 'too-large';
 
 export interface ReceiptImageAsset {
@@ -28,13 +29,27 @@ export type ReceiptSelectionAction =
   | { image: ReceiptImage; type: 'select' }
   | { type: 'remove' };
 
+export interface PdfDocumentPickerAsset {
+  file?: File;
+  mimeType?: string;
+  name: string;
+  size?: number;
+  uri: string;
+}
+
+export type PdfDocumentPickerResult =
+  | { assets: null; canceled: true }
+  | { assets: PdfDocumentPickerAsset[]; canceled: false };
+
 const mimeTypeByExtension: Record<string, ReceiptImageMimeType> = {
   '.jpeg': 'image/jpeg',
   '.jpg': 'image/jpeg',
+  '.pdf': 'application/pdf',
   '.png': 'image/png',
 };
 
 const extensionByMimeType: Record<ReceiptImageMimeType, string> = {
+  'application/pdf': '.pdf',
   'image/jpeg': '.jpg',
   'image/png': '.png',
 };
@@ -64,6 +79,25 @@ function normalizeMimeType(value: string | null | undefined): ReceiptImageMimeTy
     return 'image/png';
   }
 
+  if (normalizedValue === 'application/pdf') {
+    return 'application/pdf';
+  }
+
+  return null;
+}
+
+function getKnownFileSize(
+  pickerFileSize: number | undefined,
+  webFileSize: number | undefined,
+): number | null {
+  if (Number.isFinite(pickerFileSize) && (pickerFileSize ?? 0) > 0) {
+    return pickerFileSize ?? null;
+  }
+
+  if (Number.isFinite(webFileSize) && (webFileSize ?? 0) > 0) {
+    return webFileSize ?? null;
+  }
+
   return null;
 }
 
@@ -71,11 +105,13 @@ function buildFileName(
   sourceName: string,
   mimeType: ReceiptImageMimeType,
   timestamp: number,
+  documentKind: SupportingDocumentKind,
 ): string {
   const baseName = getBaseName(sourceName);
 
   if (!baseName) {
-    return `receipt-${timestamp}${extensionByMimeType[mimeType]}`;
+    const prefix = documentKind === 'income-proof' ? 'income-proof' : 'receipt';
+    return `${prefix}-${timestamp}${extensionByMimeType[mimeType]}`;
   }
 
   return getExtension(baseName)
@@ -86,20 +122,25 @@ function buildFileName(
 export function normalizeReceiptImage(
   asset: ReceiptImageAsset,
   timestamp = Date.now(),
+  documentKind: SupportingDocumentKind = 'receipt',
 ): ReceiptImageValidationResult {
+  const isIncomeProof = documentKind === 'income-proof';
   const uri = asset.uri?.trim();
 
-  if (!uri || (asset.type && asset.type !== 'image')) {
+  if (!uri || (asset.type && asset.type !== 'image' && asset.type !== 'pdf')) {
     return {
       ok: false,
       code: 'invalid-metadata',
-      message: 'Choose a valid receipt image.',
+      message: isIncomeProof
+        ? 'Choose a valid income document.'
+        : 'Choose a valid receipt.',
     };
   }
 
-  const sourceName = asset.webFile?.name || asset.fileName || getBaseName(uri);
+  const webFile = asset.webFile;
+  const sourceName = webFile?.name || asset.fileName || (isIncomeProof ? '' : getBaseName(uri));
   const extension = getExtension(sourceName);
-  const mimeType = normalizeMimeType(asset.webFile?.type || asset.mimeType);
+  const mimeType = normalizeMimeType(webFile?.type || asset.mimeType);
   const extensionMimeType = extension ? mimeTypeByExtension[extension] : undefined;
 
   if (
@@ -111,7 +152,9 @@ export function normalizeReceiptImage(
     return {
       ok: false,
       code: 'unsupported-type',
-      message: 'Receipt images must be JPEG or PNG files.',
+      message: isIncomeProof
+        ? 'Income document must be a JPEG, PNG, or PDF up to 5 MB.'
+        : 'Receipt must be a JPEG, PNG, or PDF up to 5 MB.',
     };
   }
 
@@ -121,25 +164,21 @@ export function normalizeReceiptImage(
     return {
       ok: false,
       code: 'unsupported-type',
-      message: 'Receipt images must be JPEG or PNG files.',
+      message: isIncomeProof
+        ? 'Income document must be a JPEG, PNG, or PDF up to 5 MB.'
+        : 'Receipt must be a JPEG, PNG, or PDF up to 5 MB.',
     };
   }
 
-  const fileSize = asset.webFile?.size ?? asset.fileSize ?? null;
-
-  if (fileSize !== null && (!Number.isFinite(fileSize) || fileSize <= 0)) {
-    return {
-      ok: false,
-      code: 'invalid-metadata',
-      message: 'Munmai could not read that image. Choose another receipt image.',
-    };
-  }
+  const fileSize = getKnownFileSize(asset.fileSize, webFile?.size);
 
   if (fileSize !== null && fileSize > RECEIPT_MAX_FILE_SIZE_BYTES) {
     return {
       ok: false,
       code: 'too-large',
-      message: 'Receipt images must be 5 MB or smaller.',
+      message: isIncomeProof
+        ? 'Income document must be a JPEG, PNG, or PDF up to 5 MB.'
+        : 'Receipt must be a JPEG, PNG, or PDF up to 5 MB.',
     };
   }
 
@@ -147,12 +186,65 @@ export function normalizeReceiptImage(
     ok: true,
     image: {
       uri,
-      fileName: buildFileName(sourceName, resolvedMimeType, timestamp),
+      fileName: buildFileName(sourceName, resolvedMimeType, timestamp, documentKind),
       fileSize,
       mimeType: resolvedMimeType,
-      webFile: asset.webFile,
+      webFile,
     },
   };
+}
+
+export function isPdfSupportingDocument(document: ReceiptImage): boolean {
+  return document.mimeType === 'application/pdf';
+}
+
+export function getSupportingDocumentDisplayModel(document: ReceiptImage) {
+  return {
+    fileName: document.fileName,
+    preview: isPdfSupportingDocument(document) ? ('pdf' as const) : ('image' as const),
+  };
+}
+
+export function normalizePdfDocumentPickerResult(
+  result: PdfDocumentPickerResult,
+  documentKind: SupportingDocumentKind,
+  timestamp = Date.now(),
+): ReceiptImageValidationResult | null {
+  if (result.canceled || !result.assets[0]) {
+    return null;
+  }
+
+  const asset = result.assets[0];
+  const webFile = asset.file;
+
+  return normalizeReceiptImage(
+    {
+      fileName: asset.name || webFile?.name,
+      fileSize: asset.size ?? webFile?.size,
+      mimeType: asset.mimeType || webFile?.type || 'application/pdf',
+      type: 'pdf',
+      uri: asset.uri,
+      webFile,
+    },
+    timestamp,
+    documentKind,
+  );
+}
+
+export function formatSupportingDocumentFileSize(fileSize: number | null): string {
+  if (!fileSize || !Number.isFinite(fileSize) || fileSize < 0) {
+    return 'Size unavailable.';
+  }
+
+  if (fileSize < 1024) {
+    return `${fileSize} ${fileSize === 1 ? 'byte' : 'bytes'}`;
+  }
+
+  if (fileSize < 1024 * 1024) {
+    return `${(fileSize / 1024).toFixed(fileSize < 10 * 1024 ? 1 : 0)} KB`;
+  }
+
+  return `${(fileSize / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 export function receiptSelectionReducer(

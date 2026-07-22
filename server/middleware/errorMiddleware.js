@@ -17,8 +17,7 @@ export const errorHandler = (err, req, res, next) => {
   });
 
   res.status(statusCode).json({
-    message: err.message,
+    message: statusCode >= 500 ? "Server Error" : err.message,
     requestId: req.requestId || "",
-    stack: process.env.NODE_ENV === "production" ? null : err.stack,
   });
 };

@@ -51,7 +51,7 @@ server/
   services/       Business logic for complex domains
   services/import/ PDF and CSV import helpers
   scripts/        Mongo JSON backup utility
-  uploads/        Local development receipt upload directory
+  uploads/        Local development protected document upload directory
 
 docs/
   screenshots/    Product screenshots
@@ -186,6 +186,7 @@ GET    /api/income
 POST   /api/income
 PUT    /api/income/:id
 DELETE /api/income/:id
+GET    /api/income/:id/proof
 
 GET    /api/expenses
 POST   /api/expenses
@@ -305,6 +306,7 @@ User:
 Income:
 - Personal income record scoped by `userId`.
 - Amount, source, category, date, notes.
+- Optional protected proof-of-income URL.
 - Import metadata fields and unique partial import hash index.
 
 Expense:
@@ -405,13 +407,19 @@ Forgot/reset password:
 
 Account export/delete:
 - Exports current user, incomes, and expenses.
-- Delete removes income, expenses, receipt files, and the user record.
+- Delete removes income, expenses, receipt/proof files, and the user record.
 
 ### Personal Transactions
 
 Income and expenses are manually created, edited, listed, and deleted through
 their own route modules. Controllers validate numeric amount, required names,
 category, and valid dates.
+
+Income can include one proof-of-income upload. The mobile flow creates the
+income first, then sends the proof as multipart field `proof` to
+`PUT /api/income/:id`. The API stores the protected file reference in the
+existing canonical `fileUrl` field. `GET /api/income/:id/proof` authenticates the request, scopes the
+income lookup to `req.user.id`, and streams the file only to its owner.
 
 Expenses can include receipt uploads. Upload validation allows JPEG, PNG, and
 PDF files. Files are stored under `UPLOAD_DIR`; the database stores a
@@ -663,6 +671,7 @@ Authentication:
 
 Personal data isolation:
 - Income and expenses query by `userId`.
+- Income proof download checks income ownership before sending a file.
 - Budget, liabilities, imports, and personal opening balance query by `user`.
 - Expense receipt download checks expense ownership before sending a file.
 - Receipt Inbox download checks standalone receipt ownership before sending a
@@ -681,6 +690,10 @@ Transport and browser boundaries:
 
 File upload controls:
 - Expense receipt uploads restrict mime type and file extension.
+- Expense receipts and income proofs use cryptographically unique stored names,
+  require matching allowlisted MIME/extension pairs, and share the configured
+  upload size limit.
+- Income ownership is verified before proof data is written to disk.
 - Receipt Inbox uploads restrict mime type and file extension, store files with
   random internal filenames, and serve files only through authenticated routes.
 - CSV and PDF import uploads use memory storage and size limits.
@@ -780,8 +793,8 @@ They do not block the current v2.0.0 stable portfolio release:
   `/settlements` that are not mounted in the current server entry point.
 - `client/src/components/ProtectedRoute.jsx` is empty; protected routing is
   implemented inline in `App.jsx`.
-- Account export/delete currently covers user, income, expenses, and receipt
-  files, but newer domain collections such as liabilities, budgets, imports,
+- Account export/delete currently covers user, income, expenses, receipt files,
+  and income proof files, but newer domain collections such as liabilities, budgets, imports,
   groups, memberships, settlements, and opening balances are not included.
 - `server/scripts/backupMongo.mjs` backs up only users, incomes, expenses, and
   telemetry events, using Munmai-branded backup filenames.

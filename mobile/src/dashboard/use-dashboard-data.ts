@@ -4,8 +4,9 @@ import { getDashboardData, type DashboardData } from '@/api/dashboard';
 import { getErrorMessage } from '@/api/client';
 import { isNormalizedApiError } from '@/auth/types';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
+import { transactionDataRefresh } from '@/transactions/transaction-data-refresh';
 
-type LoadMode = 'initial' | 'refresh';
+type LoadMode = 'initial' | 'refresh' | 'silent';
 
 export interface DashboardDataState {
   data: DashboardData | null;
@@ -45,7 +46,7 @@ export function useDashboardData(): DashboardDataState {
 
     if (mode === 'refresh') {
       setIsRefreshing(true);
-    } else {
+    } else if (mode === 'initial') {
       setIsLoading(true);
     }
 
@@ -106,8 +107,13 @@ export function useDashboardData(): DashboardDataState {
     coordinator.current.invalidate();
     activeController.current?.abort();
     activeController.current = null;
-    void load('refresh');
+    void load('silent');
   }, [load]);
+
+  useEffect(
+    () => transactionDataRefresh.subscribe(refreshAfterMutation),
+    [refreshAfterMutation],
+  );
 
   const retry = useCallback(() => {
     void load('initial');

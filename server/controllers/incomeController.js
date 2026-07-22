@@ -1,4 +1,42 @@
+import { access, unlink } from "fs/promises";
+import mongoose from "mongoose";
 import Income from "../models/Income.js";
+import { resolveStoredFilePath } from "../utils/uploadPaths.js";
+import {
+  getSafeStoredUploadExtension,
+  getStoredUploadMimeType,
+} from "../utils/uploadTypes.js";
+
+const buildFileUrl = (file) => (file ? `/uploads/${file.filename}` : "");
+
+const deleteStoredProofFile = async (fileUrl) => {
+  const filePath = resolveStoredFilePath(fileUrl);
+
+  if (!filePath) {
+    return false;
+  }
+
+  try {
+    await unlink(filePath);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return false;
+    }
+
+    console.warn("Failed to delete stored income proof", {
+      fileUrl,
+      error: error?.message,
+    });
+    return false;
+  }
+};
+
+const cleanupUploadedProof = async (file) => {
+  if (file?.filename) {
+    await deleteStoredProofFile(buildFileUrl(file));
+  }
+};
 
 const normalizeIncomePayload = (body = {}, fallbackDate = new Date()) => ({
   amount: Number(body.amount),
@@ -22,14 +60,6 @@ const validateIncomePayload = (payload) => {
   }
 
   return "";
-};
-
-const applyIncomePayload = (income, payload) => {
-  income.amount = payload.amount;
-  income.source = payload.source;
-  income.category = payload.category;
-  income.date = payload.date;
-  income.notes = payload.notes;
 };
 
 const findUserIncomeById = (incomeId, userId) =>
@@ -74,27 +104,118 @@ export const getIncomes = async (req, res) => {
 // @desc    Update income
 // @route   PUT /api/income/:id
 export const updateIncome = async (req, res) => {
+  const uploadedFileUrl = buildFileUrl(req.file);
+  let databaseUpdated = false;
+
   try {
-    const income = await findUserIncomeById(req.params.id, req.user.id);
+    const incomePayload = normalizeIncomePayload(
+      req.body,
+      req.ownedIncome?.date || new Date(),
+    );
+    const validationError = validateIncomePayload(incomePayload);
+
+    if (validationError) {
+      await cleanupUploadedProof(req.file);
+      return res.status(400).json({ message: validationError });
+    }
+
+    const update = { ...incomePayload };
+
+    if (uploadedFileUrl) {
+      update.fileUrl = uploadedFileUrl;
+    }
+
+    const previousIncome = await Income.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      { $set: update },
+      { returnDocument: "before", runValidators: true },
+    );
+
+    if (!previousIncome) {
+      await cleanupUploadedProof(req.file);
+      return res.status(404).json({ message: "Income record not found" });
+    }
+
+    databaseUpdated = true;
+
+    if (
+      uploadedFileUrl &&
+      previousIncome.fileUrl &&
+      previousIncome.fileUrl !== uploadedFileUrl
+    ) {
+      await deleteStoredProofFile(previousIncome.fileUrl);
+    }
+
+    const updatedIncome = await findUserIncomeById(req.params.id, req.user.id);
+
+    if (!updatedIncome) {
+      return res.status(404).json({ message: "Income record not found" });
+    }
+
+    return res.status(200).json(updatedIncome);
+  } catch (error) {
+    if (!databaseUpdated) {
+      await cleanupUploadedProof(req.file);
+    }
+    return res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// @desc    Stream proof of income for the logged in owner
+// @route   GET /api/income/:id/proof
+export const getIncomeProofFile = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ message: "Income record not found" });
+  }
+
+  try {
+    const income = await Income.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+    }).lean();
 
     if (!income) {
       return res.status(404).json({ message: "Income record not found" });
     }
 
-    const incomePayload = normalizeIncomePayload(req.body, income.date);
-    const validationError = validateIncomePayload(incomePayload);
-
-    if (validationError) {
-      return res.status(400).json({ message: validationError });
+    if (!income.fileUrl) {
+      return res.status(404).json({ message: "Proof of income not found" });
     }
 
-    applyIncomePayload(income, incomePayload);
+    const filePath = resolveStoredFilePath(income.fileUrl);
+    const contentType = getStoredUploadMimeType(income.fileUrl);
+    const extension = getSafeStoredUploadExtension(income.fileUrl);
 
-    const updatedIncome = await income.save();
+    if (!filePath || !contentType || !extension) {
+      return res.status(404).json({ message: "Proof of income not found" });
+    }
 
-    return res.status(200).json(updatedIncome);
+    try {
+      await access(filePath);
+    } catch {
+      return res.status(404).json({ message: "Proof of income not found" });
+    }
+
+    res.set({
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": `attachment; filename="income-proof${extension}"`,
+      "Content-Type": contentType,
+      "X-Content-Type-Options": "nosniff",
+    });
+
+    return res.sendFile(filePath, (error) => {
+      if (error && !res.headersSent) {
+        res.status(error.statusCode || 500).json({
+          message: "Proof of income delivery failed",
+        });
+      }
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Server Error" });
+    if (error?.name === "CastError") {
+      return res.status(404).json({ message: "Income record not found" });
+    }
+
+    return res.status(500).json({ message: "Proof of income delivery failed" });
   }
 };
 
@@ -102,13 +223,22 @@ export const updateIncome = async (req, res) => {
 // @route   DELETE /api/income/:id
 export const deleteIncome = async (req, res) => {
   try {
-    const income = await findUserIncomeById(req.params.id, req.user.id);
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: "Income record not found" });
+    }
+
+    const income = await Income.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
 
     if (!income) {
       return res.status(404).json({ message: "Income record not found" });
     }
 
-    await income.deleteOne();
+    if (income.fileUrl) {
+      await deleteStoredProofFile(income.fileUrl);
+    }
 
     return res.status(200).json({
       id: req.params.id,

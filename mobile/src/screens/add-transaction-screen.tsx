@@ -17,6 +17,7 @@ import { TextField } from '@/components/text-field';
 import { colors, getFormBottomPadding } from '@/constants/theme';
 import { getHomeAfterTransactionTarget } from '@/navigation/routes';
 import { useReceiptPicker } from '@/receipts/use-receipt-picker';
+import { shouldClearTransactionAttachment } from '@/transactions/transaction-attachment-copy';
 import { type TransactionType } from '@/transactions/transaction-form';
 import { useAddTransactionForm } from '@/transactions/use-add-transaction-form';
 
@@ -33,7 +34,29 @@ export function AddTransactionScreen({
 }: AddTransactionScreenProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const handleSuccess = useCallback(
+    (type: TransactionType) => {
+      router.replace(getHomeAfterTransactionTarget(type) as unknown as Href);
+    },
+    [router],
+  );
   const {
+    discardPendingAttachment,
+    errors,
+    isFormLocked,
+    isSubmitting,
+    attachmentUploadFailed,
+    requestError,
+    retryAttachmentUpload,
+    selectType,
+    submissionStage,
+    submit,
+    updateField,
+    values,
+  } = useAddTransactionForm({ initialType, onSuccess: handleSuccess });
+  const isIncome = values.type === 'income';
+  const {
+    choosePdf,
     chooseFromLibrary,
     isPicking,
     openSettings,
@@ -42,49 +65,48 @@ export function AddTransactionScreen({
     receipt,
     removeReceipt,
     takePhoto,
-  } = useReceiptPicker();
-  const handleSuccess = useCallback(
-    (type: TransactionType) => {
-      removeReceipt();
-      router.replace(getHomeAfterTransactionTarget(type) as unknown as Href);
-    },
-    [removeReceipt, router],
-  );
-  const {
-    errors,
-    isFormLocked,
-    isSubmitting,
-    receiptUploadFailed,
-    requestError,
-    retryReceiptUpload,
-    selectType,
-    submissionStage,
-    submit,
-    updateField,
-    values,
-  } = useAddTransactionForm({ initialType, onSuccess: handleSuccess });
-  const isIncome = values.type === 'income';
+  } = useReceiptPicker(isIncome ? 'income-proof' : 'receipt');
   const formDisabled = isSubmitting || isFormLocked;
   const loadingLabel =
-    submissionStage === 'uploading-receipt'
-      ? 'Uploading receipt…'
+    submissionStage === 'uploading-attachment'
+      ? isIncome
+        ? 'Uploading proof…'
+        : 'Uploading receipt…'
       : isIncome
         ? 'Saving income…'
         : 'Saving expense…';
 
-  const receiptField = !isIncome ? (
+  const handleSelectType = useCallback(
+    (type: TransactionType) => {
+      if (shouldClearTransactionAttachment(values.type, type, receipt !== null)) {
+        removeReceipt();
+      }
+
+      selectType(type);
+    },
+    [receipt, removeReceipt, selectType, values.type],
+  );
+
+  const handleDiscardPendingAttachment = useCallback(() => {
+    discardPendingAttachment();
+    removeReceipt();
+  }, [discardPendingAttachment, removeReceipt]);
+
+  const attachmentField = (
     <ReceiptPickerField
       disabled={formDisabled}
       isPicking={isPicking}
       onChooseFromLibrary={() => void chooseFromLibrary()}
+      onChoosePdf={() => void choosePdf()}
       onOpenSettings={() => void openSettings()}
       onRemove={removeReceipt}
       onTakePhoto={() => void takePhoto()}
       permissionIssue={permissionIssue}
       pickerError={pickerError}
       receipt={receipt}
+      transactionType={values.type}
     />
-  ) : null;
+  );
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
@@ -107,8 +129,8 @@ export function AddTransactionScreen({
               </Text>
               <Text style={styles.subtitle}>
                 {receiptFirst
-                  ? 'Take a photo or choose one receipt image, then confirm the expense details.'
-                  : 'Save the essentials now. Add one receipt image to an expense when needed.'}
+                  ? 'Take a photo or choose one receipt image or PDF, then confirm the expense details.'
+                  : 'Save the essentials now. Add one supporting image or PDF when needed.'}
               </Text>
             </View>
 
@@ -119,30 +141,34 @@ export function AddTransactionScreen({
                   accessibilityRole="alert"
                   style={[
                     styles.errorNotice,
-                    receiptUploadFailed && styles.partialFailureNotice,
+                    attachmentUploadFailed && styles.partialFailureNotice,
                   ]}>
-                  {receiptUploadFailed ? (
+                  {attachmentUploadFailed ? (
                     <Text style={styles.partialFailureTitle}>
-                      Expense saved · receipt pending
+                      {isIncome ? 'Income saved · proof pending' : 'Expense saved · receipt pending'}
                     </Text>
                   ) : null}
                   <Text
                     style={
-                      receiptUploadFailed ? styles.partialFailureText : styles.errorText
+                      attachmentUploadFailed ? styles.partialFailureText : styles.errorText
                     }>
                     {requestError}
                   </Text>
                 </View>
               ) : null}
 
-              {submissionStage === 'uploading-receipt' ? (
+              {submissionStage === 'uploading-attachment' ? (
                 <View accessibilityLiveRegion="polite" style={styles.progressNotice}>
-                  <Text style={styles.progressTitle}>Expense saved</Text>
-                  <Text style={styles.progressText}>Uploading the receipt image now…</Text>
+                  <Text style={styles.progressTitle}>
+                    {isIncome ? 'Income saved' : 'Expense saved'}
+                  </Text>
+                  <Text style={styles.progressText}>
+                    {isIncome ? 'Uploading the income document now…' : 'Uploading the receipt now…'}
+                  </Text>
                 </View>
               ) : null}
 
-              {receiptFirst ? receiptField : null}
+              {receiptFirst ? attachmentField : null}
 
               <View style={styles.selectorGroup}>
                 <Text style={styles.label}>Type</Text>
@@ -159,7 +185,7 @@ export function AddTransactionScreen({
                         }}
                         disabled={formDisabled}
                         key={type}
-                        onPress={() => selectType(type)}
+                        onPress={() => handleSelectType(type)}
                         style={({ pressed }) => [
                           styles.selectorButton,
                           isSelected &&
@@ -214,7 +240,7 @@ export function AddTransactionScreen({
                 />
               </View>
 
-              {!receiptFirst ? receiptField : null}
+              {!receiptFirst ? attachmentField : null}
 
               <Text style={styles.helperText}>
                 {isIncome
@@ -223,13 +249,35 @@ export function AddTransactionScreen({
               </Text>
 
               {isFormLocked ? (
-                <PrimaryButton
-                  label="Retry receipt upload"
-                  loading={isSubmitting}
-                  loadingLabel="Uploading receipt…"
-                  onPress={() => void retryReceiptUpload()}
-                  tone="expense"
-                />
+                <View style={styles.retryActions}>
+                  <PrimaryButton
+                    label={isIncome ? 'Retry proof upload' : 'Retry receipt upload'}
+                    loading={isSubmitting}
+                    loadingLabel={isIncome ? 'Uploading proof…' : 'Uploading receipt…'}
+                    onPress={() => void retryAttachmentUpload()}
+                    tone={values.type}
+                  />
+                  <Text style={styles.discardHelp}>
+                    The {isIncome ? 'income' : 'expense'} is already saved. Discarding the
+                    upload retry resets this form without deleting it.
+                  </Text>
+                  <Pressable
+                    accessibilityLabel={
+                      isIncome ? 'Discard proof upload retry' : 'Discard receipt upload retry'
+                    }
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isSubmitting }}
+                    disabled={isSubmitting}
+                    onPress={handleDiscardPendingAttachment}
+                    style={({ pressed }) => [
+                      styles.discardButton,
+                      pressed && !isSubmitting && styles.discardButtonPressed,
+                    ]}>
+                    <Text style={styles.discardButtonText}>
+                      {isIncome ? 'Discard proof upload retry' : 'Discard receipt upload retry'}
+                    </Text>
+                  </Pressable>
+                </View>
               ) : (
                 <PrimaryButton
                   disabled={isSubmitting}
@@ -386,5 +434,31 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
+  },
+  retryActions: {
+    gap: 10,
+  },
+  discardHelp: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  discardButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 13,
+    backgroundColor: colors.surfaceRaised,
+    paddingHorizontal: 14,
+  },
+  discardButtonPressed: {
+    opacity: 0.72,
+  },
+  discardButtonText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

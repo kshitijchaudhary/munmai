@@ -5,8 +5,9 @@ import { getTransactionHistory } from '@/api/transaction-history';
 import { isNormalizedApiError } from '@/auth/types';
 import type { TransactionRecord } from '@/transactions/transaction-history-model';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
+import { transactionDataRefresh } from '@/transactions/transaction-data-refresh';
 
-type LoadMode = 'initial' | 'refresh';
+type LoadMode = 'initial' | 'refresh' | 'silent';
 type TransactionHistoryErrorKind = 'offline' | 'request';
 
 interface TransactionHistoryError {
@@ -51,7 +52,7 @@ export function useTransactionHistory(): TransactionHistoryState {
 
     if (mode === 'refresh') {
       setIsRefreshing(true);
-    } else {
+    } else if (mode === 'initial') {
       setIsLoading(true);
     }
 
@@ -111,6 +112,18 @@ export function useTransactionHistory(): TransactionHistoryState {
   const refresh = useCallback(() => {
     void load('refresh');
   }, [load]);
+
+  const refreshAfterMutation = useCallback(() => {
+    coordinator.current.invalidate();
+    activeController.current?.abort();
+    activeController.current = null;
+    void load('silent');
+  }, [load]);
+
+  useEffect(
+    () => transactionDataRefresh.subscribe(refreshAfterMutation),
+    [refreshAfterMutation],
+  );
 
   const retry = useCallback(() => {
     void load('initial');

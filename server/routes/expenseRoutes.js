@@ -6,7 +6,7 @@ import {
   deleteExpense,
 } from '../controllers/expenseController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import upload from '../middleware/uploadMiddleware.js';
+import { singleUpload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -14,10 +14,10 @@ router.use(protect);
 
 router.route('/')
   .get(getExpenses)
-  .post(upload.single('receipt'), addExpense);
+  .post(singleUpload('receipt'), addExpense);
 
 router.route('/:id')
-  .put(upload.single('receipt'), updateExpense)
+  .put(singleUpload('receipt'), updateExpense)
   .delete(deleteExpense);
 
 export default router;

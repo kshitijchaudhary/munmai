@@ -47,11 +47,13 @@ npx tsc --noEmit           # Validate TypeScript
 npx expo export --platform web  # Produce a static web export
 ```
 
-## Receipt behavior
+## Supporting-document behavior
 
-Expense capture accepts one optional JPEG or PNG receipt image, up to 5 MB, from the camera or photo library. The image can be previewed, removed, or replaced before submission.
+Expense capture accepts one optional JPEG, PNG, or PDF receipt up to 5 MB. Income capture accepts one optional JPEG, PNG, or PDF income document such as a payslip, payment confirmation, or bank screenshot. Photos use the camera or image library; PDFs use the system document picker. Images retain their preview, while PDFs show their filename without an in-app document preview. Either type can be removed or replaced, and changing transaction type clears the selected attachment.
 
-The expense and receipt are saved in two steps. If expense creation succeeds but receipt upload fails, the form retains the created expense ID and offers a receipt-upload retry. Retrying resumes at the upload step and does **not** create a second expense. The pending retry is an in-memory form state; it is not an offline queue and does not survive closing the flow or restarting the app.
+Transactions and their supporting documents are saved in two steps. If transaction creation succeeds but the upload fails, the form retains the created transaction ID and offers an upload retry. Retrying resumes at the upload step and does **not** create a second income or expense record. Successful mutations refresh Today, Activity, Insights, and matching transaction details; attachment mutations receive one additional silent revalidation after three seconds without permanent polling. The pending retry is an in-memory form state; it is not an offline queue and does not survive closing the flow or restarting the app.
+
+After a failed upload, users may explicitly discard the upload retry. The already-created transaction remains saved without its supporting document, while the form, selected attachment, retry identifier, and errors reset before another transaction type can be selected.
 
 ## Development status
 

@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { PrimaryButton } from '@/components/primary-button';
 import { colors } from '@/constants/theme';
 import { getAuthExitTransition } from '@/navigation/routes';
+import { transactionDataRefresh } from '@/transactions/transaction-data-refresh';
 
 function AuthNavigator() {
   const { restoreError, retryRestoration, signOut, status } = useAuth();
@@ -76,6 +77,8 @@ function AuthNavigator() {
 }
 
 export default function RootLayout() {
+  useEffect(() => () => transactionDataRefresh.clear(), []);
+
   return (
     <AuthProvider>
       <AuthNavigator />
