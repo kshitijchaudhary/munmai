@@ -7,6 +7,7 @@ import {
   borders,
   colors,
   fontWeights,
+  getFormBottomPadding,
   getTabItemWidth,
   layout,
   radii,
@@ -23,18 +24,17 @@ const captureActions = getCaptureActions(PUBLIC_ROUTES);
 test('Capture actions point only to supported existing workflows', () => {
   assert.deepEqual(
     captureActions.map((action) => action.id),
-    ['scan-receipt', 'add-expense', 'add-income', 'split-expense'],
+    ['scan-receipt', 'add-expense', 'add-income'],
   );
 
-  const supportedPaths = new Set(['/add/transaction', '/groups']);
   for (const action of captureActions) {
-    assert.equal(supportedPaths.has(action.pathname), true, `${action.id} has an unsupported target`);
+    assert.equal(action.pathname, '/add/transaction');
     assert.equal(action.pathname.includes('(app)'), false);
     assert.equal(action.pathname.includes('/index'), false);
   }
 
   assert.deepEqual(captureActions[0].params, { capture: 'receipt', type: 'expense' });
-  assert.deepEqual(captureActions[3].params, { intent: 'split' });
+  assert.equal(captureActions.some((action) => action.id === 'split-expense'), false);
 });
 
 test('design tokens retain a valid compact hierarchy', () => {
@@ -58,6 +58,56 @@ test('five-tab geometry fits supported widths without horizontal overflow', () =
   assert.equal(getTabItemWidth(430) * layout.tabCount, 430);
   assert.equal(getTabItemWidth(1024) * layout.tabCount, layout.appShellMaxWidth);
   assert.equal(getTabItemWidth(375) >= touchTargets.minimum, true);
+});
+
+test('nested forms clear the tab bar and bottom safe area', () => {
+  assert.equal(getFormBottomPadding(), layout.tabBarBaseHeight + spacing.lg);
+  assert.equal(
+    getFormBottomPadding(34),
+    layout.tabBarBaseHeight + spacing.lg + 34,
+  );
+  assert.equal(getFormBottomPadding(-10), layout.tabBarBaseHeight + spacing.lg);
+
+  const formSources = [
+    '../src/screens/add-transaction-screen.tsx',
+    '../src/app/(app)/groups/[groupId]/add-expense.tsx',
+    '../src/app/(app)/groups/[groupId]/settlements/new.tsx',
+  ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'));
+
+  for (const source of formSources) {
+    assert.match(source, /getFormBottomPadding\(insets\.bottom\)/);
+    assert.match(source, /keyboardShouldPersistTaps="handled"/);
+  }
+});
+
+test('tab roots are headerless while nested Capture and Space routes retain headers', () => {
+  const captureLayout = readFileSync(
+    new URL('../src/app/(app)/add/_layout.tsx', import.meta.url),
+    'utf8',
+  );
+  const captureRoute = readFileSync(
+    new URL('../src/app/(app)/add/transaction.tsx', import.meta.url),
+    'utf8',
+  );
+  const groupsLayout = readFileSync(
+    new URL('../src/app/(app)/groups/_layout.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(captureLayout, /name="index" options=\{\{ headerShown: false \}\}/);
+  assert.match(captureLayout, /name="transaction" options=\{\{ headerShown: true/);
+  assert.match(captureRoute, /capture === 'receipt' \? 'Scan receipt' : 'Add transaction'/);
+  assert.match(groupsLayout, /headerShown: true/);
+  assert.match(groupsLayout, /name="index" options=\{\{ headerShown: false/);
+
+  for (const nestedRoute of [
+    '[groupId]/index',
+    '[groupId]/add-expense',
+    '[groupId]/settlements/index',
+    '[groupId]/settlements/new',
+  ]) {
+    assert.equal(groupsLayout.includes(`name="${nestedRoute}"`), true);
+  }
 });
 
 test('Capture uses supported receipt-capture symbols on every platform', () => {

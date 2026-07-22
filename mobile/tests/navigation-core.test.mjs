@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
   AUTHENTICATED_TABS,
+  CAPTURE_HUB_TARGET,
   getAuthExitTransition,
   getAuthenticatedTabHref,
   getHomeAfterTransactionTarget,
@@ -30,6 +32,23 @@ test('Capture is the exact center tab', () => {
     label: 'Capture',
     href: '/add',
   });
+});
+
+test('Activity and Insights empty states preserve the Capture hub target', () => {
+  assert.equal(CAPTURE_HUB_TARGET, '/add');
+  assert.notEqual(CAPTURE_HUB_TARGET, PUBLIC_ROUTES.transactionForm);
+
+  const activitySource = readFileSync(
+    new URL('../src/app/(app)/transactions/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const insightsSource = readFileSync(
+    new URL('../src/app/(app)/analytics.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(activitySource, /router\.navigate\(CAPTURE_HUB_TARGET as Href\)/);
+  assert.match(insightsSource, /router\.navigate\(CAPTURE_HUB_TARGET as Href\)/);
 });
 
 test('Insights preserves the public /analytics route', () => {

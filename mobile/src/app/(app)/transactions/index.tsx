@@ -16,10 +16,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
+import { EmptyState } from '@/components/empty-state';
 import { TransactionFeedRow } from '@/components/transaction-feed-row';
 import { TransactionMonthSelector } from '@/components/transaction-month-selector';
 import { TransactionTypeFilterControl } from '@/components/transaction-type-filter';
 import { colors } from '@/constants/theme';
+import { CAPTURE_HUB_TARGET } from '@/navigation/routes';
 import {
   filterTransactionRecords,
   getCurrentTransactionMonth,
@@ -85,6 +87,17 @@ export default function TransactionsScreen() {
     visibleTransactions.length === 0
       ? styles.emptyListContent
       : styles.listContent;
+  const hasActiveFilter = selectedMonth !== currentMonth || selectedType !== 'all';
+
+  const handleEmptyAction = useCallback(() => {
+    if (hasActiveFilter) {
+      setSelectedMonth(currentMonth);
+      setSelectedType('all');
+      return;
+    }
+
+    router.navigate(CAPTURE_HUB_TARGET as Href);
+  }, [currentMonth, hasActiveFilter, router]);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
@@ -163,15 +176,17 @@ export default function TransactionsScreen() {
               keyExtractor={keyExtractor}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
-                <View style={styles.emptyCard}>
-                  <View style={styles.emptyMark}>
-                    <Text style={styles.emptyMarkText}>≡</Text>
-                  </View>
-                  <Text style={styles.emptyTitle}>No transactions here</Text>
-                  <Text style={styles.emptyMessage}>
-                    Try another month or transaction type.
-                  </Text>
-                </View>
+                <EmptyState
+                  actionLabel={hasActiveFilter ? 'Show current activity' : 'Capture a transaction'}
+                  icon={{ ios: 'list.bullet.rectangle', android: 'receipt_long', web: 'receipt_long' }}
+                  message={
+                    hasActiveFilter
+                      ? 'Try the current month with all transaction types.'
+                      : 'Income and expenses you add will appear here.'
+                  }
+                  onAction={handleEmptyAction}
+                  title="No transactions here"
+                />
               }
               refreshControl={
                 <RefreshControl
@@ -297,39 +312,5 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     paddingHorizontal: 20,
     paddingTop: 10,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 24,
-    paddingVertical: 30,
-  },
-  emptyMark: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: colors.accentSoft,
-  },
-  emptyMarkText: {
-    color: colors.accent,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  emptyMessage: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
   },
 });

@@ -1,8 +1,7 @@
 export type CaptureActionId =
   | 'scan-receipt'
   | 'add-expense'
-  | 'add-income'
-  | 'split-expense';
+  | 'add-income';
 
 export interface CaptureAction {
   description: string;
@@ -13,7 +12,6 @@ export interface CaptureAction {
 }
 
 interface CaptureRoutes {
-  groups: string;
   transactionForm: string;
 }
 
@@ -39,13 +37,6 @@ export function getCaptureActions(routes: CaptureRoutes): readonly CaptureAction
       description: 'Record money you received.',
       pathname: routes.transactionForm,
       params: { type: 'income' },
-    },
-    {
-      id: 'split-expense',
-      label: 'Split expense',
-      description: 'Choose a Space and add a shared expense.',
-      pathname: routes.groups,
-      params: { intent: 'split' },
     },
   ] as const;
 }
