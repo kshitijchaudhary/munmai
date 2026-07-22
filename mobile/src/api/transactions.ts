@@ -1,6 +1,10 @@
 import { apiClient } from '@/api/client';
 import type { ReceiptImage } from '@/receipts/receipt-image';
 import {
+  buildExpenseReceiptFormData,
+  buildIncomeProofFormData,
+} from '@/transactions/transaction-form-data';
+import {
   type CreateExpensePayload,
   type CreateIncomePayload,
   type CreateTransactionRequest,
@@ -9,8 +13,20 @@ import {
 export interface CreatedIncomeResponse extends CreateIncomePayload {
   _id: string;
   userId: string;
+  fileUrl: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export async function createIncome(
+  payload: CreateIncomePayload,
+  signal?: AbortSignal,
+): Promise<CreatedIncomeResponse> {
+  const response = await apiClient.post<CreatedIncomeResponse>('/income', payload, {
+    signal,
+  });
+
+  return response.data;
 }
 
 export interface CreatedExpenseResponse extends CreateExpensePayload {
@@ -34,35 +50,6 @@ export async function createExpense(
   return response.data;
 }
 
-function buildExpenseReceiptFormData(
-  payload: CreateExpensePayload,
-  receipt: ReceiptImage,
-): FormData {
-  const formData = new FormData();
-
-  formData.append('amount', String(payload.amount));
-  formData.append('recipient', payload.recipient);
-  formData.append('category', payload.category);
-  formData.append('expenseType', payload.expenseType);
-  formData.append('deductible', String(payload.deductible));
-  formData.append('date', payload.date);
-
-  if (receipt.webFile) {
-    formData.append('receipt', receipt.webFile, receipt.fileName);
-  } else {
-    formData.append(
-      'receipt',
-      {
-        uri: receipt.uri,
-        name: receipt.fileName,
-        type: receipt.mimeType,
-      } as unknown as Blob,
-    );
-  }
-
-  return formData;
-}
-
 export async function uploadExpenseReceipt(
   expenseId: string,
   payload: CreateExpensePayload,
@@ -73,7 +60,23 @@ export async function uploadExpenseReceipt(
     `/expenses/${encodeURIComponent(expenseId)}`,
     buildExpenseReceiptFormData(payload, receipt),
     {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      signal,
+    },
+  );
+
+  return response.data;
+}
+
+export async function uploadIncomeProof(
+  incomeId: string,
+  payload: CreateIncomePayload,
+  proof: ReceiptImage,
+  signal?: AbortSignal,
+): Promise<CreatedIncomeResponse> {
+  const response = await apiClient.put<CreatedIncomeResponse>(
+    `/income/${encodeURIComponent(incomeId)}`,
+    buildIncomeProofFormData(payload, proof),
+    {
       signal,
     },
   );
@@ -86,11 +89,7 @@ export async function createTransaction(
   signal?: AbortSignal,
 ): Promise<CreatedIncomeResponse | CreatedExpenseResponse> {
   if (request.type === 'income') {
-    const response = await apiClient.post<CreatedIncomeResponse>('/income', request.payload, {
-      signal,
-    });
-
-    return response.data;
+    return createIncome(request.payload, signal);
   }
 
   return createExpense(request.payload, signal);

@@ -1,12 +1,19 @@
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 
 import {
   normalizeReceiptImage,
+  normalizePdfDocumentPickerResult,
   receiptSelectionReducer,
   type ReceiptImage,
+  type SupportingDocumentKind,
 } from '@/receipts/receipt-image';
+import {
+  PDF_DOCUMENT_PICKER_OPTIONS,
+} from '@/receipts/document-picker-model';
+import { getSupportingDocumentPermissionMessage } from '@/transactions/transaction-attachment-copy';
 
 type ReceiptPickerSource = 'camera' | 'library';
 
@@ -17,6 +24,7 @@ export interface ReceiptPermissionIssue {
 }
 
 export interface ReceiptPickerState {
+  choosePdf: () => Promise<void>;
   chooseFromLibrary: () => Promise<void>;
   isPicking: boolean;
   openSettings: () => Promise<void>;
@@ -33,40 +41,45 @@ const pickerOptions: ImagePicker.ImagePickerOptions = {
   mediaTypes: ['images'],
 };
 
-function permissionMessage(source: ReceiptPickerSource, canAskAgain: boolean): string {
-  const permissionName = source === 'camera' ? 'camera' : 'photo library';
-
-  if (!canAskAgain) {
-    return `Munmai cannot access your ${permissionName}. Open system settings to allow access, or continue without a receipt.`;
-  }
-
-  return `Allow ${permissionName} access to attach a receipt, or continue without one.`;
-}
-
-export function useReceiptPicker(): ReceiptPickerState {
+export function useReceiptPicker(
+  documentKind: SupportingDocumentKind = 'receipt',
+): ReceiptPickerState {
   const [receipt, dispatchReceipt] = useReducer(receiptSelectionReducer, null);
   const [permissionIssue, setPermissionIssue] = useState<ReceiptPermissionIssue | null>(null);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [isPicking, setIsPicking] = useState(false);
   const pickingRef = useRef(false);
   const mountedRef = useRef(true);
+  const documentKindRef = useRef(documentKind);
+
+  useEffect(() => {
+    documentKindRef.current = documentKind;
+  }, [documentKind]);
 
   const handleAsset = useCallback((asset: ImagePicker.ImagePickerAsset) => {
+    const currentDocumentKind = documentKindRef.current;
+
     if (Platform.OS === 'web' && !asset.file) {
       setPickerError(
-        'This browser did not provide an uploadable image file. Choose another receipt image.',
+        currentDocumentKind === 'income-proof'
+          ? 'This browser did not provide an uploadable image file. Choose another income document.'
+          : 'This browser did not provide an uploadable image file. Choose another receipt image.',
       );
       return;
     }
 
-    const result = normalizeReceiptImage({
-      uri: asset.uri,
-      fileName: asset.fileName,
-      fileSize: asset.fileSize,
-      mimeType: asset.mimeType,
-      type: asset.type,
-      webFile: asset.file,
-    });
+    const result = normalizeReceiptImage(
+      {
+        uri: asset.uri,
+        fileName: asset.fileName,
+        fileSize: asset.fileSize,
+        mimeType: asset.mimeType,
+        type: asset.type,
+        webFile: asset.file,
+      },
+      Date.now(),
+      currentDocumentKind,
+    );
 
     if (!result.ok) {
       setPickerError(result.message);
@@ -133,7 +146,11 @@ export function useReceiptPicker(): ReceiptPickerState {
       setPermissionIssue({
         source,
         canOpenSettings: !permission.canAskAgain,
-        message: permissionMessage(source, permission.canAskAgain),
+        message: getSupportingDocumentPermissionMessage(
+          source,
+          permission.canAskAgain,
+          documentKindRef.current,
+        ),
       });
     }
     return false;
@@ -169,10 +186,13 @@ export function useReceiptPicker(): ReceiptPickerState {
         }
       } catch {
         if (mountedRef.current) {
+          const currentDocumentKind = documentKindRef.current;
           setPickerError(
             source === 'camera'
               ? 'Munmai could not open the camera. Try again or choose from your library.'
-              : 'Munmai could not open your photo library. Try again or continue without a receipt.',
+              : currentDocumentKind === 'income-proof'
+                ? 'Munmai could not open your photo library. Try again or continue without proof of income.'
+                : 'Munmai could not open your photo library. Try again or continue without a receipt.',
           );
         }
       } finally {
@@ -189,6 +209,55 @@ export function useReceiptPicker(): ReceiptPickerState {
   const takePhoto = useCallback(() => launchPicker('camera'), [launchPicker]);
   const chooseFromLibrary = useCallback(() => launchPicker('library'), [launchPicker]);
 
+  const choosePdf = useCallback(async () => {
+    if (pickingRef.current) {
+      return;
+    }
+
+    pickingRef.current = true;
+    setIsPicking(true);
+    setPermissionIssue(null);
+    setPickerError(null);
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync(PDF_DOCUMENT_PICKER_OPTIONS);
+
+      if (!mountedRef.current) {
+        return;
+      }
+
+      const normalized = normalizePdfDocumentPickerResult(
+        result,
+        documentKindRef.current,
+      );
+
+      if (!normalized) {
+        return;
+      }
+
+      if (!normalized.ok) {
+        setPickerError(normalized.message);
+        return;
+      }
+
+      dispatchReceipt({ type: 'select', image: normalized.image });
+    } catch {
+      if (mountedRef.current) {
+        setPickerError(
+          documentKindRef.current === 'income-proof'
+            ? 'Munmai could not open the file picker. Try again or continue without an income document.'
+            : 'Munmai could not open the file picker. Try again or continue without a receipt.',
+        );
+      }
+    } finally {
+      pickingRef.current = false;
+
+      if (mountedRef.current) {
+        setIsPicking(false);
+      }
+    }
+  }, []);
+
   const removeReceipt = useCallback(() => {
     dispatchReceipt({ type: 'remove' });
     setPermissionIssue(null);
@@ -200,12 +269,18 @@ export function useReceiptPicker(): ReceiptPickerState {
       await Linking.openSettings();
     } catch {
       if (mountedRef.current) {
-        setPickerError('Open your device settings to allow receipt access for Munmai.');
+        const currentDocumentKind = documentKindRef.current;
+        setPickerError(
+          currentDocumentKind === 'income-proof'
+            ? 'Open your device settings to allow proof-of-income access for Munmai.'
+            : 'Open your device settings to allow receipt access for Munmai.',
+        );
       }
     }
   }, []);
 
   return {
+    choosePdf,
     chooseFromLibrary,
     isPicking,
     openSettings,

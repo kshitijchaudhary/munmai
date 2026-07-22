@@ -5,6 +5,7 @@ import { getTransactionById } from '@/api/transaction-history';
 import { isNormalizedApiError } from '@/auth/types';
 import type { TransactionRecord } from '@/transactions/transaction-history-model';
 import type { TransactionDetailRouteParams } from '@/transactions/transaction-routes';
+import { transactionDataRefresh } from '@/transactions/transaction-data-refresh';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
 
 export type TransactionDetailStatus =
@@ -36,7 +37,7 @@ export function useTransactionDetail(
   const coordinator = useRef(createRequestCoordinator());
   const activeController = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!type || !id) {
       setStatus('invalid');
       setRecord(null);
@@ -60,7 +61,9 @@ export function useTransactionDetail(
       return;
     }
 
-    setStatus('loading');
+    if (!silent) {
+      setStatus('loading');
+    }
     setError(null);
     setIsOffline(false);
 
@@ -122,6 +125,23 @@ export function useTransactionDetail(
   const retry = useCallback(() => {
     void load();
   }, [load]);
+
+  useEffect(
+    () =>
+      transactionDataRefresh.subscribe((event) => {
+        if (
+          event.mutation === 'attachment-changed' &&
+          event.transactionType === type &&
+          event.transactionId === id
+        ) {
+          coordinator.current.invalidate();
+          activeController.current?.abort();
+          activeController.current = null;
+          void load(true);
+        }
+      }),
+    [id, load, type],
+  );
 
   return { error, isOffline, record, retry, status };
 }

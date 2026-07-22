@@ -201,15 +201,26 @@ const sendPasswordResetEmail = async (email, name, rawToken) => {
   });
 };
 
-const removeStoredFile = (fileUrl) => {
+const removeStoredFile = async (fileUrl) => {
   if (!fileUrl) {
     return;
   }
 
   const filePath = resolveStoredFilePath(fileUrl);
 
-  if (filePath && fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
+  if (!filePath) {
+    return;
+  }
+
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      console.warn("Failed to remove stored account file", {
+        fileUrl,
+        error: error?.message,
+      });
+    }
   }
 };
 
@@ -589,20 +600,23 @@ export const exportUserData = async (req, res) => {
 
 export const deleteAccount = async (req, res) => {
   try {
-    const expenses = await Expense.find({ userId: req.user.id }).lean();
-
-    expenses.forEach((expense) => removeStoredFile(expense.receiptUrl));
-
-    await Promise.all([
-      Income.deleteMany({ userId: req.user.id }),
-      Expense.deleteMany({ userId: req.user.id }),
-      User.findByIdAndDelete(req.user.id),
+    const [incomes, expenses] = await Promise.all([
+      Income.find({ userId: req.user.id }).lean(),
+      Expense.find({ userId: req.user.id }).lean(),
     ]);
+
+    await Income.deleteMany({ userId: req.user.id });
+    await Promise.all(incomes.map((income) => removeStoredFile(income.fileUrl)));
+
+    await Expense.deleteMany({ userId: req.user.id });
+    await Promise.all(expenses.map((expense) => removeStoredFile(expense.receiptUrl)));
+
+    await User.findByIdAndDelete(req.user.id);
 
     return res.status(200).json({
       message: "Account and transaction data deleted successfully",
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: "Server Error" });
   }
 };

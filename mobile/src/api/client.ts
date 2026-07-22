@@ -121,6 +121,10 @@ function notifyAuthFailure(error: NormalizedApiError) {
 }
 
 apiClient.interceptors.request.use((config) => {
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers.set('Content-Type', undefined);
+  }
+
   if (activeToken) {
     config.headers.set('Authorization', `Bearer ${activeToken}`);
   }
