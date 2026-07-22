@@ -19,11 +19,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/auth-context';
 import { AvatarButton } from '@/components/avatar-button';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
+import { EmptyState } from '@/components/empty-state';
+import { MonthlySnapshot } from '@/components/monthly-snapshot';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecentTransactionRow } from '@/components/recent-transaction-row';
-import { SummaryCard } from '@/components/summary-card';
 import { colors } from '@/constants/theme';
-import { formatCurrency } from '@/dashboard/dashboard-model';
 import { useDashboardData } from '@/dashboard/use-dashboard-data';
 import { PUBLIC_ROUTES } from '@/navigation/routes';
 
@@ -138,26 +138,9 @@ export default function DashboardScreen() {
           {data ? (
             <View style={styles.section}>
               <View style={styles.sectionHeading}>
-                <Text style={styles.sectionTitle}>This month</Text>
-                <Text style={styles.month}>{data.summary.monthLabel}</Text>
+                <Text style={styles.sectionTitle}>Financial snapshot</Text>
               </View>
-              <View style={styles.summaryRow}>
-                <SummaryCard
-                  label="In"
-                  tone="income"
-                  value={formatCurrency(data.summary.incomeTotal)}
-                />
-                <SummaryCard
-                  label="Out"
-                  tone="expense"
-                  value={formatCurrency(data.summary.expenseTotal)}
-                />
-                <SummaryCard
-                  label="Net"
-                  tone="net"
-                  value={formatCurrency(data.summary.netTotal)}
-                />
-              </View>
+              <MonthlySnapshot summary={data.summary} />
             </View>
           ) : null}
 
@@ -201,13 +184,13 @@ export default function DashboardScreen() {
               </View>
 
               {data.recentTransactions.length === 0 ? (
-                <View style={styles.emptyCard}>
-                  <View style={styles.emptyIcon}>
-                    <Text style={styles.emptyIconText}>+</Text>
-                  </View>
-                  <Text style={styles.emptyTitle}>Start with one transaction.</Text>
-                  <Text style={styles.emptyCopy}>Your recent activity will appear here.</Text>
-                </View>
+                <EmptyState
+                  actionLabel="Capture a transaction"
+                  icon={{ ios: 'tray.fill', android: 'inbox', web: 'inbox' }}
+                  message="Your recent activity will appear here."
+                  onAction={() => router.navigate(PUBLIC_ROUTES.add as Href)}
+                  title="Start with one transaction."
+                />
               ) : (
                 <View style={styles.transactionCard}>
                   {data.recentTransactions.map((transaction) => (
@@ -314,10 +297,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -353,42 +332,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 24,
-    paddingVertical: 34,
-  },
-  emptyIcon: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 15,
-    backgroundColor: colors.accentSoft,
-    marginBottom: 4,
-  },
-  emptyIconText: {
-    color: colors.accent,
-    fontSize: 25,
-    fontWeight: '500',
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  emptyCopy: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
   },
   transactionCard: {
     overflow: 'hidden',

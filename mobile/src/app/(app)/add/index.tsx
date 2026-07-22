@@ -13,10 +13,9 @@ import { PUBLIC_ROUTES } from '@/navigation/routes';
 const captureActions = getCaptureActions(PUBLIC_ROUTES);
 
 const actionIcons: Record<CaptureActionId, ComponentProps<typeof SymbolView>['name']> = {
-  'scan-receipt': { ios: 'camera.fill', android: 'photo_camera', web: 'photo_camera' },
+  'scan-receipt': { ios: 'camera.fill', android: 'document_scanner', web: 'document_scanner' },
   'add-expense': { ios: 'minus.circle.fill', android: 'remove_circle', web: 'remove_circle' },
   'add-income': { ios: 'plus.circle.fill', android: 'add_circle', web: 'add_circle' },
-  'split-expense': { ios: 'person.2.fill', android: 'group', web: 'group' },
 };
 
 export default function CaptureScreen() {
@@ -45,9 +44,7 @@ export default function CaptureScreen() {
             tone={
               action.id === 'add-income'
                 ? 'positive'
-                : action.id === 'add-expense' || action.id === 'scan-receipt'
-                  ? 'outgoing'
-                  : 'accent'
+                : 'outgoing'
             }
           />
         ))}

@@ -15,6 +15,8 @@ export const PUBLIC_ROUTES = {
   register: '/register',
 } as const;
 
+export const CAPTURE_HUB_TARGET = PUBLIC_ROUTES.add;
+
 export const AUTHENTICATED_TABS = [
   { route: 'index', label: 'Today', href: PUBLIC_ROUTES.home },
   { route: 'transactions', label: 'Activity', href: PUBLIC_ROUTES.transactions },

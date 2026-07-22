@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 
 import { AddTransactionScreen } from '@/screens/add-transaction-screen';
 
@@ -12,10 +12,15 @@ export default function AddTransactionRoute() {
   const formKey = `${initialType}-${intent ?? 'direct'}-${capture ?? 'standard'}`;
 
   return (
-    <AddTransactionScreen
-      key={formKey}
-      initialType={initialType}
-      receiptFirst={capture === 'receipt'}
-    />
+    <>
+      <Stack.Screen
+        options={{ title: capture === 'receipt' ? 'Scan receipt' : 'Add transaction' }}
+      />
+      <AddTransactionScreen
+        key={formKey}
+        initialType={initialType}
+        receiptFirst={capture === 'receipt'}
+      />
+    </>
   );
 }

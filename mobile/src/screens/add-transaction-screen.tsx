@@ -9,12 +9,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/primary-button';
 import { ReceiptPickerField } from '@/components/receipt-picker-field';
 import { TextField } from '@/components/text-field';
-import { colors } from '@/constants/theme';
+import { colors, getFormBottomPadding } from '@/constants/theme';
 import { getHomeAfterTransactionTarget } from '@/navigation/routes';
 import { useReceiptPicker } from '@/receipts/use-receipt-picker';
 import { type TransactionType } from '@/transactions/transaction-form';
@@ -32,6 +32,7 @@ export function AddTransactionScreen({
   receiptFirst = false,
 }: AddTransactionScreenProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     chooseFromLibrary,
     isPicking,
@@ -86,12 +87,15 @@ export function AddTransactionScreen({
   ) : null;
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
+    <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: getFormBottomPadding(insets.bottom) },
+          ]}
           keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             <View style={styles.heading}>
@@ -254,7 +258,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 30,
     paddingTop: 24,
   },
   content: {

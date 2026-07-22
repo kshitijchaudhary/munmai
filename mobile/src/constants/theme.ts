@@ -77,3 +77,7 @@ export function getTabItemWidth(viewportWidth: number): number {
   const constrainedWidth = Math.min(Math.max(viewportWidth, 0), layout.appShellMaxWidth);
   return constrainedWidth / layout.tabCount;
 }
+
+export function getFormBottomPadding(safeAreaBottom = 0): number {
+  return layout.tabBarBaseHeight + spacing.lg + Math.max(0, safeAreaBottom);
+}

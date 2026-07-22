@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
 
 import { colors } from '@/constants/theme';
@@ -30,6 +31,7 @@ export function PrimaryButton({
   style,
   tone = 'accent',
 }: PrimaryButtonProps) {
+  const [focused, setFocused] = useState(false);
   const usesDarkText = tone === 'income' || tone === 'expense';
   const isDisabled = disabled || loading;
 
@@ -38,11 +40,14 @@ export function PrimaryButton({
       accessibilityRole="button"
       accessibilityState={{ busy: loading, disabled: isDisabled }}
       disabled={isDisabled}
+      onBlur={() => setFocused(false)}
+      onFocus={() => setFocused(true)}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: toneColors[tone] },
         style,
+        focused && styles.focused,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
       ]}>
@@ -59,6 +64,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
     paddingHorizontal: 18,
   },
   label: {
@@ -72,6 +79,9 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.82,
     transform: [{ scale: 0.99 }],
+  },
+  focused: {
+    borderColor: colors.text,
   },
   disabled: {
     opacity: 0.55,

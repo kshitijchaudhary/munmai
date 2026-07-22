@@ -1,13 +1,13 @@
 import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
-import { colors } from '@/constants/theme';
+import { colors, getFormBottomPadding } from '@/constants/theme';
 import { buildGroupRoute, parseGroupRoute } from '@/groups/group-routes';
 import { useGroupDetail } from '@/groups/use-group-detail';
 import { useSharedExpenseForm } from '@/groups/use-shared-expense-form';
@@ -16,6 +16,7 @@ export default function AddSharedExpenseScreen() {
   const params = useLocalSearchParams<{ groupId?: string | string[] }>();
   const groupId = parseGroupRoute(params.groupId);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const detail = useGroupDetail(groupId);
   const form = useSharedExpenseForm(groupId, detail.data?.members ?? []);
@@ -33,7 +34,7 @@ export default function AddSharedExpenseScreen() {
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: getFormBottomPadding(insets.bottom) }]} keyboardShouldPersistTaps="handled">
           <View style={styles.heading}><Text style={styles.eyebrow}>EQUAL SPLIT</Text><Text style={styles.title}>Add to {detail.data.group.name}</Text><Text style={styles.subtitle}>The server divides the amount equally across selected participants.</Text></View>
           <TextField label="Amount (CAD)" error={form.errors.amount} keyboardType="decimal-pad" placeholder="0.00" value={form.values.amount} onChangeText={(value) => form.setField('amount', value)} />
           <TextField label="Description" error={form.errors.description} placeholder="Dinner, groceries, tickets…" value={form.values.description} onChangeText={(value) => form.setField('description', value)} />
@@ -52,7 +53,7 @@ export default function AddSharedExpenseScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background }, flex: { flex: 1 }, state: { flex: 1, justifyContent: 'center', padding: 20 }, content: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: 20, padding: 20, paddingBottom: 36 },
+  safeArea: { flex: 1, backgroundColor: colors.background }, flex: { flex: 1 }, state: { flex: 1, justifyContent: 'center', padding: 20 }, content: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: 20, padding: 20 },
   heading: { gap: 5 }, eyebrow: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 26, fontWeight: '900' }, subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 19 }, note: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: -10 },
   field: { gap: 8 }, label: { color: colors.text, fontSize: 14, fontWeight: '700' }, option: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, paddingHorizontal: 15 }, optionSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, optionText: { flex: 1, color: colors.textMuted, fontSize: 14, fontWeight: '700' }, optionTextSelected: { color: colors.text }, check: { minWidth: 22, color: colors.accent, fontSize: 18, fontWeight: '900', textAlign: 'center' }, pressed: { opacity: 0.7 }, error: { color: colors.expense, fontSize: 12 }, submitError: { color: colors.expense, fontSize: 13, lineHeight: 19, borderWidth: 1, borderColor: colors.expense, borderRadius: 14, backgroundColor: colors.expenseSoft, padding: 12 }, cancel: { minHeight: 48, alignItems: 'center', justifyContent: 'center' }, cancelText: { color: colors.textMuted, fontSize: 14, fontWeight: '800' },
 });

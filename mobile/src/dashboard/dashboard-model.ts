@@ -190,6 +190,26 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+export function formatSignedCurrency(value: number): string {
+  if (value === 0) {
+    return formatCurrency(0);
+  }
+
+  return `${value > 0 ? '+' : '-'}${formatCurrency(Math.abs(value))}`;
+}
+
+export function getNetDirection(value: number): 'negative' | 'positive' | 'zero' {
+  if (value > 0) {
+    return 'positive';
+  }
+
+  if (value < 0) {
+    return 'negative';
+  }
+
+  return 'zero';
+}
+
 export function formatTransactionDate(dateValue: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     month: 'short',

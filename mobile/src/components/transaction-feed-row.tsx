@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/constants/theme';
@@ -16,6 +17,7 @@ export function TransactionFeedRow({
   onPress,
   transaction,
 }: TransactionFeedRowProps) {
+  const [focused, setFocused] = useState(false);
   const isIncome = transaction.type === 'income';
   const formattedAmount = `${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}`;
   const formattedDate = formatTransactionDate(transaction.date);
@@ -26,8 +28,10 @@ export function TransactionFeedRow({
       accessibilityHint="Opens transaction details"
       accessibilityLabel={`${typeLabel}, ${transaction.title}, ${transaction.category}, ${formattedDate}, ${formattedAmount}`}
       accessibilityRole="button"
+      onBlur={() => setFocused(false)}
+      onFocus={() => setFocused(true)}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+      style={({ pressed }) => [styles.row, focused && styles.rowFocused, pressed && styles.rowPressed]}>
       <View style={[styles.typeMark, isIncome ? styles.incomeMark : styles.expenseMark]}>
         <Text style={[styles.typeMarkText, isIncome ? styles.incomeText : styles.expenseText]}>
           {isIncome ? '+' : '−'}
@@ -74,6 +78,9 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: colors.surfaceRaised,
     opacity: 0.86,
+  },
+  rowFocused: {
+    borderColor: colors.accent,
   },
   typeMark: {
     width: 38,

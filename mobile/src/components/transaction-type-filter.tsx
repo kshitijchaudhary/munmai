@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/constants/theme';
@@ -18,8 +19,10 @@ export function TransactionTypeFilterControl({
   onChange,
   value,
 }: TransactionTypeFilterProps) {
+  const [focusedFilter, setFocusedFilter] = useState<TransactionTypeFilter | null>(null);
+
   return (
-    <View accessibilityLabel="Transaction type filter" style={styles.container}>
+    <View accessibilityLabel="Transaction type filter" accessibilityRole="tablist" style={styles.container}>
       {filters.map((filter) => {
         const selected = filter.value === value;
 
@@ -28,10 +31,13 @@ export function TransactionTypeFilterControl({
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             key={filter.value}
+            onBlur={() => setFocusedFilter(null)}
+            onFocus={() => setFocusedFilter(filter.value)}
             onPress={() => onChange(filter.value)}
             style={({ pressed }) => [
               styles.option,
               selected && styles.optionSelected,
+              focusedFilter === filter.value && styles.optionFocused,
               pressed && styles.optionPressed,
             ]}>
             <Text style={[styles.label, selected && styles.labelSelected]}>
@@ -55,7 +61,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   option: {
-    minHeight: 40,
+    minHeight: 44,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -67,6 +73,10 @@ const styles = StyleSheet.create({
   },
   optionPressed: {
     opacity: 0.7,
+  },
+  optionFocused: {
+    borderWidth: 2,
+    borderColor: colors.accent,
   },
   label: {
     color: colors.textMuted,

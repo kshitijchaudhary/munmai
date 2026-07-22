@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
   formatCurrency,
+  formatSignedCurrency,
   formatTransactionDate,
+  getNetDirection,
   parseDashboardData,
 } from '../src/dashboard/dashboard-model.ts';
 import { createRequestCoordinator } from '../src/utils/request-coordinator.ts';
@@ -125,7 +127,16 @@ test('parseDashboardData rejects malformed collection and record shapes', () => 
 
 test('dashboard formatters use CAD and stable UTC calendar dates', () => {
   assert.match(formatCurrency(1234.5), /1,234\.50/);
+  assert.match(formatSignedCurrency(1234.5), /^\+.*1,234\.50/);
+  assert.match(formatSignedCurrency(-25), /^-.*25\.00/);
+  assert.equal(formatSignedCurrency(0), formatCurrency(0));
   assert.equal(formatTransactionDate('2026-07-01T00:00:00.000Z'), 'Jul 1, 2026');
+});
+
+test('net direction distinguishes positive, negative, and balanced months', () => {
+  assert.equal(getNetDirection(0.01), 'positive');
+  assert.equal(getNetDirection(-0.01), 'negative');
+  assert.equal(getNetDirection(0), 'zero');
 });
 
 test('request coordinator blocks duplicates and invalidates stale requests', () => {

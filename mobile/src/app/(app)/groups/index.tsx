@@ -29,7 +29,7 @@ export default function GroupsScreen() {
   ), [isChoosingForSplit, router]);
 
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       {isLoading && data === null ? <View style={styles.state}><DashboardStatusCard loading title="Loading Spaces" message="Opening your shared money spaces." /></View> : null}
       {!isLoading && data === null && error ? <View style={styles.state}><DashboardStatusCard title={error.kind === 'offline' ? "You're offline" : 'Spaces unavailable'} message={error.message} onRetry={retry} /></View> : null}
       {data ? (
