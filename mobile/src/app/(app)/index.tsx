@@ -4,7 +4,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -18,15 +18,15 @@ import { useAuth } from '@/auth/auth-context';
 import { AvatarButton } from '@/components/avatar-button';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { EmptyState } from '@/components/empty-state';
-import { MonthlySnapshot } from '@/components/monthly-snapshot';
-import { RecentTransactionRow } from '@/components/recent-transaction-row';
 import { ScreenContainer } from '@/components/screen-container';
 import { ScreenHeader } from '@/components/screen-header';
-import { SectionHeading } from '@/components/section-heading';
+import { TodayContextCard } from '@/components/today-context-card';
+import { TodayInsightCard } from '@/components/today-insight-card';
+import { TodayPulse } from '@/components/today-pulse';
 import { colors } from '@/constants/theme';
-import { useDashboardData } from '@/dashboard/use-dashboard-data';
 import { PUBLIC_ROUTES } from '@/navigation/routes';
-import { buildTransactionDetailRoute } from '@/transactions/transaction-routes';
+import { buildTodayViewModel } from '@/today/today-model';
+import { useTodayData } from '@/today/use-today-data';
 import {
   getTransactionSuccessMessage,
   getTransactionSuccessReplacement,
@@ -46,7 +46,7 @@ export default function DashboardScreen() {
     isRefreshing,
     refresh,
     retry,
-  } = useDashboardData();
+  } = useTodayData();
   const [creationMessage, setCreationMessage] = useState(() =>
     getTransactionSuccessMessage(created),
   );
@@ -59,6 +59,13 @@ export default function DashboardScreen() {
     month: 'long',
     weekday: 'long',
   }).format(new Date());
+  const today = useMemo(
+    () =>
+      data
+        ? buildTodayViewModel(data.transactions, data.sharedMoney)
+        : null,
+    [data],
+  );
 
   useEffect(() => {
     const message = getTransactionSuccessMessage(created);
@@ -141,53 +148,45 @@ export default function DashboardScreen() {
       {isLoading && !data ? (
         <DashboardStatusCard
           loading
-          message="Getting your latest income and expenses."
-          title="Loading your dashboard"
+          message="Reviewing your recent activity and shared balances."
+          title="Building your financial pulse"
         />
       ) : null}
 
       {!isLoading && error && !data ? (
-        <DashboardStatusCard message={error} onRetry={retry} title="Dashboard unavailable" />
+        <DashboardStatusCard
+          message={error}
+          onRetry={retry}
+          title="Financial pulse unavailable"
+        />
       ) : null}
 
-      {data ? <MonthlySnapshot summary={data.summary} /> : null}
+      {today ? <TodayPulse pulse={today.pulse} today={today.today} /> : null}
 
-      {data ? (
-        <View style={styles.section}>
-          <SectionHeading
-            actionLabel="See all"
-            onAction={() => router.navigate(PUBLIC_ROUTES.transactions as Href)}
-            title="Recent activity"
-          />
-
-          {data.recentTransactions.length === 0 ? (
-            <EmptyState
-              actionLabel="Open Capture"
-              icon={{ ios: 'tray.fill', android: 'inbox', web: 'inbox' }}
-              message="Capture your first transaction to get started."
-              onAction={() => router.navigate(PUBLIC_ROUTES.add as Href)}
-              title="No activity yet"
-            />
-          ) : (
-            <View style={styles.transactionCard}>
-              {data.recentTransactions.map((transaction) => (
-                <RecentTransactionRow
-                  key={`${transaction.type}-${transaction.id}`}
-                  onPress={() =>
-                    router.push(
-                      buildTransactionDetailRoute(
-                        transaction.type,
-                        transaction.id,
-                      ) as Href,
-                    )
-                  }
-                  transaction={transaction}
-                />
-              ))}
-            </View>
-          )}
-        </View>
+      {today?.context?.kind === 'setup' ? (
+        <EmptyState
+          actionLabel="Open Capture"
+          icon={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }}
+          message="Record your first transaction and Munmai will begin showing useful patterns."
+          onAction={() => router.navigate(PUBLIC_ROUTES.add as Href)}
+          title="Start building your financial picture"
+        />
       ) : null}
+
+      {today?.context && today.context.kind !== 'setup' ? (
+        <TodayContextCard
+          context={today.context}
+          onAction={() =>
+            router.navigate(
+              (today.context?.kind === 'watch'
+                ? PUBLIC_ROUTES.transactions
+                : PUBLIC_ROUTES.groups) as Href,
+            )
+          }
+        />
+      ) : null}
+
+      {today?.insight ? <TodayInsightCard insight={today.insight} /> : null}
     </ScreenContainer>
   );
 }
@@ -222,9 +221,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
-  section: {
-    gap: 14,
-  },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -253,12 +249,5 @@ const styles = StyleSheet.create({
     color: colors.expense,
     fontSize: 14,
     fontWeight: '800',
-  },
-  transactionCard: {
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
   },
 });
