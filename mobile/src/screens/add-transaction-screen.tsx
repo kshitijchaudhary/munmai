@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/back-link';
 import { PrimaryButton } from '@/components/primary-button';
@@ -51,7 +51,6 @@ export function AddTransactionScreen({
   onChangeCaptureType,
 }: AddTransactionScreenProps) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const handleSuccess = useCallback(
     (type: TransactionType) => {
       onCaptureFinished?.();
@@ -144,16 +143,13 @@ export function AddTransactionScreen({
   );
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.safeArea}>
       <BackLink label="Capture" onPress={onBack} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}>
         <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: getFormBottomPadding(insets.bottom) },
-          ]}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             <View style={styles.card}>
@@ -328,6 +324,7 @@ export function AddTransactionScreen({
               )}
             </View>
           </View>
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -345,6 +342,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingTop: layout.pageTopPadding,
+  },
+  bottomSpacer: {
+    height: getFormBottomPadding(),
   },
   content: {
     width: '100%',

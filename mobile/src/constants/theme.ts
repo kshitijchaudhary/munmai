@@ -82,5 +82,5 @@ export function getTabItemWidth(viewportWidth: number): number {
 }
 
 export function getFormBottomPadding(safeAreaBottom = 0): number {
-  return layout.tabBarBaseHeight + spacing.lg + Math.max(0, safeAreaBottom);
+  return spacing.lg + Math.max(0, safeAreaBottom);
 }

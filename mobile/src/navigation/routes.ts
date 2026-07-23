@@ -33,6 +33,15 @@ export function getAuthenticatedTabHref(
   return AUTHENTICATED_TABS.find((tab) => tab.route === routeName)?.href ?? null;
 }
 
+export function shouldHideAuthenticatedTabBar(pathname: string): boolean {
+  const normalizedPath = pathname.split(/[?#]/, 1)[0].replace(/\/+$/, '') || '/';
+
+  return (
+    normalizedPath === PUBLIC_ROUTES.transactionForm ||
+    /^\/groups\/[^/]+\/(?:add-expense|settlements\/new)$/.test(normalizedPath)
+  );
+}
+
 export function getHomeAfterTransactionTarget(type: TransactionType) {
   return {
     pathname: PUBLIC_ROUTES.home,

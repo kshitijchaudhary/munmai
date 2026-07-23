@@ -10,6 +10,7 @@ import {
   getHomeAfterTransactionTarget,
   getLegacyRedirectTarget,
   PUBLIC_ROUTES,
+  shouldHideAuthenticatedTabBar,
 } from '../src/navigation/routes.ts';
 
 const readMobileSource = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -86,6 +87,49 @@ test('nested Capture routes stay navigable without becoming tab items', () => {
   assert.equal(getAuthenticatedTabHref('add/transaction'), null);
   assert.equal(getAuthenticatedTabHref('add/future-screen'), null);
   assert.equal(getAuthenticatedTabHref('add'), '/add');
+});
+
+test('focused forms hide the authenticated tab bar without hiding normal screens', () => {
+  const authenticatedLayoutSource = readMobileSource('../src/app/(app)/_layout.tsx');
+
+  assert.equal(shouldHideAuthenticatedTabBar('/add/transaction'), true);
+  assert.equal(shouldHideAuthenticatedTabBar('/add/transaction?type=income'), true);
+  assert.equal(shouldHideAuthenticatedTabBar('/add/transaction/'), true);
+  assert.equal(
+    shouldHideAuthenticatedTabBar('/groups/64a000000000000000000001/add-expense'),
+    true,
+  );
+  assert.equal(
+    shouldHideAuthenticatedTabBar(
+      '/groups/64a000000000000000000001/settlements/new?from=a&to=b',
+    ),
+    true,
+  );
+
+  for (const pathname of [
+    '/',
+    '/transactions',
+    '/add',
+    '/analytics',
+    '/groups',
+    '/groups/64a000000000000000000001',
+    '/groups/64a000000000000000000001/settlements',
+    '/transactions/expense/64b000000000000000000001',
+  ]) {
+    assert.equal(shouldHideAuthenticatedTabBar(pathname), false, pathname);
+  }
+
+  assert.match(authenticatedLayoutSource, /usePathname\(\)/);
+  assert.match(
+    authenticatedLayoutSource,
+    /shouldHideAuthenticatedTabBar\(pathname\)/,
+  );
+  assert.match(authenticatedLayoutSource, /const renderHiddenTabBar = \(\) => null/);
+  assert.match(
+    authenticatedLayoutSource,
+    /tabBar=\{isTabBarHidden \? renderHiddenTabBar : undefined\}/,
+  );
+  assert.doesNotMatch(authenticatedLayoutSource, /tabBarHidden|display: 'none'/);
 });
 
 test('logout replaces the active route and Back cannot reopen legacy /dashboard', () => {
