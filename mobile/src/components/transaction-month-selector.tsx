@@ -68,15 +68,20 @@ export function TransactionMonthSelector({
     setIsPickerVisible(false);
   };
 
-  const confirmPicker = () => {
-    if (!canConfirm || draftMonth === null) {
+  const selectMonth = (monthNumber: number) => {
+    const monthValue = createTransactionMonth(draftYear, monthNumber);
+
+    if (
+      monthValue === null ||
+      !isSelectableTransactionMonth(monthValue, maximumMonth)
+    ) {
       return;
     }
 
     setIsPickerVisible(false);
 
-    if (draftMonth !== value) {
-      onChange(draftMonth);
+    if (monthValue !== value) {
+      onChange(monthValue);
     }
   };
 
@@ -113,7 +118,7 @@ export function TransactionMonthSelector({
             styles.copy,
             pressed && styles.copyPressed,
           ]}>
-          <Text style={styles.caption}>MONTH · CHANGE</Text>
+          <Text style={styles.caption}>MONTH</Text>
           <Text numberOfLines={1} style={styles.month}>
             {formatTransactionMonth(value)}
           </Text>
@@ -163,18 +168,7 @@ export function TransactionMonthSelector({
               <Text accessibilityRole="header" style={styles.modalTitle}>
                 Choose month
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !canConfirm }}
-                disabled={!canConfirm}
-                onPress={confirmPicker}
-                style={({ pressed }) => [
-                  styles.modalAction,
-                  pressed && styles.actionPressed,
-                  !canConfirm && styles.actionDisabled,
-                ]}>
-                <Text style={styles.doneText}>Done</Text>
-              </Pressable>
+              <View style={styles.modalAction} />
             </View>
 
             <ScrollView
@@ -217,7 +211,7 @@ export function TransactionMonthSelector({
                       accessibilityState={{ checked: selected, disabled }}
                       disabled={disabled}
                       key={month}
-                      onPress={() => setDraftMonthNumber(monthNumber)}
+                      onPress={() => selectMonth(monthNumber)}
                       style={({ pressed }) => [
                         styles.monthOption,
                         selected && styles.monthOptionSelected,
@@ -352,11 +346,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 14,
     fontWeight: '800',
-  },
-  doneText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '900',
   },
   pickerContent: {
     gap: 18,
