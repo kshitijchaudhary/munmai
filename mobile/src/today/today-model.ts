@@ -7,8 +7,17 @@ export interface TodayTransaction {
   type: TodayTransactionType;
 }
 
+export interface SharedMoneySpaceSummary {
+  groupId: string;
+  name: string;
+  netBalance: number;
+  totalYouAreOwed: number;
+  totalYouOwe: number;
+}
+
 export interface SharedMoneySummary {
   netBalance: number;
+  spaces: SharedMoneySpaceSummary[];
   totalYouAreOwed: number;
   totalYouOwe: number;
 }
@@ -38,8 +47,20 @@ export type TodayPulseState =
   | 'watch';
 
 export type TodayContext =
-  | { amount: number; kind: 'owed' }
-  | { amount: number; kind: 'owes' }
+  | {
+      amount: number;
+      groupId: string | null;
+      groupName: string | null;
+      kind: 'owed';
+      otherAffectedSpaceCount: number;
+    }
+  | {
+      amount: number;
+      groupId: string | null;
+      groupName: string | null;
+      kind: 'owes';
+      otherAffectedSpaceCount: number;
+    }
   | {
       currencyDifference: number;
       kind: 'watch';
@@ -66,6 +87,13 @@ export interface TodayViewModel {
   today: TodayMoneySummary;
 }
 
+export interface PrioritySpaceSelection {
+  amount: number;
+  direction: 'owed' | 'owes';
+  otherAffectedSpaceCount: number;
+  space: SharedMoneySpaceSummary;
+}
+
 export interface CoordinatedTodaySources<TTransaction> {
   sharedMoney: SharedMoneySummary | null;
   sharedMoneyError: unknown | null;
@@ -79,6 +107,7 @@ export interface TodaySourceSnapshot<TTransaction> {
 }
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i;
 const WATCH_PERCENT_MULTIPLIER = 1.25;
 const WATCH_MINIMUM_DIFFERENCE = 25;
 
@@ -100,6 +129,85 @@ function readMoney(value: unknown, allowNegative = false): number {
 
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function parseSharedMoneySpaces(value: unknown): SharedMoneySpaceSummary[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenGroupIds = new Set<string>();
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+
+    const groupId =
+      typeof entry.groupId === 'string' ? entry.groupId.trim().toLowerCase() : '';
+    const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+
+    if (!OBJECT_ID_PATTERN.test(groupId) || !name || seenGroupIds.has(groupId)) {
+      return [];
+    }
+
+    try {
+      const parsed = {
+        groupId,
+        name,
+        totalYouOwe: readMoney(entry.totalYouOwe),
+        totalYouAreOwed: readMoney(entry.totalYouAreOwed),
+        netBalance: readMoney(entry.netBalance, true),
+      };
+
+      seenGroupIds.add(groupId);
+      return [parsed];
+    } catch {
+      return [];
+    }
+  });
+}
+
+function compareSpaceAmount(
+  left: SharedMoneySpaceSummary,
+  right: SharedMoneySpaceSummary,
+  field: 'totalYouAreOwed' | 'totalYouOwe',
+): number {
+  return right[field] - left[field] || left.groupId.localeCompare(right.groupId);
+}
+
+export function selectPrioritySpace(
+  spaces: SharedMoneySpaceSummary[],
+): PrioritySpaceSelection | null {
+  const affectedSpaces = spaces.filter(
+    (space) => space.totalYouOwe > 0 || space.totalYouAreOwed > 0,
+  );
+  const owingSpaces = affectedSpaces
+    .filter((space) => space.totalYouOwe > 0)
+    .sort((left, right) => compareSpaceAmount(left, right, 'totalYouOwe'));
+  const selectedSpace =
+    owingSpaces[0] ??
+    affectedSpaces
+      .filter((space) => space.totalYouAreOwed > 0)
+      .sort((left, right) =>
+        compareSpaceAmount(left, right, 'totalYouAreOwed'),
+      )[0];
+
+  if (!selectedSpace) {
+    return null;
+  }
+
+  const direction = selectedSpace.totalYouOwe > 0 ? 'owes' : 'owed';
+
+  return {
+    amount:
+      direction === 'owes'
+        ? selectedSpace.totalYouOwe
+        : selectedSpace.totalYouAreOwed,
+    direction,
+    otherAffectedSpaceCount: affectedSpaces.length - 1,
+    space: selectedSpace,
+  };
 }
 
 function getTransactionDateKey(transaction: TodayTransaction): string {
@@ -271,6 +379,7 @@ export function buildTodayViewModel(
   const spending = calculateSpendingComparison(transactions, referenceDate);
   const totalYouOwe = sharedMoney?.totalYouOwe ?? 0;
   const totalYouAreOwed = sharedMoney?.totalYouAreOwed ?? 0;
+  const selectedSpace = selectPrioritySpace(sharedMoney?.spaces ?? []);
   const isNewUser =
     transactions.length === 0 &&
     sharedMoney !== null &&
@@ -282,7 +391,22 @@ export function buildTodayViewModel(
 
   if (totalYouOwe > 0) {
     pulse = 'owes';
-    context = { amount: totalYouOwe, kind: 'owes' };
+    context =
+      selectedSpace?.direction === 'owes'
+        ? {
+            amount: selectedSpace.amount,
+            groupId: selectedSpace.space.groupId,
+            groupName: selectedSpace.space.name,
+            kind: 'owes',
+            otherAffectedSpaceCount: selectedSpace.otherAffectedSpaceCount,
+          }
+        : {
+            amount: totalYouOwe,
+            groupId: null,
+            groupName: null,
+            kind: 'owes',
+            otherAffectedSpaceCount: 0,
+          };
   } else if (isNewUser) {
     pulse = 'new-user';
     context = { kind: 'setup' };
@@ -290,17 +414,35 @@ export function buildTodayViewModel(
     pulse = 'insufficient';
   } else if (spending.watch) {
     pulse = 'watch';
-    context = {
-      currencyDifference: spending.currencyDifference,
-      kind: 'watch',
-      percentageDifference: spending.percentageDifference,
-    };
   } else {
     pulse = 'steady';
   }
 
   if (!context && totalYouAreOwed > 0) {
-    context = { amount: totalYouAreOwed, kind: 'owed' };
+    context =
+      selectedSpace?.direction === 'owed'
+        ? {
+            amount: selectedSpace.amount,
+            groupId: selectedSpace.space.groupId,
+            groupName: selectedSpace.space.name,
+            kind: 'owed',
+            otherAffectedSpaceCount: selectedSpace.otherAffectedSpaceCount,
+          }
+        : {
+            amount: totalYouAreOwed,
+            groupId: null,
+            groupName: null,
+            kind: 'owed',
+            otherAffectedSpaceCount: 0,
+          };
+  }
+
+  if (!context && spending.watch) {
+    context = {
+      currencyDifference: spending.currencyDifference,
+      kind: 'watch',
+      percentageDifference: spending.percentageDifference,
+    };
   }
 
   return {
@@ -327,6 +469,7 @@ export function parseSharedMoneyResponse(value: unknown): SharedMoneySummary {
     totalYouOwe: readMoney(sharedMoney.totalYouOwe),
     totalYouAreOwed: readMoney(sharedMoney.totalYouAreOwed),
     netBalance: readMoney(sharedMoney.netBalance, true),
+    spaces: parseSharedMoneySpaces(sharedMoney.spaces),
   };
 }
 

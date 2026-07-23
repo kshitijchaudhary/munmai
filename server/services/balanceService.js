@@ -6,6 +6,10 @@ import User from "../models/User.js";
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
+const normalizeGroupIds = (groupIds) => [
+  ...new Set(groupIds.map((groupId) => String(groupId)).filter(Boolean)),
+];
+
 const buildBalanceKey = (fromUserId, toUserId) => `${fromUserId}|${toUserId}`;
 
 const addBalanceEntry = (ledger, fromUserId, toUserId, amount) => {
@@ -94,10 +98,23 @@ const hydrateBalanceUsers = async (balances) => {
   }));
 };
 
-export const getGroupBalances = async (groupId) => {
+const getRawGroupBalancesByGroupId = async (groupIds) => {
+  const normalizedGroupIds = normalizeGroupIds(groupIds);
+  const balancesByGroupId = new Map(
+    normalizedGroupIds.map((groupId) => [groupId, []])
+  );
+
+  if (normalizedGroupIds.length === 0) {
+    return balancesByGroupId;
+  }
+
   const [expenses, settlements] = await Promise.all([
-    SharedExpense.find({ group: groupId }).select("_id paidBy").lean(),
-    Settlement.find({ group: groupId }).select("from to amount").lean(),
+    SharedExpense.find({ group: { $in: normalizedGroupIds } })
+      .select("_id group paidBy")
+      .lean(),
+    Settlement.find({ group: { $in: normalizedGroupIds } })
+      .select("group from to amount")
+      .lean(),
   ]);
 
   const expenseIds = expenses.map((expense) => expense._id);
@@ -119,9 +136,18 @@ export const getGroupBalances = async (groupId) => {
     splitsByExpenseId.set(expenseId, expenseSplits);
   }
 
-  const ledger = new Map();
+  const ledgersByGroupId = new Map(
+    normalizedGroupIds.map((groupId) => [groupId, new Map()])
+  );
 
   for (const expense of expenses) {
+    const groupId = String(expense.group);
+    const ledger = ledgersByGroupId.get(groupId);
+
+    if (!ledger) {
+      continue;
+    }
+
     const payerId = String(expense.paidBy);
     const expenseSplits = splitsByExpenseId.get(String(expense._id)) || [];
 
@@ -137,12 +163,67 @@ export const getGroupBalances = async (groupId) => {
   }
 
   for (const settlement of settlements) {
+    const ledger = ledgersByGroupId.get(String(settlement.group));
+
+    if (!ledger) {
+      continue;
+    }
+
     addBalanceEntry(ledger, String(settlement.to), String(settlement.from), settlement.amount);
   }
 
-  return hydrateBalanceUsers(netReverseBalances(ledger));
+  for (const [groupId, ledger] of ledgersByGroupId) {
+    balancesByGroupId.set(groupId, netReverseBalances(ledger));
+  }
+
+  return balancesByGroupId;
+};
+
+export const getUserGroupBalanceSummaries = async (groupIds, userId) => {
+  const normalizedGroupIds = normalizeGroupIds(groupIds);
+  const balancesByGroupId = await getRawGroupBalancesByGroupId(normalizedGroupIds);
+  const normalizedUserId = String(userId);
+
+  return normalizedGroupIds.map((groupId) => {
+    const balances = balancesByGroupId.get(groupId) || [];
+    const totalYouOwe = roundMoney(
+      balances.reduce(
+        (total, balance) =>
+          String(balance.from) === normalizedUserId
+            ? total + Number(balance.amount || 0)
+            : total,
+        0
+      )
+    );
+    const totalYouAreOwed = roundMoney(
+      balances.reduce(
+        (total, balance) =>
+          String(balance.to) === normalizedUserId
+            ? total + Number(balance.amount || 0)
+            : total,
+        0
+      )
+    );
+
+    return {
+      groupId,
+      totalYouOwe,
+      totalYouAreOwed,
+      netBalance: roundMoney(totalYouAreOwed - totalYouOwe),
+    };
+  });
+};
+
+export const getGroupBalances = async (groupId) => {
+  const normalizedGroupId = String(groupId);
+  const balancesByGroupId = await getRawGroupBalancesByGroupId([
+    normalizedGroupId,
+  ]);
+
+  return hydrateBalanceUsers(balancesByGroupId.get(normalizedGroupId) || []);
 };
 
 export default {
   getGroupBalances,
+  getUserGroupBalanceSummaries,
 };
