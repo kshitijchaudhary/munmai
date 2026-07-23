@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   ScrollView,
+  type ScrollViewProps,
   type StyleProp,
   StyleSheet,
   View,
@@ -13,13 +14,17 @@ import { colors, layout, spacing } from '@/constants/theme';
 interface ScreenContainerProps {
   children: ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
+  refreshControl?: ScrollViewProps['refreshControl'];
   scroll?: boolean;
+  showsVerticalScrollIndicator?: boolean;
 }
 
 export function ScreenContainer({
   children,
   contentStyle,
+  refreshControl,
   scroll = true,
+  showsVerticalScrollIndicator = false,
 }: ScreenContainerProps) {
   const content = <View style={[styles.content, contentStyle]}>{children}</View>;
 
@@ -28,7 +33,9 @@ export function ScreenContainer({
       {scroll ? (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+          refreshControl={refreshControl}
+          showsVerticalScrollIndicator={showsVerticalScrollIndicator}>
           {content}
         </ScrollView>
       ) : content}
@@ -40,15 +47,15 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.xl,
-    paddingTop: spacing.md,
+    paddingBottom: layout.pageBottomPadding,
+    paddingTop: layout.pageTopPadding,
   },
   content: {
     width: '100%',
-    maxWidth: layout.contentMaxWidth,
+    maxWidth: layout.appShellMaxWidth,
     flex: 1,
     alignSelf: 'center',
     gap: spacing.lg,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: layout.pageHorizontalPadding,
   },
 });

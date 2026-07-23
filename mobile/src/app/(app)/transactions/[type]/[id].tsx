@@ -1,7 +1,8 @@
 import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/back-link';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { TransactionDetailField } from '@/components/transaction-detail-field';
 import { colors } from '@/constants/theme';
@@ -33,13 +34,7 @@ export default function TransactionDetailScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <View style={styles.shell}>
-        <Pressable
-          accessibilityLabel="Back to Activity"
-          accessibilityRole="button"
-          onPress={goBack}
-          style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}>
-          <Text style={styles.backText}>‹ Activity</Text>
-        </Pressable>
+        <BackLink label="Activity" onPress={goBack} />
 
         {status === 'loading' ? (
           <View style={styles.stateContent}>
@@ -162,24 +157,6 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     flex: 1,
     alignSelf: 'center',
-  },
-  backButton: {
-    minHeight: 48,
-    alignSelf: 'flex-start',
-    justifyContent: 'center',
-    borderRadius: 12,
-    marginLeft: 10,
-    marginTop: 4,
-    paddingHorizontal: 10,
-  },
-  backButtonPressed: {
-    backgroundColor: colors.accentSoft,
-    opacity: 0.75,
-  },
-  backText: {
-    color: colors.accent,
-    fontSize: 15,
-    fontWeight: '800',
   },
   stateContent: {
     flex: 1,

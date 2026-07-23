@@ -21,19 +21,16 @@ import { CAPTURE_TAB_ICON } from '../src/navigation/tab-icons.ts';
 
 const captureActions = getCaptureActions(PUBLIC_ROUTES);
 
-test('Capture actions point only to supported existing workflows', () => {
+test('Capture hub exposes only scan and manual-entry workflows', () => {
   assert.deepEqual(
     captureActions.map((action) => action.id),
-    ['scan-receipt', 'add-expense', 'add-income'],
+    ['scan-document', 'manual-entry'],
   );
 
-  for (const action of captureActions) {
-    assert.equal(action.pathname, '/add/transaction');
-    assert.equal(action.pathname.includes('(app)'), false);
-    assert.equal(action.pathname.includes('/index'), false);
-  }
-
-  assert.deepEqual(captureActions[0].params, { capture: 'receipt', type: 'expense' });
+  assert.equal(captureActions[0].pathname, null);
+  assert.equal(captureActions[0].primary, true);
+  assert.equal(captureActions[1].pathname, '/add/transaction');
+  assert.equal(captureActions[1].primary, false);
   assert.equal(captureActions.some((action) => action.id === 'split-expense'), false);
 });
 
@@ -80,7 +77,88 @@ test('nested forms clear the tab bar and bottom safe area', () => {
   }
 });
 
-test('tab roots are headerless while nested Capture and Space routes retain headers', () => {
+test('authenticated tab roots share one calm header and page-shell contract', () => {
+  const sources = {
+    today: readFileSync(new URL('../src/app/(app)/index.tsx', import.meta.url), 'utf8'),
+    activity: readFileSync(
+      new URL('../src/app/(app)/transactions/index.tsx', import.meta.url),
+      'utf8',
+    ),
+    capture: readFileSync(
+      new URL('../src/app/(app)/add/index.tsx', import.meta.url),
+      'utf8',
+    ),
+    insights: readFileSync(
+      new URL('../src/app/(app)/analytics.tsx', import.meta.url),
+      'utf8',
+    ),
+    spaces: readFileSync(
+      new URL('../src/app/(app)/groups/index.tsx', import.meta.url),
+      'utf8',
+    ),
+  };
+
+  assert.match(sources.today, /<ScreenContainer/);
+  assert.match(sources.today, /variant="today"/);
+  assert.match(sources.activity, /<ScreenHeader[\s\S]*title="Activity"/);
+  assert.match(sources.capture, /<ScreenContainer>/);
+  assert.match(sources.capture, /'Capture & go'/);
+  assert.match(sources.insights, /<ScreenContainer>/);
+  assert.match(sources.insights, /title="Insights"/);
+  assert.match(sources.spaces, /<ScreenHeader title="Spaces" \/>/);
+  assert.match(sources.spaces, /layout\.pageHorizontalPadding/);
+
+  for (const source of Object.values(sources)) {
+    assert.doesNotMatch(source, /styles\.eyebrow/);
+  }
+
+  assert.doesNotMatch(sources.activity, /Money in and out|ACTIVITY/);
+  assert.doesNotMatch(sources.insights, /Your monthly snapshot|INSIGHTS/);
+  assert.doesNotMatch(sources.spaces, /Your Spaces|SPACES/);
+});
+
+test('Today has one monthly summary and one navigable recent-activity section', () => {
+  const todaySource = readFileSync(
+    new URL('../src/app/(app)/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const snapshotSource = readFileSync(
+    new URL('../src/components/monthly-snapshot.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(todaySource, /title=\{`\$\{greeting\}, \$\{firstName\}`\}/);
+  assert.match(todaySource, /subtitle=\{dateContext\}/);
+  assert.match(todaySource, /<AvatarButton/);
+  assert.equal(todaySource.match(/<MonthlySnapshot/g)?.length, 1);
+  assert.doesNotMatch(todaySource, /Quick capture|Financial snapshot|Recent transactions/);
+  assert.match(snapshotSource, />This month</);
+  assert.match(snapshotSource, />Net</);
+  assert.match(snapshotSource, />Income</);
+  assert.match(snapshotSource, />Expenses</);
+  assert.doesNotMatch(snapshotSource, /netCard|breakdownCard|monthLabel/);
+  assert.match(todaySource, /actionLabel="See all"/);
+  assert.match(todaySource, /PUBLIC_ROUTES\.transactions/);
+  assert.match(todaySource, /buildTransactionDetailRoute/);
+  assert.match(todaySource, /actionLabel="Open Capture"/);
+  assert.match(todaySource, /PUBLIC_ROUTES\.add/);
+});
+
+test('Add Transaction begins with form controls and does not repeat its native title', () => {
+  const source = readFileSync(
+    new URL('../src/screens/add-transaction-screen.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.doesNotMatch(source, /Add transaction|NEW TRANSACTION|Add money in or out/);
+  assert.match(source, /isCaptureTypeLocked \? \(/);
+  assert.match(source, /transactionTypes\.map/);
+  assert.match(source, /maxWidth: layout\.appShellMaxWidth/);
+  assert.match(source, /paddingHorizontal: layout\.pageHorizontalPadding/);
+  assert.match(source, /getFormBottomPadding\(insets\.bottom\)/);
+});
+
+test('tab roots and compact-link screens hide native headers while other nested forms retain them', () => {
   const captureLayout = readFileSync(
     new URL('../src/app/(app)/add/_layout.tsx', import.meta.url),
     'utf8',
@@ -95,26 +173,30 @@ test('tab roots are headerless while nested Capture and Space routes retain head
   );
 
   assert.match(captureLayout, /name="index" options=\{\{ headerShown: false \}\}/);
-  assert.match(captureLayout, /name="transaction" options=\{\{ headerShown: true/);
-  assert.match(captureRoute, /capture === 'receipt' \? 'Scan receipt' : 'Add transaction'/);
+  assert.match(captureLayout, /name="transaction" options=\{\{ headerShown: false \}\}/);
+  assert.match(captureRoute, /onBack=\{returnToCapture\}/);
   assert.match(groupsLayout, /headerShown: true/);
   assert.match(groupsLayout, /name="index" options=\{\{ headerShown: false/);
-
-  for (const nestedRoute of [
-    '[groupId]/index',
-    '[groupId]/add-expense',
-    '[groupId]/settlements/index',
-    '[groupId]/settlements/new',
-  ]) {
-    assert.equal(groupsLayout.includes(`name="${nestedRoute}"`), true);
-  }
+  assert.match(
+    groupsLayout,
+    /name="\[groupId\]\/index" options=\{\{ headerShown: false \}\}/,
+  );
+  assert.match(groupsLayout, /name="\[groupId\]\/add-expense" options=\{\{ title:/);
+  assert.match(
+    groupsLayout,
+    /name="\[groupId\]\/settlements\/index" options=\{\{ headerShown: false \}\}/,
+  );
+  assert.match(
+    groupsLayout,
+    /name="\[groupId\]\/settlements\/new" options=\{\{ headerShown: false \}\}/,
+  );
 });
 
 test('Capture uses supported receipt-capture symbols on every platform', () => {
   assert.deepEqual(CAPTURE_TAB_ICON, {
     ios: 'camera.fill',
-    android: 'document_scanner',
-    web: 'document_scanner',
+    android: 'photo_camera',
+    web: 'photo_camera',
   });
   assert.equal(Object.values(CAPTURE_TAB_ICON).includes('add'), false);
   assert.equal(Object.values(CAPTURE_TAB_ICON).some((icon) => icon.includes('qr')), false);

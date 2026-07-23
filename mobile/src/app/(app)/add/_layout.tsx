@@ -15,7 +15,7 @@ export default function CaptureLayout() {
         headerShadowVisible: false,
       }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="transaction" options={{ headerShown: true, title: 'Add transaction' }} />
+      <Stack.Screen name="transaction" options={{ headerShown: false }} />
     </Stack>
   );
 }

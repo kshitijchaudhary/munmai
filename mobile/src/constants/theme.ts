@@ -68,6 +68,9 @@ export const touchTargets = {
 export const layout = {
   appShellMaxWidth: 560,
   contentMaxWidth: 520,
+  pageHorizontalPadding: 20,
+  pageTopPadding: 20,
+  pageBottomPadding: 28,
   tabBarBaseHeight: 64,
   tabCount: 5,
   minimumViewportWidth: 375,

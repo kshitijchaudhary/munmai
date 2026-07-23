@@ -35,8 +35,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Munmai to access your photos when you choose a receipt image.",
-          "cameraPermission": "Allow Munmai to use your camera when you take a receipt photo.",
+          "photosPermission": "Allow Munmai to access your photos when you choose a supporting document.",
+          "cameraPermission": "Allow Munmai to use your camera when you capture a transaction document.",
           "microphonePermission": false
         }
       ],

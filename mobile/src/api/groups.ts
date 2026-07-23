@@ -6,6 +6,10 @@ export async function getGroups(signal?: AbortSignal): Promise<unknown> {
   return (await apiClient.get('/groups', { signal })).data;
 }
 
+export async function getGroup(groupId: string, signal?: AbortSignal): Promise<unknown> {
+  return (await apiClient.get(`/groups/${encodeURIComponent(groupId)}`, { signal })).data;
+}
+
 export async function getGroupSummary(groupId: string, signal?: AbortSignal): Promise<unknown> {
   return (await apiClient.get(`/groups/${encodeURIComponent(groupId)}/summary`, { signal })).data;
 }

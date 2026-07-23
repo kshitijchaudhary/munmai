@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -36,6 +37,7 @@ const members = [
   { id: 'm1', user: currentUser, role: 'owner', joinedAt: null },
   { id: 'm2', user: otherUser, role: 'member', joinedAt: null },
 ];
+const readMobileSource = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
 test('maps backend balance direction to payer and receiver when current user owes', () => {
   const direction = getSettlementDirection({ from: currentUser, to: otherUser, amount: 50 }, currentUserId);
@@ -183,4 +185,38 @@ test('navigation back cannot consume stale feedback and a new settlement gets a 
   const nextToken = markSettlementSuccess(groupId);
   assert.notEqual(nextToken, firstToken);
   assert.equal(consumeSettlementSuccess(groupId), nextToken);
+});
+
+test('settlement screens use the Space back link and preserve stack state', () => {
+  const groupLayoutSource = readMobileSource('../src/app/(app)/groups/_layout.tsx');
+  const historySource = readMobileSource(
+    '../src/app/(app)/groups/[groupId]/settlements/index.tsx',
+  );
+  const newSettlementSource = readMobileSource(
+    '../src/app/(app)/groups/[groupId]/settlements/new.tsx',
+  );
+  const historyHookSource = readMobileSource('../src/groups/use-settlement-history.ts');
+
+  assert.match(
+    groupLayoutSource,
+    /name="\[groupId\]\/settlements\/index" options=\{\{ headerShown: false \}\}/,
+  );
+  assert.match(
+    groupLayoutSource,
+    /name="\[groupId\]\/settlements\/new" options=\{\{ headerShown: false \}\}/,
+  );
+  assert.match(
+    historySource,
+    /<BackLink label=\{history\.groupName \?\? 'Space'\} onPress=\{goBack\} \/>/,
+  );
+  assert.match(
+    newSettlementSource,
+    /<BackLink label=\{detail\.data\.group\.name\} onPress=\{close\} \/>/,
+  );
+  assert.match(historyHookSource, /getGroup\(groupId, abortController\.signal\)/);
+  assert.match(historySource, /router\.back\(\)/);
+  assert.match(historySource, /router\.replace\(buildGroupRoute\(groupId\) as Href\)/);
+  assert.match(newSettlementSource, /router\.back\(\)/);
+  assert.doesNotMatch(historySource, /clear|reset/);
+  assert.doesNotMatch(newSettlementSource, /onPress=\{close\}[\s\S]*form\.reset/);
 });

@@ -17,10 +17,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { EmptyState } from '@/components/empty-state';
+import { ScreenHeader } from '@/components/screen-header';
 import { TransactionFeedRow } from '@/components/transaction-feed-row';
 import { TransactionMonthSelector } from '@/components/transaction-month-selector';
 import { TransactionTypeFilterControl } from '@/components/transaction-type-filter';
-import { colors } from '@/constants/theme';
+import { colors, layout } from '@/constants/theme';
 import { CAPTURE_HUB_TARGET } from '@/navigation/routes';
 import {
   filterTransactionRecords,
@@ -102,10 +103,8 @@ export default function TransactionsScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <View style={styles.content}>
-        <View style={styles.heading}>
-          <Text style={styles.eyebrow}>ACTIVITY</Text>
-          <Text style={styles.title}>Money in and out</Text>
-          <Text style={styles.subtitle}>Income and expenses, together in one place.</Text>
+        <View style={styles.pageHeader}>
+          <ScreenHeader title="Activity" />
         </View>
 
         <View style={styles.filters}>
@@ -214,42 +213,22 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    maxWidth: 560,
+    maxWidth: layout.appShellMaxWidth,
     flex: 1,
     alignSelf: 'center',
-    paddingTop: 20,
+    paddingTop: layout.pageTopPadding,
   },
-  heading: {
-    gap: 5,
-    paddingHorizontal: 20,
-  },
-  eyebrow: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.6,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
-  },
+  pageHeader: { paddingHorizontal: layout.pageHorizontalPadding },
   filters: {
     gap: 9,
-    paddingHorizontal: 20,
+    paddingHorizontal: layout.pageHorizontalPadding,
     paddingBottom: 12,
     paddingTop: 17,
   },
   stateContent: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: layout.pageHorizontalPadding,
     paddingBottom: 24,
   },
   refreshBanner: {
@@ -262,7 +241,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     backgroundColor: colors.expenseSoft,
     marginBottom: 2,
-    marginHorizontal: 20,
+    marginHorizontal: layout.pageHorizontalPadding,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -302,15 +281,15 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: 9,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
+    paddingBottom: layout.pageBottomPadding,
+    paddingHorizontal: layout.pageHorizontalPadding,
     paddingTop: 10,
   },
   emptyListContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingBottom: 24,
-    paddingHorizontal: 20,
+    paddingBottom: layout.pageBottomPadding,
+    paddingHorizontal: layout.pageHorizontalPadding,
     paddingTop: 10,
   },
 });

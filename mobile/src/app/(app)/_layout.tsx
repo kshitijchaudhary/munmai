@@ -1,13 +1,15 @@
-import { Tabs } from 'expo-router';
+import { type Href, Tabs, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CaptureDraftProvider } from '@/capture/capture-draft-context';
 import { TabIcon } from '@/components/tab-icon';
 import { colors, layout, radii } from '@/constants/theme';
 import {
   AUTHENTICATED_TABS,
   getAuthenticatedTabHref,
+  PUBLIC_ROUTES,
 } from '@/navigation/routes';
 import { CAPTURE_TAB_ICON } from '@/navigation/tab-icons';
 
@@ -27,6 +29,7 @@ const spacesIcon = { ios: 'person.2.fill', android: 'group', web: 'group' } as c
 const [todayTab, activityTab, captureTab, insightsTab, spacesTab] = AUTHENTICATED_TABS;
 
 export default function AuthenticatedTabsLayout() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isCaptureFocused, setIsCaptureFocused] = useState(false);
   const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
@@ -42,108 +45,116 @@ export default function AuthenticatedTabsLayout() {
   );
 
   return (
-    <View style={styles.viewport}>
-      <View style={styles.shell}>
-        <Tabs
-          backBehavior="initialRoute"
-          screenOptions={({ route }) => ({
-            headerShown: false,
-            href: getAuthenticatedTabHref(route.name),
-            sceneStyle: styles.scene,
-            tabBarActiveTintColor: colors.text,
-            tabBarHideOnKeyboard: true,
-            tabBarInactiveTintColor: colors.textMuted,
-            tabBarItemStyle: styles.tabBarItem,
-            tabBarLabelStyle: styles.tabBarLabel,
-            tabBarStyle,
-          })}>
-          <Tabs.Screen
-            name={todayTab.route}
-            options={{
-              title: todayTab.label,
-              tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={todayIcon} tintColor={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name={activityTab.route}
-            options={{
-              title: activityTab.label,
-              tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={activityIcon} tintColor={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name={captureTab.route}
-            options={{
-              title: captureTab.label,
-              tabBarButton: ({
-                'aria-label': ariaLabel,
-                'aria-selected': ariaSelected,
-                children,
-                disabled,
-                onLongPress,
-                onPress,
-                role,
-                style,
-                testID,
-              }) => (
-                <Pressable
-                  aria-label={ariaLabel}
-                  aria-selected={ariaSelected}
-                  disabled={disabled}
-                  onBlur={() => setIsCaptureFocused(false)}
-                  onFocus={() => setIsCaptureFocused(true)}
-                  onLongPress={onLongPress}
-                  onPress={onPress}
-                  role={role}
-                  style={({ pressed }) => [
-                    style,
-                    styles.captureTabButton,
-                    isCaptureFocused && styles.captureTabButtonFocused,
-                    ariaSelected && styles.captureTabButtonActive,
-                    pressed && styles.captureTabButtonPressed,
-                    disabled && styles.captureTabButtonDisabled,
-                  ]}
-                  testID={testID}>
-                  {children}
-                </Pressable>
-              ),
-              tabBarIcon: ({ color, focused }) => (
-                <TabIcon
-                  emphasized
-                  focused={focused}
-                  name={CAPTURE_TAB_ICON}
-                  tintColor={color}
-                />
-              ),
-              tabBarIconStyle: styles.captureIcon,
-            }}
-          />
-          <Tabs.Screen
-            name={insightsTab.route}
-            options={{
-              title: insightsTab.label,
-              tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={insightsIcon} tintColor={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name={spacesTab.route}
-            options={{
-              title: spacesTab.label,
-              tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused} name={spacesIcon} tintColor={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen name="more" options={{ href: null }} />
-        </Tabs>
+    <CaptureDraftProvider>
+      <View style={styles.viewport}>
+        <View style={styles.shell}>
+          <Tabs
+            backBehavior="initialRoute"
+            screenOptions={({ route }) => ({
+              headerShown: false,
+              href: getAuthenticatedTabHref(route.name),
+              sceneStyle: styles.scene,
+              tabBarActiveTintColor: colors.text,
+              tabBarHideOnKeyboard: true,
+              tabBarInactiveTintColor: colors.textMuted,
+              tabBarItemStyle: styles.tabBarItem,
+              tabBarLabelStyle: styles.tabBarLabel,
+              tabBarStyle,
+            })}>
+            <Tabs.Screen
+              name={todayTab.route}
+              options={{
+                title: todayTab.label,
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon focused={focused} name={todayIcon} tintColor={color} />
+                ),
+              }}
+            />
+            <Tabs.Screen
+              name={activityTab.route}
+              options={{
+                title: activityTab.label,
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon focused={focused} name={activityIcon} tintColor={color} />
+                ),
+              }}
+            />
+            <Tabs.Screen
+              name={captureTab.route}
+              listeners={{
+                tabPress: (event) => {
+                  event.preventDefault();
+                  router.navigate(PUBLIC_ROUTES.add as Href);
+                },
+              }}
+              options={{
+                title: captureTab.label,
+                tabBarButton: ({
+                  'aria-label': ariaLabel,
+                  'aria-selected': ariaSelected,
+                  children,
+                  disabled,
+                  onLongPress,
+                  onPress,
+                  role,
+                  style,
+                  testID,
+                }) => (
+                  <Pressable
+                    aria-label={ariaLabel}
+                    aria-selected={ariaSelected}
+                    disabled={disabled}
+                    onBlur={() => setIsCaptureFocused(false)}
+                    onFocus={() => setIsCaptureFocused(true)}
+                    onLongPress={onLongPress}
+                    onPress={onPress}
+                    role={role}
+                    style={({ pressed }) => [
+                      style,
+                      styles.captureTabButton,
+                      isCaptureFocused && styles.captureTabButtonFocused,
+                      ariaSelected && styles.captureTabButtonActive,
+                      pressed && styles.captureTabButtonPressed,
+                      disabled && styles.captureTabButtonDisabled,
+                    ]}
+                    testID={testID}>
+                    {children}
+                  </Pressable>
+                ),
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon
+                    emphasized
+                    focused={focused}
+                    name={CAPTURE_TAB_ICON}
+                    tintColor={color}
+                  />
+                ),
+                tabBarIconStyle: styles.captureIcon,
+              }}
+            />
+            <Tabs.Screen
+              name={insightsTab.route}
+              options={{
+                title: insightsTab.label,
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon focused={focused} name={insightsIcon} tintColor={color} />
+                ),
+              }}
+            />
+            <Tabs.Screen
+              name={spacesTab.route}
+              options={{
+                title: spacesTab.label,
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon focused={focused} name={spacesIcon} tintColor={color} />
+                ),
+              }}
+            />
+            <Tabs.Screen name="more" options={{ href: null }} />
+          </Tabs>
+        </View>
       </View>
-    </View>
+    </CaptureDraftProvider>
   );
 }
 

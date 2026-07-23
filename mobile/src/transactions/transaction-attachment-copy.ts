@@ -8,9 +8,7 @@ export interface TransactionAttachmentCopy {
   chooseFromLibraryLabel: string;
   choosePdfLabel: string;
   constraints: string;
-  emptyDescription: string;
   emptyLabel: string;
-  helper: string;
   noun: 'proof of income' | 'receipt';
   removeLabel: string;
   takePhotoLabel: string;
@@ -21,22 +19,18 @@ const attachmentCopy: Record<TransactionType, TransactionAttachmentCopy> = {
     addLabel: 'Add receipt',
     chooseFromLibraryLabel: 'Choose image',
     choosePdfLabel: 'Choose PDF file',
-    constraints: 'Receipt must be a JPEG, PNG, or PDF up to 5 MB.',
-    emptyDescription: 'You can save this expense without one.',
+    constraints: 'JPEG, PNG or PDF · up to 5 MB',
     emptyLabel: 'No receipt selected',
-    helper: 'Receipt image for this expense',
     noun: 'receipt',
     removeLabel: 'Remove receipt',
     takePhotoLabel: 'Take photo',
   },
   income: {
-    addLabel: 'Add proof of income',
+    addLabel: 'Add proof',
     chooseFromLibraryLabel: 'Choose image',
     choosePdfLabel: 'Choose PDF file',
-    constraints: 'Income document must be a JPEG, PNG, or PDF up to 5 MB.',
-    emptyDescription: 'You can save this income without one.',
+    constraints: 'JPEG, PNG or PDF · up to 5 MB',
     emptyLabel: 'No proof selected',
-    helper: 'Payslip, payment confirmation, or bank screenshot',
     noun: 'proof of income',
     removeLabel: 'Remove proof',
     takePhotoLabel: 'Take photo',

@@ -9,6 +9,7 @@ interface ScreenHeaderProps {
   eyebrow?: string;
   subtitle?: string;
   title: string;
+  variant?: 'standard' | 'today';
 }
 
 export function ScreenHeader({
@@ -17,12 +18,19 @@ export function ScreenHeader({
   eyebrow,
   subtitle,
   title,
+  variant = 'standard',
 }: ScreenHeaderProps) {
   return (
     <View style={styles.row}>
       <View style={styles.copy}>
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-        <Text style={styles.title}>{title}</Text>
+        <Text
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
+          numberOfLines={2}
+          style={[styles.title, variant === 'today' && styles.todayTitle]}>
+          {title}
+        </Text>
         {context ? <Text style={styles.context}>{context}</Text> : null}
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
@@ -46,6 +54,10 @@ const styles = StyleSheet.create({
     fontSize: typography.screenTitle,
     fontWeight: fontWeights.heavy,
     letterSpacing: -0.4,
+  },
+  todayTitle: {
+    fontSize: 28,
+    letterSpacing: -0.55,
   },
   context: {
     color: colors.text,

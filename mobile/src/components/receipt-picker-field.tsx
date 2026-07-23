@@ -63,7 +63,6 @@ export function ReceiptPickerField({
           <Text style={styles.label}>{copy.addLabel}</Text>
           <Text style={styles.optional}>OPTIONAL</Text>
         </View>
-        <Text style={styles.helper}>{copy.helper}</Text>
         <Text style={styles.constraints}>{copy.constraints}</Text>
       </View>
 
@@ -120,7 +119,6 @@ export function ReceiptPickerField({
         <View style={styles.emptyPreview}>
           <Text style={styles.emptyMark}>▧</Text>
           <Text style={styles.emptyTitle}>{copy.emptyLabel}</Text>
-          <Text style={styles.emptyCopy}>{copy.emptyDescription}</Text>
         </View>
       )}
 
@@ -191,7 +189,6 @@ const styles = StyleSheet.create({
   headingCopy: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: { color: colors.text, fontSize: 15, fontWeight: '800' },
   optional: { color: colors.accent, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  helper: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
   constraints: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
   notice: { gap: 9, borderWidth: 1, borderColor: colors.accent, borderRadius: 14, backgroundColor: colors.accentSoft, padding: 12 },
   noticeText: { color: colors.text, fontSize: 12, lineHeight: 18 },
@@ -209,7 +206,6 @@ const styles = StyleSheet.create({
   emptyPreview: { alignItems: 'center', gap: 5, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surfaceRaised, paddingHorizontal: 16, paddingVertical: 18 },
   emptyMark: { color: colors.accent, fontSize: 25, fontWeight: '900' },
   emptyTitle: { color: colors.text, fontSize: 13, fontWeight: '800' },
-  emptyCopy: { color: colors.textMuted, fontSize: 11, textAlign: 'center' },
   actionButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.surfaceRaised, paddingHorizontal: 12, paddingVertical: 8 },
   actionButtonText: { color: colors.text, fontSize: 12, fontWeight: '800', textAlign: 'center' },
   removeButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', borderRadius: 11, paddingHorizontal: 10 },

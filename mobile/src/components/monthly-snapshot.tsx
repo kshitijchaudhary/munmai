@@ -21,47 +21,52 @@ const netColors = {
 export function MonthlySnapshot({ summary }: MonthlySnapshotProps) {
   const netDirection = getNetDirection(summary.netTotal);
   const netValue = formatSignedCurrency(summary.netTotal);
+  const incomeValue = formatCurrency(summary.incomeTotal);
+  const expenseValue = formatCurrency(summary.expenseTotal);
 
   return (
-    <View style={styles.container}>
-      <View
-        accessible
-        accessibilityLabel={`Net this month, ${netValue} Canadian dollars`}
-        style={styles.netCard}>
-        <Text style={styles.netLabel}>NET THIS MONTH</Text>
-        <Text
-          adjustsFontSizeToFit
-          numberOfLines={1}
-          style={[styles.netValue, { color: netColors[netDirection] }]}>
-          {netValue}
-        </Text>
-        <Text style={styles.month}>{summary.monthLabel}</Text>
-      </View>
+    <View
+      accessible
+      accessibilityLabel={`This month. Net ${netValue} Canadian dollars. Income ${incomeValue} Canadian dollars. Expenses ${expenseValue} Canadian dollars.`}
+      style={styles.card}>
+      <Text style={styles.context}>This month</Text>
+      <Text style={styles.netLabel}>Net</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
+        numberOfLines={1}
+        style={[styles.netValue, { color: netColors[netDirection] }]}>
+        {netValue}
+      </Text>
 
+      <View style={styles.divider} />
       <View style={styles.breakdownRow}>
-        <View
-          accessible
-          accessibilityLabel={`Income, ${formatCurrency(summary.incomeTotal)} Canadian dollars`}
-          style={styles.breakdownCard}>
+        <View style={styles.breakdownItem}>
           <View style={styles.breakdownLabelRow}>
             <View style={[styles.dot, styles.incomeDot]} />
-            <Text style={styles.breakdownLabel}>In</Text>
+            <Text style={styles.breakdownLabel}>Income</Text>
           </View>
-          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.breakdownValue}>
-            {formatCurrency(summary.incomeTotal)}
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+            numberOfLines={1}
+            style={styles.breakdownValue}>
+            {incomeValue}
           </Text>
         </View>
 
-        <View
-          accessible
-          accessibilityLabel={`Expenses, ${formatCurrency(summary.expenseTotal)} Canadian dollars`}
-          style={styles.breakdownCard}>
+        <View style={styles.breakdownDivider} />
+        <View style={styles.breakdownItem}>
           <View style={styles.breakdownLabelRow}>
             <View style={[styles.dot, styles.expenseDot]} />
-            <Text style={styles.breakdownLabel}>Out</Text>
+            <Text style={styles.breakdownLabel}>Expenses</Text>
           </View>
-          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.breakdownValue}>
-            {formatCurrency(summary.expenseTotal)}
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+            numberOfLines={1}
+            style={styles.breakdownValue}>
+            {expenseValue}
           </Text>
         </View>
       </View>
@@ -70,42 +75,66 @@ export function MonthlySnapshot({ summary }: MonthlySnapshotProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { gap: spacing.sm },
-  netCard: {
-    gap: spacing.xs,
+  card: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.xl,
     backgroundColor: colors.surface,
     padding: spacing.lg,
   },
+  context: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '700',
+  },
   netLabel: {
     color: colors.textMuted,
-    fontSize: typography.label,
-    fontWeight: '900',
-    letterSpacing: 1.4,
+    fontSize: typography.body,
+    fontWeight: '700',
+    marginTop: spacing.md,
   },
   netValue: {
     fontSize: 38,
     fontWeight: '900',
     letterSpacing: -1,
+    marginTop: spacing.xxs,
   },
-  month: { color: colors.textMuted, fontSize: typography.caption },
-  breakdownRow: { flexDirection: 'row', gap: spacing.sm },
-  breakdownCard: {
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: spacing.lg,
+  },
+  breakdownRow: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.md,
+  },
+  breakdownItem: {
     minWidth: 0,
     flex: 1,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
+    gap: spacing.xs,
   },
-  breakdownLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  breakdownDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  breakdownLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   dot: { width: 8, height: 8, borderRadius: radii.round },
   incomeDot: { backgroundColor: colors.income },
   expenseDot: { backgroundColor: colors.expense },
-  breakdownLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-  breakdownValue: { color: colors.text, fontSize: 20, fontWeight: '900' },
+  breakdownLabel: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  breakdownValue: {
+    color: colors.text,
+    fontSize: 19,
+    fontWeight: '900',
+  },
 });

@@ -14,10 +14,10 @@ export default function GroupsLayout() {
       headerShadowVisible: false,
     }}>
       <Stack.Screen name="index" options={{ headerShown: false, title: 'Spaces' }} />
-      <Stack.Screen name="[groupId]/index" options={{ title: 'Space' }} />
+      <Stack.Screen name="[groupId]/index" options={{ headerShown: false }} />
       <Stack.Screen name="[groupId]/add-expense" options={{ title: 'Add shared expense' }} />
-      <Stack.Screen name="[groupId]/settlements/index" options={{ title: 'Settlements' }} />
-      <Stack.Screen name="[groupId]/settlements/new" options={{ title: 'Record settlement' }} />
+      <Stack.Screen name="[groupId]/settlements/index" options={{ headerShown: false }} />
+      <Stack.Screen name="[groupId]/settlements/new" options={{ headerShown: false }} />
     </Stack>
   );
 }
