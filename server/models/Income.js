@@ -1,4 +1,8 @@
 import mongoose from 'mongoose';
+import {
+  FUTURE_TRANSACTION_DATE_MESSAGE,
+  isTransactionDateInFuture,
+} from '../utils/transactionDate.js';
 
 const incomeSchema = new mongoose.Schema(
   {
@@ -26,6 +30,10 @@ const incomeSchema = new mongoose.Schema(
     date: {
       type: Date,
       default: Date.now,
+      validate: {
+        validator: (value) => !isTransactionDateInFuture(value),
+        message: FUTURE_TRANSACTION_DATE_MESSAGE,
+      },
     },
     notes: {
       type: String,

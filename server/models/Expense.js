@@ -1,4 +1,8 @@
 import mongoose from 'mongoose';
+import {
+  FUTURE_TRANSACTION_DATE_MESSAGE,
+  isTransactionDateInFuture,
+} from '../utils/transactionDate.js';
 
 const expenseCategories = [
   'Rent',
@@ -74,6 +78,10 @@ const expenseSchema = new mongoose.Schema(
     date: {
       type: Date,
       default: Date.now,
+      validate: {
+        validator: (value) => !isTransactionDateInFuture(value),
+        message: FUTURE_TRANSACTION_DATE_MESSAGE,
+      },
     },
     receiptUrl: {
       type: String,

@@ -1,6 +1,7 @@
 import { unlink } from "fs/promises";
 import Expense from "../models/Expense.js";
 import { resolveStoredFilePath } from "../utils/uploadPaths.js";
+import { getTransactionDateValidationError } from "../utils/transactionDate.js";
 
 const allowedExpenseTypes = new Set(["personal", "business", "mixed"]);
 
@@ -45,13 +46,19 @@ const normalizeExpensePayload = ({ body, receiptUrl }) => {
   };
 };
 
-const validateExpensePayload = (payload) => {
+const validateExpensePayload = (payload, dateInput) => {
   if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
     return "Amount must be greater than 0";
   }
 
   if (!payload.recipient || !payload.category) {
     return "Amount, recipient, and category are required";
+  }
+
+  const dateValidationError = getTransactionDateValidationError(dateInput);
+
+  if (dateValidationError) {
+    return dateValidationError;
   }
 
   if (Number.isNaN(payload.date.getTime())) {
@@ -125,7 +132,7 @@ export const addExpense = async (req, res) => {
       body: req.body,
       receiptUrl: uploadedReceiptUrl,
     });
-    const validationError = validateExpensePayload(expensePayload);
+    const validationError = validateExpensePayload(expensePayload, req.body.date);
 
     if (validationError) {
       await cleanupUploadedReceipt(req.file);
@@ -174,7 +181,7 @@ export const updateExpense = async (req, res) => {
       body: req.body,
       receiptUrl: nextReceiptUrl,
     });
-    const validationError = validateExpensePayload(expensePayload);
+    const validationError = validateExpensePayload(expensePayload, req.body.date);
 
     if (validationError) {
       await cleanupUploadedReceipt(req.file);

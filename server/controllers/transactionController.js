@@ -1,5 +1,9 @@
 import Expense from "../models/Expense.js";
 import Income from "../models/Income.js";
+import {
+  FUTURE_TRANSACTION_DATE_MESSAGE,
+  getTransactionDateValidationError,
+} from "../utils/transactionDate.js";
 
 const expenseCategories = new Set([
   "Rent",
@@ -171,6 +175,9 @@ export const importTransactions = async (req, res) => {
       const type = normalizeType(transaction.type);
       const amount = parseAmount(transaction.amount);
       const date = parseDate(transaction.date);
+      const dateValidationError = getTransactionDateValidationError(transaction.date, {
+        allowFlexibleStrings: true,
+      });
       const title = normalizeText(
         transaction.title ||
           transaction.description ||
@@ -179,10 +186,13 @@ export const importTransactions = async (req, res) => {
       );
       const notes = normalizeText(transaction.notes);
 
-      if (!type || !Number.isFinite(amount) || !date || !title) {
+      if (!type || !Number.isFinite(amount) || !date || !title || dateValidationError) {
         errors.push({
           row: index + 1,
-          message: "Missing or invalid type, amount, date, or description",
+          message:
+            dateValidationError === FUTURE_TRANSACTION_DATE_MESSAGE
+              ? dateValidationError
+              : "Missing or invalid type, amount, date, or description",
         });
         return;
       }

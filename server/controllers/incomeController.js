@@ -6,6 +6,7 @@ import {
   getSafeStoredUploadExtension,
   getStoredUploadMimeType,
 } from "../utils/uploadTypes.js";
+import { getTransactionDateValidationError } from "../utils/transactionDate.js";
 
 const buildFileUrl = (file) => (file ? `/uploads/${file.filename}` : "");
 
@@ -46,13 +47,19 @@ const normalizeIncomePayload = (body = {}, fallbackDate = new Date()) => ({
   notes: String(body.notes || "").trim(),
 });
 
-const validateIncomePayload = (payload) => {
+const validateIncomePayload = (payload, dateInput) => {
   if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
     return "Amount must be greater than 0";
   }
 
   if (!payload.source || !payload.category) {
     return "Source and category are required";
+  }
+
+  const dateValidationError = getTransactionDateValidationError(dateInput);
+
+  if (dateValidationError) {
+    return dateValidationError;
   }
 
   if (Number.isNaN(payload.date.getTime())) {
@@ -73,7 +80,7 @@ const findUserIncomeById = (incomeId, userId) =>
 export const addIncome = async (req, res) => {
   try {
     const incomePayload = normalizeIncomePayload(req.body);
-    const validationError = validateIncomePayload(incomePayload);
+    const validationError = validateIncomePayload(incomePayload, req.body.date);
 
     if (validationError) {
       return res.status(400).json({ message: validationError });
@@ -112,7 +119,7 @@ export const updateIncome = async (req, res) => {
       req.body,
       req.ownedIncome?.date || new Date(),
     );
-    const validationError = validateIncomePayload(incomePayload);
+    const validationError = validateIncomePayload(incomePayload, req.body.date);
 
     if (validationError) {
       await cleanupUploadedProof(req.file);
@@ -120,6 +127,10 @@ export const updateIncome = async (req, res) => {
     }
 
     const update = { ...incomePayload };
+
+    if (!req.body.date) {
+      delete update.date;
+    }
 
     if (uploadedFileUrl) {
       update.fileUrl = uploadedFileUrl;
