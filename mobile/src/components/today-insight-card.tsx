@@ -1,85 +1,112 @@
-import { SymbolView } from 'expo-symbols';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { SurfaceCard } from '@/components/surface-card';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { colors, fontWeights, radii, spacing, typography } from '@/constants/theme';
 import { formatCurrency } from '@/dashboard/dashboard-model';
 import type { TodayInsight } from '@/today/today-model';
 
 interface TodayInsightCardProps {
   insight: TodayInsight;
+  onPress: () => void;
 }
 
-function getInsightMessage(insight: TodayInsight): string {
+function getInsightContent(insight: TodayInsight) {
   if (insight.kind === 'spending-comparison') {
     if (insight.direction === 'steady') {
-      return 'Recorded spending matched the previous seven days.';
+      return {
+        accessibilityLabel:
+          'Recorded spending held steady compared with the previous seven days.',
+        eyebrow: 'Spending update',
+        message: 'No change compared with the previous 7 days',
+      };
     }
 
-    return `Recorded spending is ${insight.percentageDifference}% ${insight.direction} than the previous seven days.`;
+    const increased = insight.direction === 'higher';
+
+    return {
+      accessibilityLabel: `Recorded spending ${increased ? 'increased' : 'decreased'} ${insight.percentageDifference} percent compared with the previous seven days.`,
+      eyebrow: 'Spending update',
+      message: `${increased ? '↑' : '↓'} ${insight.percentageDifference}% compared with the previous 7 days`,
+    };
   }
 
   if (insight.kind === 'monthly-ratio') {
-    return `Expenses are ${insight.percentage}% of your recorded income this month.`;
+    return {
+      accessibilityLabel: `Expenses are ${insight.percentage} percent of recorded income this month.`,
+      eyebrow: 'This month',
+      message: `Expenses are ${insight.percentage}% of recorded income`,
+    };
   }
 
   if (insight.kind === 'income-only') {
-    return `You recorded ${formatCurrency(insight.incomeTotal)} in and no expenses this month.`;
+    return {
+      accessibilityLabel: `${formatCurrency(insight.incomeTotal)} of income and no expenses were recorded this month.`,
+      eyebrow: 'This month',
+      message: `${formatCurrency(insight.incomeTotal)} income · No expenses`,
+    };
   }
 
-  return `You recorded ${formatCurrency(insight.expenseTotal)} out and no income this month.`;
+  return {
+    accessibilityLabel: `${formatCurrency(insight.expenseTotal)} of expenses and no income were recorded this month.`,
+    eyebrow: 'This month',
+    message: `${formatCurrency(insight.expenseTotal)} spent · No income`,
+  };
 }
 
-export function TodayInsightCard({ insight }: TodayInsightCardProps) {
+export function TodayInsightCard({ insight, onPress }: TodayInsightCardProps) {
+  const content = getInsightContent(insight);
+
   return (
-    <SurfaceCard>
-      <View style={styles.row}>
-        <View style={styles.iconSurface}>
-          <SymbolView
-            name={{ ios: 'lightbulb.fill', android: 'lightbulb', web: 'lightbulb' }}
-            size={22}
-            tintColor={colors.accent}
-          />
-        </View>
-        <View style={styles.copy}>
-          <Text style={styles.label}>One useful insight</Text>
-          <Text style={styles.message}>{getInsightMessage(insight)}</Text>
-        </View>
+    <Pressable
+      accessibilityLabel={`${content.accessibilityLabel} Open Activity.`}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+      <View style={styles.copy}>
+        <Text style={styles.eyebrow}>{content.eyebrow}</Text>
+        <Text style={styles.message}>{content.message}</Text>
       </View>
-    </SurfaceCard>
+      <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.arrow}>
+        →
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
+    minHeight: 56,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-  },
-  iconSurface: {
-    width: 44,
-    height: 44,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.sm,
     borderRadius: radii.md,
-    backgroundColor: colors.accentSoft,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
   },
   copy: {
     minWidth: 0,
     flex: 1,
-    gap: spacing.xs,
+    gap: spacing.xxs,
   },
-  label: {
-    color: colors.accent,
+  eyebrow: {
+    color: colors.textMuted,
     fontSize: typography.label,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
   message: {
     color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
-    lineHeight: 21,
+    fontSize: 15,
+    fontWeight: fontWeights.medium,
+    lineHeight: 20,
+  },
+  arrow: {
+    color: colors.accent,
+    fontSize: typography.sectionTitle,
+    fontWeight: '900',
+  },
+  pressed: {
+    backgroundColor: colors.surfaceRaised,
+    opacity: 0.78,
   },
 });

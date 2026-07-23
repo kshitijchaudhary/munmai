@@ -1,124 +1,201 @@
-import { SymbolView } from 'expo-symbols';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SurfaceCard } from '@/components/surface-card';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 import { formatCurrency } from '@/dashboard/dashboard-model';
-import type { TodayMoneySummary, TodayPulseState } from '@/today/today-model';
+import type { TodayContext, TodayPulseState } from '@/today/today-model';
 
 interface TodayPulseProps {
+  context: TodayContext | null;
+  onPrimaryAction: () => void;
   pulse: TodayPulseState;
-  today: TodayMoneySummary;
 }
+
+const MAX_ACTION_SPACE_NAME_LENGTH = 24;
 
 const pulseContent = {
   'new-user': {
-    icon: { ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' },
+    eyebrow: 'Getting started',
     message: 'Your financial picture starts here.',
-    tone: 'accent',
   },
   insufficient: {
-    icon: { ios: 'clock.fill', android: 'schedule', web: 'schedule' },
+    eyebrow: 'Building your pattern',
     message: 'Munmai is learning your recent spending pattern.',
-    tone: 'accent',
   },
   owes: {
-    icon: { ios: 'creditcard.fill', android: 'credit_card', web: 'credit_card' },
-    message: 'A Space balance needs your attention.',
-    tone: 'expense',
+    eyebrow: 'Shared balance',
+    message: 'A shared balance needs your attention.',
   },
   steady: {
-    icon: {
-      ios: 'checkmark.circle.fill',
-      android: 'check_circle',
-      web: 'check_circle',
-    },
+    eyebrow: 'Recent spending',
     message: 'Your recent recorded spending looks steady.',
-    tone: 'accent',
   },
   watch: {
-    icon: {
-      ios: 'exclamationmark.triangle.fill',
-      android: 'warning',
-      web: 'warning',
-    },
+    eyebrow: 'Spending update',
     message: 'Your recent recorded spending has picked up.',
-    tone: 'expense',
   },
 } as const;
 
-export function TodayPulse({ pulse, today }: TodayPulseProps) {
-  const content = pulseContent[pulse];
-  const hasTodayActivity = today.incomeTotal > 0 || today.expenseTotal > 0;
-  const isExpenseTone = content.tone === 'expense';
+export function TodayPulse({
+  context,
+  onPrimaryAction,
+  pulse,
+}: TodayPulseProps) {
+  const isSpaceBalance = context?.kind === 'owed' || context?.kind === 'owes';
+  const isWatch = context?.kind === 'watch';
+  const isSetup = context?.kind === 'setup';
+  const isOwed = context?.kind === 'owed';
+  const pulseFallback = pulseContent[pulse];
+  const eyebrow = isSpaceBalance ? 'Shared balance' : pulseFallback.eyebrow;
+  const title =
+    isSpaceBalance && context.groupName
+      ? context.groupName
+      : isWatch
+        ? `Recorded spending is up ${context.percentageDifference}%`
+        : pulseFallback.message;
+  const balanceCopy = isSpaceBalance
+    ? `${isOwed ? 'You’re owed' : 'You owe'} ${formatCurrency(context.amount)}`
+    : null;
+  const supportingCopy = isWatch
+    ? `${formatCurrency(context.currencyDifference)} more than the previous 7 days`
+    : isSetup
+      ? 'Record your first transaction and Munmai will begin showing useful patterns.'
+      : null;
+  const actionLabel = isSpaceBalance
+    ? context.groupName
+      ? context.groupName.length <= MAX_ACTION_SPACE_NAME_LENGTH
+        ? `View ${context.groupName}`
+        : 'View Space'
+      : 'Review Spaces'
+    : isWatch
+      ? 'Review activity'
+      : isSetup
+        ? 'Open Capture'
+        : null;
+  const actionAccessibilityLabel =
+    isSpaceBalance && context.groupName
+      ? `View ${context.groupName}`
+      : actionLabel ?? undefined;
+  const accessibleSummary = [
+    eyebrow,
+    title,
+    balanceCopy,
+    supportingCopy,
+  ]
+    .filter(Boolean)
+    .join('. ');
 
   return (
-    <View accessibilityLiveRegion="polite" style={styles.container}>
+    <SurfaceCard style={styles.card}>
+      <Text style={styles.eyebrow}>{eyebrow}</Text>
+
       <View
-        style={[
-          styles.iconSurface,
-          isExpenseTone ? styles.expenseIconSurface : styles.accentIconSurface,
-        ]}>
-        <SymbolView
-          name={content.icon}
-          size={24}
-          tintColor={isExpenseTone ? colors.expense : colors.accent}
-        />
-      </View>
-      <View style={styles.copy}>
-        <Text style={styles.label}>Financial pulse</Text>
-        <Text style={styles.message}>{content.message}</Text>
-        {hasTodayActivity ? (
-          <Text style={styles.detail}>
-            Today: {formatCurrency(today.incomeTotal)} in ·{' '}
-            {formatCurrency(today.expenseTotal)} out
+        accessibilityLabel={accessibleSummary}
+        accessibilityLiveRegion="polite"
+        accessible
+        style={styles.copy}>
+        <Text
+          ellipsizeMode="tail"
+          numberOfLines={isSpaceBalance ? 1 : undefined}
+          style={[styles.title, isSpaceBalance && styles.spaceName]}>
+          {title}
+        </Text>
+        {balanceCopy ? (
+          <Text
+            style={[
+              styles.balance,
+              isOwed ? styles.owedBalance : styles.owesBalance,
+            ]}>
+            {balanceCopy}
           </Text>
         ) : null}
+        {supportingCopy ? (
+          <Text style={styles.supportingCopy}>{supportingCopy}</Text>
+        ) : null}
       </View>
-    </View>
+
+      {actionLabel ? (
+        <Pressable
+          accessibilityLabel={actionAccessibilityLabel}
+          accessibilityRole="button"
+          onPress={onPrimaryAction}
+          style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+          <Text ellipsizeMode="tail" numberOfLines={1} style={styles.actionText}>
+            {actionLabel}
+          </Text>
+          <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.arrow}>
+            →
+          </Text>
+        </Pressable>
+      ) : null}
+    </SurfaceCard>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    paddingHorizontal: spacing.xxs,
+  card: {
+    gap: spacing.sm,
   },
-  iconSurface: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.md,
-  },
-  accentIconSurface: {
-    backgroundColor: colors.accentSoft,
-  },
-  expenseIconSurface: {
-    backgroundColor: colors.expenseSoft,
-  },
-  copy: {
-    minWidth: 0,
-    flex: 1,
-    gap: spacing.xxs,
-  },
-  label: {
+  eyebrow: {
     color: colors.textMuted,
     fontSize: typography.label,
     fontWeight: '900',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
-  message: {
+  copy: {
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  title: {
     color: colors.text,
     fontSize: 20,
     fontWeight: '900',
-    lineHeight: 27,
+    lineHeight: 26,
   },
-  detail: {
+  spaceName: {
+    fontSize: 23,
+    lineHeight: 29,
+  },
+  balance: {
+    fontSize: typography.sectionTitle,
+    fontWeight: '900',
+    lineHeight: 24,
+  },
+  owedBalance: {
+    color: colors.income,
+  },
+  owesBalance: {
+    color: colors.expense,
+  },
+  supportingCopy: {
     color: colors.textMuted,
     fontSize: typography.body,
     lineHeight: 20,
+  },
+  action: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceRaised,
+    paddingHorizontal: spacing.sm,
+  },
+  actionText: {
+    minWidth: 0,
+    flex: 1,
+    color: colors.accent,
+    fontSize: typography.body,
+    fontWeight: '900',
+  },
+  arrow: {
+    color: colors.accent,
+    fontSize: typography.sectionTitle,
+    fontWeight: '900',
+  },
+  pressed: {
+    opacity: 0.72,
   },
 });

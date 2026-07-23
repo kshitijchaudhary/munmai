@@ -17,13 +17,12 @@ import {
 import { useAuth } from '@/auth/auth-context';
 import { AvatarButton } from '@/components/avatar-button';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
-import { EmptyState } from '@/components/empty-state';
 import { ScreenContainer } from '@/components/screen-container';
 import { ScreenHeader } from '@/components/screen-header';
-import { TodayContextCard } from '@/components/today-context-card';
 import { TodayInsightCard } from '@/components/today-insight-card';
 import { TodayPulse } from '@/components/today-pulse';
 import { colors } from '@/constants/theme';
+import { buildGroupRoute } from '@/groups/group-routes';
 import { PUBLIC_ROUTES } from '@/navigation/routes';
 import { buildTodayViewModel } from '@/today/today-model';
 import { useTodayData } from '@/today/use-today-data';
@@ -161,32 +160,40 @@ export default function DashboardScreen() {
         />
       ) : null}
 
-      {today ? <TodayPulse pulse={today.pulse} today={today.today} /> : null}
-
-      {today?.context?.kind === 'setup' ? (
-        <EmptyState
-          actionLabel="Open Capture"
-          icon={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }}
-          message="Record your first transaction and Munmai will begin showing useful patterns."
-          onAction={() => router.navigate(PUBLIC_ROUTES.add as Href)}
-          title="Start building your financial picture"
-        />
-      ) : null}
-
-      {today?.context && today.context.kind !== 'setup' ? (
-        <TodayContextCard
+      {today ? (
+        <TodayPulse
           context={today.context}
-          onAction={() =>
-            router.navigate(
-              (today.context?.kind === 'watch'
-                ? PUBLIC_ROUTES.transactions
-                : PUBLIC_ROUTES.groups) as Href,
-            )
-          }
+          onPrimaryAction={() => {
+            const context = today.context;
+
+            if (context?.kind === 'owed' || context?.kind === 'owes') {
+              router.navigate(
+                (context.groupId
+                  ? buildGroupRoute(context.groupId)
+                  : PUBLIC_ROUTES.groups) as Href,
+              );
+              return;
+            }
+
+            if (context?.kind === 'watch') {
+              router.navigate(PUBLIC_ROUTES.transactions as Href);
+              return;
+            }
+
+            if (context?.kind === 'setup') {
+              router.navigate(PUBLIC_ROUTES.add as Href);
+            }
+          }}
+          pulse={today.pulse}
         />
       ) : null}
 
-      {today?.insight ? <TodayInsightCard insight={today.insight} /> : null}
+      {today?.insight ? (
+        <TodayInsightCard
+          insight={today.insight}
+          onPress={() => router.navigate(PUBLIC_ROUTES.transactions as Href)}
+        />
+      ) : null}
     </ScreenContainer>
   );
 }

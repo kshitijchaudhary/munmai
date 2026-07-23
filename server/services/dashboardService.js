@@ -1,13 +1,11 @@
+import Group from "../models/Group.js";
 import GroupMembership from "../models/GroupMembership.js";
-import { getGroupBalances } from "./balanceService.js";
+import { getUserGroupBalanceSummaries } from "./balanceService.js";
 
 const roundMoney = (v) =>
   Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
 
-const getBalanceUserId = (value) => String(value?._id || value || "");
-
 export const getDashboardSummary = async (userId) => {
-  // 1. get all groups where user is active
   const memberships = await GroupMembership.find({
     userId,
     status: "active",
@@ -15,24 +13,44 @@ export const getDashboardSummary = async (userId) => {
     .select("groupId")
     .lean();
 
-  const groupIds = memberships.map((m) => m.groupId);
+  const groupIds = [
+    ...new Set(memberships.map((membership) => String(membership.groupId))),
+  ];
 
+  if (groupIds.length === 0) {
+    return {
+      totalYouOwe: 0,
+      totalYouAreOwed: 0,
+      netBalance: 0,
+      spaces: [],
+    };
+  }
+
+  const [groups, balanceSummaries] = await Promise.all([
+    Group.find({ _id: { $in: groupIds } }).select("_id name").lean(),
+    getUserGroupBalanceSummaries(groupIds, userId),
+  ]);
+  const groupNames = new Map(
+    groups.map((group) => [String(group._id), String(group.name || "").trim()])
+  );
   let totalYouOwe = 0;
   let totalYouAreOwed = 0;
 
-  // 2. aggregate balances across groups
-  for (const groupId of groupIds) {
-    const balances = await getGroupBalances(groupId);
+  const spaces = balanceSummaries.flatMap((summary) => {
+    totalYouOwe += summary.totalYouOwe;
+    totalYouAreOwed += summary.totalYouAreOwed;
 
-    for (const b of balances) {
-      if (getBalanceUserId(b.from) === String(userId)) {
-        totalYouOwe += Number(b.amount);
-      }
-      if (getBalanceUserId(b.to) === String(userId)) {
-        totalYouAreOwed += Number(b.amount);
-      }
+    const name = groupNames.get(summary.groupId);
+
+    if (
+      !name ||
+      (summary.totalYouOwe <= 0 && summary.totalYouAreOwed <= 0)
+    ) {
+      return [];
     }
-  }
+
+    return [{ ...summary, name }];
+  });
 
   totalYouOwe = roundMoney(totalYouOwe);
   totalYouAreOwed = roundMoney(totalYouAreOwed);
@@ -41,5 +59,6 @@ export const getDashboardSummary = async (userId) => {
     totalYouOwe,
     totalYouAreOwed,
     netBalance: roundMoney(totalYouAreOwed - totalYouOwe),
+    spaces,
   };
 };

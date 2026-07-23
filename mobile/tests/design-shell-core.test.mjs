@@ -150,10 +150,28 @@ test('Today has one financial pulse and no legacy dashboard sections', () => {
   assert.equal(todaySource.match(/<TodayPulse/g)?.length, 1);
   assert.doesNotMatch(todaySource, /MonthlySnapshot|Recent activity|RecentTransactionRow/);
   assert.doesNotMatch(todaySource, /Quick capture|Financial snapshot|Quick Actions/);
-  assert.match(todaySource, /<TodayContextCard/);
   assert.match(todaySource, /<TodayInsightCard/);
-  assert.equal(todaySource.match(/actionLabel="Open Capture"/g)?.length, 1);
+  assert.doesNotMatch(todaySource, /TodayContextCard|<EmptyState/);
   assert.match(todaySource, /PUBLIC_ROUTES\.add/);
+});
+
+test('Today uses one primary balance surface and a lightweight supporting row', () => {
+  const pulseSource = readFileSync(
+    new URL('../src/components/today-pulse.tsx', import.meta.url),
+    'utf8',
+  );
+  const insightSource = readFileSync(
+    new URL('../src/components/today-insight-card.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.equal(pulseSource.match(/<SurfaceCard/g)?.length, 1);
+  assert.match(pulseSource, /gap: spacing\.sm/);
+  assert.match(pulseSource, /backgroundColor: colors\.surfaceRaised/);
+  assert.match(pulseSource, /minHeight: 44/);
+  assert.match(insightSource, /minHeight: 56/);
+  assert.doesNotMatch(insightSource, /SurfaceCard|backgroundColor: colors\.surface,/);
+  assert.doesNotMatch(insightSource, /styles\.label|One useful insight/);
 });
 
 test('Add Transaction begins with form controls and does not repeat its native title', () => {

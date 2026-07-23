@@ -9,15 +9,32 @@ import {
   getLocalCalendarKey,
   parseSharedMoneyResponse,
   preserveTodaySourcesAfterPartialRefresh,
+  selectPrioritySpace,
   shiftLocalCalendarKey,
 } from '../src/today/today-model.ts';
 
 const referenceDate = new Date(2026, 6, 23, 12);
+const firstGroupId = '507f1f77bcf86cd799439021';
+const secondGroupId = '507f1f77bcf86cd799439022';
+const thirdGroupId = '507f1f77bcf86cd799439023';
 const noSharedBalances = {
   totalYouOwe: 0,
   totalYouAreOwed: 0,
   netBalance: 0,
+  spaces: [],
 };
+
+const space = (
+  groupId,
+  name,
+  { totalYouAreOwed = 0, totalYouOwe = 0 } = {},
+) => ({
+  groupId,
+  name,
+  totalYouOwe,
+  totalYouAreOwed,
+  netBalance: totalYouAreOwed - totalYouOwe,
+});
 
 const transaction = (type, date, amount, id = `${type}-${date}-${amount}`) => ({
   amount,
@@ -164,25 +181,76 @@ test('Space money owed by the user has priority over a spending warning', () => 
   ];
   const result = buildTodayViewModel(
     watchTransactions,
-    { totalYouOwe: 42.5, totalYouAreOwed: 80, netBalance: 37.5 },
+    {
+      totalYouOwe: 42.5,
+      totalYouAreOwed: 80,
+      netBalance: 37.5,
+      spaces: [
+        space(secondGroupId, 'Summer trip', { totalYouOwe: 42.5 }),
+        space(firstGroupId, 'A&W Team', { totalYouAreOwed: 80 }),
+      ],
+    },
     referenceDate,
   );
 
   assert.equal(result.spending.watch, true);
   assert.equal(result.pulse, 'owes');
-  assert.deepEqual(result.context, { amount: 42.5, kind: 'owes' });
+  assert.deepEqual(result.context, {
+    amount: 42.5,
+    groupId: secondGroupId,
+    groupName: 'Summer trip',
+    kind: 'owes',
+    otherAffectedSpaceCount: 1,
+  });
+  assert.equal(result.insight?.kind, 'spending-comparison');
 });
 
 test('owed-only Space balances select one positive contextual state', () => {
   const result = buildTodayViewModel(
     reliableSteadyTransactions(),
-    { totalYouOwe: 0, totalYouAreOwed: 55, netBalance: 55 },
+    {
+      totalYouOwe: 0,
+      totalYouAreOwed: 55,
+      netBalance: 55,
+      spaces: [space(firstGroupId, 'A&W Team', { totalYouAreOwed: 55 })],
+    },
     referenceDate,
   );
 
   assert.equal(result.pulse, 'steady');
-  assert.deepEqual(result.context, { amount: 55, kind: 'owed' });
+  assert.deepEqual(result.context, {
+    amount: 55,
+    groupId: firstGroupId,
+    groupName: 'A&W Team',
+    kind: 'owed',
+    otherAffectedSpaceCount: 0,
+  });
   assert.equal(Array.isArray(result.context), false);
+});
+
+test('an owed Space remains primary while a spending comparison becomes support', () => {
+  const result = buildTodayViewModel(
+    [
+      transaction('expense', '2026-07-10', 100),
+      transaction('expense', '2026-07-17', 50),
+      transaction('expense', '2026-07-23', 100),
+    ],
+    {
+      totalYouOwe: 0,
+      totalYouAreOwed: 34,
+      netBalance: 34,
+      spaces: [space(firstGroupId, 'A&W Team', { totalYouAreOwed: 34 })],
+    },
+    referenceDate,
+  );
+
+  assert.equal(result.pulse, 'watch');
+  assert.equal(result.context?.kind, 'owed');
+  assert.deepEqual(result.insight, {
+    direction: 'higher',
+    kind: 'spending-comparison',
+    percentageDifference: 50,
+  });
 });
 
 test('watch context is singular and suppresses a duplicate spending insight', () => {
@@ -218,9 +286,126 @@ test('sharedMoney parsing ignores unrelated all-time dashboard fields', () => {
       totalYouOwe: 12.34,
       totalYouAreOwed: 45.67,
       netBalance: 33.33,
+      spaces: [],
     },
   );
   assert.throws(() => parseSharedMoneyResponse({ incomeTotal: 100 }));
+});
+
+test('sharedMoney spaces parsing is backward compatible and degrades safely', () => {
+  const aggregates = {
+    totalYouOwe: 12.34,
+    totalYouAreOwed: 45.67,
+    netBalance: 33.33,
+  };
+
+  assert.deepEqual(
+    parseSharedMoneyResponse({ sharedMoney: aggregates }),
+    { ...aggregates, spaces: [] },
+  );
+  assert.deepEqual(
+    buildTodayViewModel(
+      reliableSteadyTransactions(),
+      aggregates,
+      referenceDate,
+    ).context,
+    {
+      amount: 12.34,
+      groupId: null,
+      groupName: null,
+      kind: 'owes',
+      otherAffectedSpaceCount: 0,
+    },
+  );
+  assert.deepEqual(
+    parseSharedMoneyResponse({
+      sharedMoney: { ...aggregates, spaces: 'not-an-array' },
+    }),
+    { ...aggregates, spaces: [] },
+  );
+  assert.deepEqual(
+    parseSharedMoneyResponse({
+      sharedMoney: {
+        ...aggregates,
+        spaces: [
+          {
+            groupId: firstGroupId.toUpperCase(),
+            name: '  A&W Team  ',
+            totalYouOwe: 0,
+            totalYouAreOwed: 24,
+            netBalance: 24,
+          },
+          {
+            groupId: 'invalid',
+            name: 'Invalid',
+            totalYouOwe: 1,
+            totalYouAreOwed: 0,
+            netBalance: -1,
+          },
+          {
+            groupId: secondGroupId,
+            name: '',
+            totalYouOwe: 10,
+            totalYouAreOwed: 0,
+            netBalance: -10,
+          },
+        ],
+      },
+    }).spaces,
+    [space(firstGroupId, 'A&W Team', { totalYouAreOwed: 24 })],
+  );
+});
+
+test('priority Space selection prefers owes, then amount, then ascending group ID', () => {
+  const selectedOwes = selectPrioritySpace([
+    space(thirdGroupId, 'Owed Space', { totalYouAreOwed: 500 }),
+    space(secondGroupId, 'Second owe', { totalYouOwe: 40 }),
+    space(firstGroupId, 'First owe', { totalYouOwe: 40 }),
+  ]);
+
+  assert.deepEqual(selectedOwes, {
+    amount: 40,
+    direction: 'owes',
+    otherAffectedSpaceCount: 2,
+    space: space(firstGroupId, 'First owe', { totalYouOwe: 40 }),
+  });
+
+  const selectedOwed = selectPrioritySpace([
+    space(firstGroupId, 'Smaller', { totalYouAreOwed: 20 }),
+    space(thirdGroupId, 'Largest later', { totalYouAreOwed: 60 }),
+    space(secondGroupId, 'Largest earlier', { totalYouAreOwed: 60 }),
+  ]);
+
+  assert.deepEqual(selectedOwed, {
+    amount: 60,
+    direction: 'owed',
+    otherAffectedSpaceCount: 2,
+    space: space(secondGroupId, 'Largest earlier', { totalYouAreOwed: 60 }),
+  });
+});
+
+test('Today uses the selected Space amount instead of the aggregate amount', () => {
+  const result = buildTodayViewModel(
+    reliableSteadyTransactions(),
+    {
+      totalYouOwe: 0,
+      totalYouAreOwed: 34,
+      netBalance: 34,
+      spaces: [
+        space(firstGroupId, 'A&W Team', { totalYouAreOwed: 24 }),
+        space(secondGroupId, 'Dinner club', { totalYouAreOwed: 10 }),
+      ],
+    },
+    referenceDate,
+  );
+
+  assert.deepEqual(result.context, {
+    amount: 24,
+    groupId: firstGroupId,
+    groupName: 'A&W Team',
+    kind: 'owed',
+    otherAffectedSpaceCount: 1,
+  });
 });
 
 test('partial sharedMoney failure preserves usable transaction data', async () => {
@@ -271,7 +456,81 @@ test('Today screen removes legacy dashboard sections and generic actions', () =>
   assert.doesNotMatch(source, /Recent activity|RecentTransactionRow/);
   assert.doesNotMatch(source, /Quick Actions|Quick actions|action grid/i);
   assert.match(source, /<TodayPulse/);
-  assert.match(source, /<TodayContextCard/);
   assert.match(source, /<TodayInsightCard/);
-  assert.equal(source.match(/actionLabel="Open Capture"/g)?.length, 1);
+  assert.doesNotMatch(source, /TodayContextCard|<EmptyState/);
+});
+
+test('Today presentation uses one primary pulse surface and one supporting insight', () => {
+  const screenSource = readFileSync(
+    new URL('../src/app/(app)/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const pulseSource = readFileSync(
+    new URL('../src/components/today-pulse.tsx', import.meta.url),
+    'utf8',
+  );
+  const insightSource = readFileSync(
+    new URL('../src/components/today-insight-card.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.equal(screenSource.match(/<TodayPulse/g)?.length, 1);
+  assert.equal(screenSource.match(/<TodayInsightCard/g)?.length, 1);
+  assert.doesNotMatch(screenSource, /TodayContextCard|<EmptyState/);
+  assert.match(pulseSource, /<SurfaceCard/);
+  assert.match(pulseSource, /Shared balance/);
+  assert.match(pulseSource, /Spending update/);
+  assert.match(pulseSource, /Getting started/);
+  assert.match(pulseSource, /Building your pattern/);
+  assert.match(pulseSource, /Recent spending/);
+  assert.match(pulseSource, /You’re owed/);
+  assert.match(pulseSource, /You owe/);
+  assert.match(pulseSource, /\? context\.groupName/);
+  assert.match(pulseSource, /minHeight: 44/);
+  assert.match(pulseSource, /numberOfLines=\{isSpaceBalance \? 1 : undefined\}/);
+  assert.match(pulseSource, /`View \$\{context\.groupName\}`/);
+  assert.doesNotMatch(
+    pulseSource,
+    /Financial pulse|otherAffectedSpaceCount|Plus \d|additionalSpaces/,
+  );
+
+  assert.match(
+    insightSource,
+    /\$\{increased \? '↑' : '↓'\} \$\{insight\.percentageDifference\}% compared with the previous 7 days/,
+  );
+  assert.match(
+    insightSource,
+    /Recorded spending \$\{increased \? 'increased' : 'decreased'\}/,
+  );
+  assert.match(insightSource, /accessibilityRole="button"/);
+  assert.match(insightSource, /onPress=\{onPress\}/);
+  assert.doesNotMatch(insightSource, /SurfaceCard|One useful insight/);
+});
+
+test('Today contextual actions retain their intended destinations', () => {
+  const source = readFileSync(
+    new URL('../src/app/(app)/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /buildGroupRoute\(context\.groupId\)/);
+  assert.match(source, /context\?\.kind === 'watch'[\s\S]*PUBLIC_ROUTES\.transactions/);
+  assert.match(
+    source,
+    /<TodayInsightCard[\s\S]*onPress=\{\(\) => router\.navigate\(PUBLIC_ROUTES\.transactions as Href\)\}/,
+  );
+  assert.match(source, /router\.navigate\(PUBLIC_ROUTES\.add as Href\)/);
+  assert.doesNotMatch(source, /onAdditionalSpaces/);
+  assert.equal(source.match(/PUBLIC_ROUTES\.account/g)?.length, 1);
+  assert.doesNotMatch(source, /settings|gear|cog/i);
+});
+
+test('Today data loading does not fan out into per-Space summary requests', () => {
+  const source = readFileSync(
+    new URL('../src/api/today.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /\/dashboard\/summary/);
+  assert.doesNotMatch(source, /getGroups|getGroupSummary|\/groups\//);
 });
