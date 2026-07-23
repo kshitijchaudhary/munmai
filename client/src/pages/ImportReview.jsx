@@ -18,6 +18,10 @@ import {
 import { getLiabilities } from "../api/liabilities";
 import DocumentUploadField from "../components/DocumentUploadField";
 import Sidebar from "../components/Sidebar";
+import {
+  getLocalDateValue,
+  submitWithTransactionDateBatchGuard,
+} from "../utils/transactionDateValidation";
 
 const classificationOptions = [
   { value: "unclassified", label: "Choose classification" },
@@ -615,20 +619,35 @@ const ImportReview = () => {
       setPdfConfirmStatus(null);
       setPdfConfirmResult(null);
 
-      const result = await confirmPdfImportRows({
-        fileName: pdfPreview?.fileName || statementFile?.name || "statement.pdf",
-        rows: selectedPdfRowsForImport.map((row) => ({
-          rowNumber: row.rowNumber,
-          date: row.date,
-          description: row.description,
-          amount: row.amount,
-          type: row.type,
-          confidence: row.confidence,
-          rawText: row.rawText,
-          category: row.category || "Other",
-        })),
+      const submission = await submitWithTransactionDateBatchGuard({
+        allowFlexibleFormat: true,
+        entries: selectedPdfRowsForImport,
+        submit: () =>
+          confirmPdfImportRows({
+            fileName:
+              pdfPreview?.fileName || statementFile?.name || "statement.pdf",
+            rows: selectedPdfRowsForImport.map((row) => ({
+              rowNumber: row.rowNumber,
+              date: row.date,
+              description: row.description,
+              amount: row.amount,
+              type: row.type,
+              confidence: row.confidence,
+              rawText: row.rawText,
+              category: row.category || "Other",
+            })),
+          }),
       });
 
+      if (!submission.submitted) {
+        setPdfConfirmStatus({
+          type: "error",
+          text: `Row ${submission.rejectedEntry.rowNumber}: ${submission.message}`,
+        });
+        return;
+      }
+
+      const result = submission.value;
       setPdfConfirmResult(result);
       setPdfConfirmStatus({
         type: "success",
@@ -768,7 +787,18 @@ const ImportReview = () => {
       setSavingRowId(row._id);
       setMessage(null);
 
-      const result = await updateImportRow(row._id, buildRowPayload(row));
+      const submission = await submitWithTransactionDateBatchGuard({
+        entries: [row],
+        getDate: (entry) => toDateInputValue(entry.parsedDate),
+        submit: () => updateImportRow(row._id, buildRowPayload(row)),
+      });
+
+      if (!submission.submitted) {
+        setMessage({ type: "error", text: submission.message });
+        return;
+      }
+
+      const result = submission.value;
       setRows((currentRows) =>
         currentRows.map((currentRow) =>
           currentRow._id === row._id ? result.row : currentRow
@@ -841,12 +871,40 @@ const ImportReview = () => {
       return;
     }
 
+    const rowsToValidate = rows.filter(
+      (row) =>
+        row.status === "ready" &&
+        ["income", "expense"].includes(getEffectiveClassification(row))
+    );
+
     try {
       setCommitting(true);
       setMessage(null);
       setCommitSummary(null);
 
-      const result = await commitImportBatch(selectedBatch._id);
+      const submission = await submitWithTransactionDateBatchGuard({
+        entries: rowsToValidate,
+        getDate: (row) => toDateInputValue(row.parsedDate),
+        submit: () => commitImportBatch(selectedBatch._id),
+      });
+
+      if (!submission.submitted) {
+        setCommitSummary({
+          errors: [
+            {
+              message: submission.message,
+              rowId: submission.rejectedEntry._id,
+            },
+          ],
+        });
+        setMessage({
+          type: "error",
+          text: "Some rows could not be imported. Review the row errors below.",
+        });
+        return;
+      }
+
+      const result = submission.value;
       const summary = result.summary || {};
       const hasErrors = Array.isArray(summary.errors) && summary.errors.length > 0;
 
@@ -2168,6 +2226,7 @@ const ImportRowEditor = ({
           <input
             type="date"
             value={toDateInputValue(row.parsedDate)}
+            max={getLocalDateValue()}
             onChange={(event) => onChange({ parsedDate: event.target.value })}
             disabled={locked || skipped || saving}
             className={inputClass}

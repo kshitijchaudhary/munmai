@@ -7,6 +7,12 @@ import {
   validateReviewRow,
 } from "../utils/importReview";
 import { trackError, trackEvent } from "../utils/telemetry";
+import {
+  TRANSACTION_DATE_FUTURE_MESSAGE,
+  getLocalDateValue,
+  getTransactionDateValidationError,
+  submitWithTransactionDateBatchGuard,
+} from "../utils/transactionDateValidation";
 
 const ImportTransactions = ({ onImportComplete }) => {
   const [headers, setHeaders] = useState([]);
@@ -199,14 +205,24 @@ const ImportTransactions = ({ onImportComplete }) => {
   };
 
   const handleImport = async () => {
-    const rowsToImport = reviewRows.filter(
-      (row) => row.selected && row.issues.length === 0
+    const selectedRows = reviewRows.filter((row) => row.selected);
+    const hasFutureDate = selectedRows.some(
+      (row) =>
+        getTransactionDateValidationError(row.date, {
+          allowFlexibleFormat: true,
+        }) === TRANSACTION_DATE_FUTURE_MESSAGE
+    );
+
+    const rowsToImport = selectedRows.filter(
+      (row) => validateReviewRow(row).length === 0
     );
 
     if (!rowsToImport.length) {
       setMessage({
         type: "error",
-        text: "Select at least one clean row to import.",
+        text: hasFutureDate
+          ? TRANSACTION_DATE_FUTURE_MESSAGE
+          : "Select at least one clean row to import.",
       });
       return;
     }
@@ -214,15 +230,26 @@ const ImportTransactions = ({ onImportComplete }) => {
     try {
       setImporting(true);
 
-      const { data } = await api.post("/transactions/import", {
-        transactions: rowsToImport.map((row) => ({
-          type: row.type,
-          amount: row.amount,
-          date: row.date,
-          title: row.title,
-          category: row.category,
-        })),
+      const submission = await submitWithTransactionDateBatchGuard({
+        allowFlexibleFormat: true,
+        entries: selectedRows,
+        submit: () =>
+          api.post("/transactions/import", {
+            transactions: rowsToImport.map((row) => ({
+              type: row.type,
+              amount: row.amount,
+              date: row.date,
+              title: row.title,
+              category: row.category,
+            })),
+          }),
       });
+      if (!submission.submitted) {
+        setMessage({ type: "error", text: submission.message });
+        return;
+      }
+
+      const { data } = submission.value;
       trackEvent("csv_import_completed", {
         importedCount: data.importedCount,
         skippedCount: data.skippedCount,
@@ -484,8 +511,9 @@ const ImportTransactions = ({ onImportComplete }) => {
                       </td>
                       <td className="px-3 py-2">
                         <input
-                          type="text"
+                          type="date"
                           value={row.date}
+                          max={getLocalDateValue()}
                           onChange={(e) =>
                             updateReviewRow(row.id, { date: e.target.value })
                           }
