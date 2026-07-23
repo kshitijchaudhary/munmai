@@ -16,6 +16,11 @@ import {
   buildEqualSplitPayload,
   validateSharedExpense,
 } from '../src/groups/shared-expense-form.ts';
+import {
+  MAX_MONEY_AMOUNT,
+  MONEY_AMOUNT_MAX_MESSAGE,
+  MONEY_AMOUNT_PRECISION_MESSAGE,
+} from '../src/money/money-amount.js';
 import { createRequestCoordinator } from '../src/utils/request-coordinator.ts';
 
 const groupId = '64a000000000000000000001';
@@ -71,9 +76,41 @@ test('shared expense validation covers required fields and participant membershi
 });
 
 test('equal split payload is normalized and includes only backend-supported fields', () => {
-  const payload = buildEqualSplitPayload(groupId, { amount: '12.345', description: '  Lunch  ', paidBy: ownerId, participantIds: [memberId, ownerId, memberId] }, members);
-  assert.deepEqual(payload, { groupId, paidBy: ownerId, participants: [ownerId, memberId], amount: 12.35, description: 'Lunch' });
+  const payload = buildEqualSplitPayload(groupId, { amount: '12.34', description: '  Lunch  ', paidBy: ownerId, participantIds: [memberId, ownerId, memberId] }, members);
+  assert.deepEqual(payload, { groupId, paidBy: ownerId, participants: [ownerId, memberId], amount: 12.34, description: 'Lunch' });
   assert.equal('date' in payload, false);
+});
+
+test('shared expenses reject fractional cents instead of silently rounding and enforce the canonical maximum', () => {
+  const base = {
+    description: 'Lunch',
+    paidBy: ownerId,
+    participantIds: [ownerId, memberId],
+  };
+
+  assert.equal(
+    validateSharedExpense({ ...base, amount: '12.345' }, members).amount,
+    MONEY_AMOUNT_PRECISION_MESSAGE,
+  );
+  assert.equal(
+    buildEqualSplitPayload(groupId, { ...base, amount: '12.345' }, members),
+    null,
+  );
+  assert.equal(
+    validateSharedExpense(
+      { ...base, amount: String(MAX_MONEY_AMOUNT + 0.01) },
+      members,
+    ).amount,
+    MONEY_AMOUNT_MAX_MESSAGE,
+  );
+  assert.equal(
+    buildEqualSplitPayload(
+      groupId,
+      { ...base, amount: String(MAX_MONEY_AMOUNT) },
+      members,
+    ).amount,
+    MAX_MONEY_AMOUNT,
+  );
 });
 
 test('group routes are valid public paths and safely parse IDs', () => {

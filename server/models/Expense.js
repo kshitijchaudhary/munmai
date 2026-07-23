@@ -3,6 +3,10 @@ import {
   FUTURE_TRANSACTION_DATE_MESSAGE,
   isTransactionDateInFuture,
 } from '../utils/transactionDate.js';
+import {
+  isCanonicalMoneyAmount,
+  MONEY_AMOUNT_SCHEMA_MESSAGE,
+} from '../utils/moneyAmount.js';
 
 const expenseCategories = [
   'Rent',
@@ -42,7 +46,10 @@ const expenseSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: [true, 'Amount is required'],
-      min: [0, 'Amount cannot be negative'],
+      validate: {
+        validator: isCanonicalMoneyAmount,
+        message: MONEY_AMOUNT_SCHEMA_MESSAGE,
+      },
     },
     recipient: {
       type: String,

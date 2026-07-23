@@ -1,5 +1,6 @@
 import { unlink } from "fs/promises";
 import Expense from "../models/Expense.js";
+import { validateMoneyAmount } from "../utils/moneyAmount.js";
 import { resolveStoredFilePath } from "../utils/uploadPaths.js";
 import { getTransactionDateValidationError } from "../utils/transactionDate.js";
 
@@ -18,7 +19,7 @@ const normalizeExpenseType = (value) =>
 
 const buildReceiptUrl = (file) => (file ? `/uploads/${file.filename}` : "");
 
-const normalizeExpensePayload = ({ body, receiptUrl }) => {
+const normalizeExpensePayload = ({ amount, body, receiptUrl }) => {
   const expenseType = normalizeExpenseType(body.expenseType);
   const deductibleRequested = parseBoolean(body.deductible);
   const deductible = expenseType === "personal" ? false : deductibleRequested;
@@ -33,7 +34,7 @@ const normalizeExpensePayload = ({ body, receiptUrl }) => {
   deductiblePercent = Math.min(Math.max(deductiblePercent, 0), 100);
 
   return {
-    amount: Number(body.amount),
+    amount,
     recipient: String(body.recipient || "").trim(),
     category: String(body.category || "Other").trim() || "Other",
     expenseType,
@@ -47,10 +48,6 @@ const normalizeExpensePayload = ({ body, receiptUrl }) => {
 };
 
 const validateExpensePayload = (payload, dateInput) => {
-  if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
-    return "Amount must be greater than 0";
-  }
-
   if (!payload.recipient || !payload.category) {
     return "Amount, recipient, and category are required";
   }
@@ -128,7 +125,17 @@ export const addExpense = async (req, res) => {
   const uploadedReceiptUrl = buildReceiptUrl(req.file);
 
   try {
+    const amountValidation = validateMoneyAmount(req.body.amount, {
+      allowMultipartString: Boolean(req.is("multipart/form-data")),
+    });
+
+    if (!amountValidation.valid) {
+      await cleanupUploadedReceipt(req.file);
+      return res.status(400).json({ message: amountValidation.error });
+    }
+
     const expensePayload = normalizeExpensePayload({
+      amount: amountValidation.amount,
       body: req.body,
       receiptUrl: uploadedReceiptUrl,
     });
@@ -177,7 +184,17 @@ export const updateExpense = async (req, res) => {
 
     const existingReceiptUrl = expense.receiptUrl || "";
     const nextReceiptUrl = uploadedReceiptUrl || existingReceiptUrl;
+    const amountValidation = validateMoneyAmount(req.body.amount, {
+      allowMultipartString: Boolean(req.is("multipart/form-data")),
+    });
+
+    if (!amountValidation.valid) {
+      await cleanupUploadedReceipt(req.file);
+      return res.status(400).json({ message: amountValidation.error });
+    }
+
     const expensePayload = normalizeExpensePayload({
+      amount: amountValidation.amount,
       body: req.body,
       receiptUrl: nextReceiptUrl,
     });

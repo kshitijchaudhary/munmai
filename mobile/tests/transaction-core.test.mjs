@@ -3,6 +3,14 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import {
+  MAX_MONEY_AMOUNT,
+  MONEY_AMOUNT_MAX_MESSAGE,
+  MONEY_AMOUNT_MIN_MESSAGE,
+  MONEY_AMOUNT_NUMBER_MESSAGE,
+  MONEY_AMOUNT_POSITIVE_MESSAGE,
+  MONEY_AMOUNT_PRECISION_MESSAGE,
+} from '../src/money/money-amount.js';
+import {
   buildTransactionRequest,
   confirmOldTransactionSubmission,
   createInitialTransactionFormValues,
@@ -39,7 +47,7 @@ test('transaction validation requires positive amount, description, and a real c
       today,
     ),
     {
-      amount: 'Enter an amount greater than 0.',
+      amount: MONEY_AMOUNT_POSITIVE_MESSAGE,
       description: 'Vendor is required.',
       date: 'Use a valid date in YYYY-MM-DD format.',
     },
@@ -55,9 +63,105 @@ test('transaction validation requires positive amount, description, and a real c
       today,
     ),
     {
-      amount: 'Enter an amount greater than 0.',
+      amount: MONEY_AMOUNT_NUMBER_MESSAGE,
       date: 'Use a valid date in YYYY-MM-DD format.',
     },
+  );
+});
+
+test('transaction amounts match the backend precision and maximum constraints', () => {
+  for (const amount of [
+    '0.01',
+    '0.10',
+    '1.2',
+    '1.20',
+    '12.34',
+    '999.99',
+    '99999999.99',
+    String(MAX_MONEY_AMOUNT),
+  ]) {
+    assert.deepEqual(
+      validateTransactionForm(
+        {
+          type: 'income',
+          amount,
+          description: 'Payroll',
+          date: '2026-07-16',
+        },
+        today,
+      ),
+      {},
+    );
+  }
+
+  const invalidCases = [
+    ['0.00000000000000000001', MONEY_AMOUNT_MIN_MESSAGE],
+    ['1.999', MONEY_AMOUNT_PRECISION_MESSAGE],
+    ['0.001', MONEY_AMOUNT_MIN_MESSAGE],
+    ['0.005', MONEY_AMOUNT_MIN_MESSAGE],
+    ['12.345', MONEY_AMOUNT_PRECISION_MESSAGE],
+    ['99999999.99999999', MONEY_AMOUNT_PRECISION_MESSAGE],
+    ['100000000.001', MONEY_AMOUNT_PRECISION_MESSAGE],
+    ['100000000.009', MONEY_AMOUNT_PRECISION_MESSAGE],
+    ['0', MONEY_AMOUNT_POSITIVE_MESSAGE],
+    ['-1', MONEY_AMOUNT_POSITIVE_MESSAGE],
+    ['Infinity', MONEY_AMOUNT_NUMBER_MESSAGE],
+    ['not-money', MONEY_AMOUNT_NUMBER_MESSAGE],
+    [String(MAX_MONEY_AMOUNT + 0.01), MONEY_AMOUNT_MAX_MESSAGE],
+  ];
+
+  for (const type of ['income', 'expense']) {
+    for (const [amount, message] of invalidCases) {
+      assert.deepEqual(
+        validateTransactionForm(
+          {
+            type,
+            amount,
+            description: type === 'income' ? 'Payroll' : 'Vendor',
+            date: '2026-07-16',
+          },
+          today,
+        ),
+        { amount: message },
+      );
+    }
+  }
+});
+
+test('transaction payloads preserve canonical amounts without rounding', () => {
+  const oneDecimal = buildTransactionRequest(
+    {
+      type: 'income',
+      amount: '1.2',
+      description: 'Payroll',
+      date: '2026-07-16',
+    },
+    today,
+  );
+  const exactMaximum = buildTransactionRequest(
+    {
+      type: 'expense',
+      amount: String(MAX_MONEY_AMOUNT),
+      description: 'Vendor',
+      date: '2026-07-16',
+    },
+    today,
+  );
+
+  assert.equal(oneDecimal.payload.amount, 1.2);
+  assert.equal(exactMaximum.payload.amount, MAX_MONEY_AMOUNT);
+  assert.throws(
+    () =>
+      buildTransactionRequest(
+        {
+          type: 'expense',
+          amount: '1.999',
+          description: 'Vendor',
+          date: '2026-07-16',
+        },
+        today,
+      ),
+    /invalid form values/i,
   );
 });
 

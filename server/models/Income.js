@@ -3,6 +3,10 @@ import {
   FUTURE_TRANSACTION_DATE_MESSAGE,
   isTransactionDateInFuture,
 } from '../utils/transactionDate.js';
+import {
+  isCanonicalMoneyAmount,
+  MONEY_AMOUNT_SCHEMA_MESSAGE,
+} from '../utils/moneyAmount.js';
 
 const incomeSchema = new mongoose.Schema(
   {
@@ -14,7 +18,10 @@ const incomeSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: [true, 'Please add an amount'],
-      min: [0, 'Amount cannot be negative'],
+      validate: {
+        validator: isCanonicalMoneyAmount,
+        message: MONEY_AMOUNT_SCHEMA_MESSAGE,
+      },
     },
     source: {
       type: String,

@@ -1,4 +1,8 @@
 import type { GroupActivity, GroupBalance, GroupMember, GroupUser } from '@/groups/group-model';
+import {
+  getMoneyAmountInputError,
+  parseMoneyAmountInput,
+} from '../money/money-amount.js';
 
 export interface SettlementRecord {
   id: string;
@@ -102,8 +106,10 @@ export function validateSettlement(
   members: GroupMember[],
 ): SettlementFormErrors {
   const errors: SettlementFormErrors = {};
-  const amountCents = currencyToCents(values.amount);
-  if (!amountCents) errors.amount = 'Enter a valid amount greater than 0 with up to two decimals.';
+  const amount = parseMoneyAmountInput(values.amount);
+  const amountCents = amount === null ? null : currencyToCents(amount);
+  const amountError = getMoneyAmountInputError(values.amount);
+  if (amountError) errors.amount = amountError;
   if (!direction) errors.direction = 'This balance is no longer available.';
   else {
     const memberIds = new Set(members.map((member) => member.user.id));
@@ -120,9 +126,9 @@ export function buildSettlementPayload(
   members: GroupMember[],
 ): CreateSettlementPayload | null {
   if (!direction || Object.keys(validateSettlement(values, direction, members)).length) return null;
-  const amountCents = currencyToCents(values.amount);
-  if (!amountCents) return null;
-  return { from: direction.from.id, to: direction.to.id, amount: centsToAmount(amountCents), note: values.note.trim() };
+  const amount = parseMoneyAmountInput(values.amount);
+  if (amount === null) return null;
+  return { from: direction.from.id, to: direction.to.id, amount, note: values.note.trim() };
 }
 
 export function parseSettlementHistory(value: unknown): SettlementRecord[] {

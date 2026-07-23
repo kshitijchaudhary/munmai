@@ -6,6 +6,7 @@ import {
   getSafeStoredUploadExtension,
   getStoredUploadMimeType,
 } from "../utils/uploadTypes.js";
+import { validateMoneyAmount } from "../utils/moneyAmount.js";
 import { getTransactionDateValidationError } from "../utils/transactionDate.js";
 
 const buildFileUrl = (file) => (file ? `/uploads/${file.filename}` : "");
@@ -39,8 +40,12 @@ const cleanupUploadedProof = async (file) => {
   }
 };
 
-const normalizeIncomePayload = (body = {}, fallbackDate = new Date()) => ({
-  amount: Number(body.amount),
+const normalizeIncomePayload = (
+  body = {},
+  amount,
+  fallbackDate = new Date(),
+) => ({
+  amount,
   source: String(body.source || "").trim(),
   category: String(body.category || "Uncategorized").trim() || "Uncategorized",
   date: body.date ? new Date(body.date) : fallbackDate,
@@ -48,10 +53,6 @@ const normalizeIncomePayload = (body = {}, fallbackDate = new Date()) => ({
 });
 
 const validateIncomePayload = (payload, dateInput) => {
-  if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
-    return "Amount must be greater than 0";
-  }
-
   if (!payload.source || !payload.category) {
     return "Source and category are required";
   }
@@ -79,7 +80,16 @@ const findUserIncomeById = (incomeId, userId) =>
 // @route   POST /api/income
 export const addIncome = async (req, res) => {
   try {
-    const incomePayload = normalizeIncomePayload(req.body);
+    const amountValidation = validateMoneyAmount(req.body.amount);
+
+    if (!amountValidation.valid) {
+      return res.status(400).json({ message: amountValidation.error });
+    }
+
+    const incomePayload = normalizeIncomePayload(
+      req.body,
+      amountValidation.amount,
+    );
     const validationError = validateIncomePayload(incomePayload, req.body.date);
 
     if (validationError) {
@@ -115,8 +125,18 @@ export const updateIncome = async (req, res) => {
   let databaseUpdated = false;
 
   try {
+    const amountValidation = validateMoneyAmount(req.body.amount, {
+      allowMultipartString: Boolean(req.is("multipart/form-data")),
+    });
+
+    if (!amountValidation.valid) {
+      await cleanupUploadedProof(req.file);
+      return res.status(400).json({ message: amountValidation.error });
+    }
+
     const incomePayload = normalizeIncomePayload(
       req.body,
+      amountValidation.amount,
       req.ownedIncome?.date || new Date(),
     );
     const validationError = validateIncomePayload(incomePayload, req.body.date);
