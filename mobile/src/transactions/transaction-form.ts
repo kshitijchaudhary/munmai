@@ -30,7 +30,14 @@ export type CreateTransactionRequest =
   | { type: 'income'; payload: CreateIncomePayload }
   | { type: 'expense'; payload: CreateExpensePayload };
 
-export const MIN_TRANSACTION_DATE = '2000-01-01';
+export const OLD_TRANSACTION_CONFIRMATION_MESSAGE =
+  'This transaction is more than 90 days old. Add it anyway?';
+
+const transactionDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
 
 function padDatePart(value: number): string {
   return String(value).padStart(2, '0');
@@ -38,6 +45,92 @@ function padDatePart(value: number): string {
 
 export function getLocalDateValue(date = new Date()): string {
   return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+}
+
+function getLocalDateAtNoon(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+}
+
+function shiftLocalDateByDays(date: Date, days: number): Date {
+  const localDate = getLocalDateAtNoon(date);
+  localDate.setDate(localDate.getDate() + days);
+  return localDate;
+}
+
+function shiftLocalDateByMonths(date: Date, months: number): Date {
+  const day = date.getDate();
+  const targetMonth = new Date(date.getFullYear(), date.getMonth() + months, 1, 12);
+  const lastDayOfTargetMonth = new Date(
+    targetMonth.getFullYear(),
+    targetMonth.getMonth() + 1,
+    0,
+    12,
+  ).getDate();
+
+  targetMonth.setDate(Math.min(day, lastDayOfTargetMonth));
+  return targetMonth;
+}
+
+export function getMinimumTransactionDateValue(referenceDate = new Date()): string {
+  return getLocalDateValue(shiftLocalDateByMonths(referenceDate, -12));
+}
+
+export function getOldTransactionCutoffValue(referenceDate = new Date()): string {
+  return getLocalDateValue(shiftLocalDateByDays(referenceDate, -90));
+}
+
+export function getLocalDateFromValue(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day, 12);
+
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
+}
+
+export function formatTransactionDateValue(value: string): string {
+  const date = getLocalDateFromValue(value);
+
+  return date ? transactionDateFormatter.format(date) : value;
+}
+
+export function resolveTransactionDateSelection(
+  currentValue: string,
+  selectedDate?: Date,
+): string {
+  return selectedDate ? getLocalDateValue(selectedDate) : currentValue;
+}
+
+export function requiresOldTransactionConfirmation(
+  value: string,
+  referenceDate = new Date(),
+): boolean {
+  return (
+    getLocalDateFromValue(value) !== null &&
+    value < getOldTransactionCutoffValue(referenceDate)
+  );
+}
+
+export async function confirmOldTransactionSubmission(
+  value: string,
+  confirm: (message: string) => boolean | Promise<boolean>,
+  referenceDate = new Date(),
+): Promise<boolean> {
+  if (!requiresOldTransactionConfirmation(value, referenceDate)) {
+    return true;
+  }
+
+  return confirm(OLD_TRANSACTION_CONFIRMATION_MESSAGE);
 }
 
 export function createInitialTransactionFormValues(
@@ -52,22 +145,7 @@ export function createInitialTransactionFormValues(
 }
 
 function isValidDateValue(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-  if (!match) {
-    return false;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
+  return getLocalDateFromValue(value) !== null;
 }
 
 export function validateTransactionForm(
@@ -77,6 +155,7 @@ export function validateTransactionForm(
   const errors: TransactionFormErrors = {};
   const amount = Number(values.amount.trim());
   const date = values.date.trim();
+  const minimumDate = getMinimumTransactionDateValue(referenceDate);
 
   if (!values.amount.trim()) {
     errors.amount = 'Amount is required.';
@@ -92,8 +171,8 @@ export function validateTransactionForm(
     errors.date = 'Date is required.';
   } else if (!isValidDateValue(date)) {
     errors.date = 'Use a valid date in YYYY-MM-DD format.';
-  } else if (date < MIN_TRANSACTION_DATE) {
-    errors.date = 'Date must be on or after January 1, 2000.';
+  } else if (date < minimumDate) {
+    errors.date = `Date must be on or after ${formatTransactionDateValue(minimumDate)}.`;
   } else if (date > getLocalDateValue(referenceDate)) {
     errors.date = 'Date cannot be in the future.';
   }

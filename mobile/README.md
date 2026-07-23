@@ -13,6 +13,8 @@ Munmai Mobile is the Expo/React Native companion to Munmai. It is designed for q
 - **Spaces:** existing group list, group balances, member activity, shared expenses entered from an individual Space, and settlement recording/history.
 - A hidden account screen, reached from the Today avatar, with basic profile details and sign-out.
 
+Transaction dates use a platform calendar picker, accept dates from today back through the rolling 12-month boundary, and require explicit confirmation when a date is more than 90 days old.
+
 ## Setup
 
 Requirements:
@@ -57,6 +59,6 @@ After a failed upload, users may explicitly discard the upload retry. The alread
 
 ## Development status
 
-Mobile v0.9 is in stabilization. Authentication, personal transactions, receipt capture, shared Spaces, settlements, and the five-tab shell are implemented. OCR, receipt parsing, charts, predictive insights, offline queues, and additional Space membership administration are outside the current mobile surface.
+Mobile v0.9 is in stabilization. Authentication, personal transactions, receipt capture, shared Spaces, settlements, and the five-tab shell are implemented. OCR, receipt parsing, bank-statement import, charts, predictive insights, offline queues, and additional Space membership administration are future backlog and outside the current mobile surface.
 
 Physical-device verification remains outstanding because the available Expo Go client and this project’s Expo SDK 57 runtime are not currently compatible. Use a compatible Expo Go build or a native development build when available. This repository does not claim a completed physical-device test.

@@ -140,7 +140,6 @@ export default function AuthenticatedTabsLayout() {
               ),
             }}
           />
-          <Tabs.Screen name="add/transaction" options={{ href: null }} />
           <Tabs.Screen name="more" options={{ href: null }} />
         </Tabs>
       </View>

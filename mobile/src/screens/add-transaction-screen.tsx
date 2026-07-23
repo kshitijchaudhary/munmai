@@ -14,11 +14,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PrimaryButton } from '@/components/primary-button';
 import { ReceiptPickerField } from '@/components/receipt-picker-field';
 import { TextField } from '@/components/text-field';
+import { TransactionDateField } from '@/components/transaction-date-field';
 import { colors, getFormBottomPadding } from '@/constants/theme';
 import { getHomeAfterTransactionTarget } from '@/navigation/routes';
 import { useReceiptPicker } from '@/receipts/use-receipt-picker';
 import { shouldClearTransactionAttachment } from '@/transactions/transaction-attachment-copy';
 import { type TransactionType } from '@/transactions/transaction-form';
+import { requestOldTransactionConfirmation } from '@/transactions/transaction-old-date-confirmation';
 import { useAddTransactionForm } from '@/transactions/use-add-transaction-form';
 
 interface AddTransactionScreenProps {
@@ -53,7 +55,11 @@ export function AddTransactionScreen({
     submit,
     updateField,
     values,
-  } = useAddTransactionForm({ initialType, onSuccess: handleSuccess });
+  } = useAddTransactionForm({
+    confirmOldTransaction: requestOldTransactionConfirmation,
+    initialType,
+    onSuccess: handleSuccess,
+  });
   const isIncome = values.type === 'income';
   const {
     choosePdf,
@@ -227,15 +233,10 @@ export function AddTransactionScreen({
                   }
                   value={values.description}
                 />
-                <TextField
-                  autoCapitalize="none"
-                  editable={!formDisabled}
+                <TransactionDateField
+                  disabled={formDisabled}
                   error={errors.date}
-                  label="Date *"
-                  onChangeText={(value) => updateField('date', value)}
-                  onSubmitEditing={() => void submit(receipt)}
-                  placeholder="YYYY-MM-DD"
-                  returnKeyType="done"
+                  onChange={(value) => updateField('date', value)}
                   value={values.date}
                 />
               </View>

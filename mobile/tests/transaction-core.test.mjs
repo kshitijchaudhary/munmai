@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import {
   buildTransactionRequest,
+  confirmOldTransactionSubmission,
   createInitialTransactionFormValues,
+  formatTransactionDateValue,
+  getLocalDateFromValue,
   getLocalDateValue,
+  getMinimumTransactionDateValue,
+  getOldTransactionCutoffValue,
+  OLD_TRANSACTION_CONFIRMATION_MESSAGE,
+  requiresOldTransactionConfirmation,
+  resolveTransactionDateSelection,
   validateTransactionForm,
 } from '../src/transactions/transaction-form.ts';
 
@@ -116,7 +125,7 @@ test('invalid values cannot produce a transaction payload', () => {
   );
 });
 
-test('transaction validation rejects future and unsupported old dates without mutation', () => {
+test('transaction validation rejects future dates and dates before the rolling 12-month minimum', () => {
   const futureValues = {
     type: 'income',
     amount: '25',
@@ -135,16 +144,22 @@ test('transaction validation rejects future and unsupported old dates without mu
         type: 'expense',
         amount: '25',
         description: 'Vendor',
-        date: '1999-12-31',
+        date: '2025-07-15',
       },
       today,
     ),
-    { date: 'Date must be on or after January 1, 2000.' },
+    { date: 'Date must be on or after Jul 16, 2025.' },
   );
 });
 
-test('transaction validation accepts today and supported past dates', () => {
-  for (const date of ['2026-07-16', '2026-07-15', '2000-01-01']) {
+test('rolling minimum accepts its boundary and remains local-calendar safe for leap days', () => {
+  assert.equal(getMinimumTransactionDateValue(today), '2025-07-16');
+  assert.equal(
+    getMinimumTransactionDateValue(new Date(2024, 1, 29, 12)),
+    '2023-02-28',
+  );
+
+  for (const date of ['2026-07-16', '2026-07-15', '2025-07-16']) {
     assert.deepEqual(
       validateTransactionForm(
         { type: 'expense', amount: '25', description: 'Vendor', date },
@@ -164,4 +179,144 @@ test('new transaction values use a local YYYY-MM-DD date and reset to expense', 
     date: getLocalDateValue(),
   });
   assert.equal(createInitialTransactionFormValues().type, 'expense');
+});
+
+test('selected transaction dates display clearly and keep their API value', () => {
+  const selectedDate = getLocalDateFromValue('2026-07-22');
+
+  assert.equal(formatTransactionDateValue('2026-07-22'), 'Jul 22, 2026');
+  assert.equal(getLocalDateValue(selectedDate), '2026-07-22');
+});
+
+test('income and expense payloads submit the same chosen local calendar date', () => {
+  const chosenDate = '2026-07-14';
+  const income = buildTransactionRequest(
+    { type: 'income', amount: '100', description: 'Client', date: chosenDate },
+    today,
+  );
+  const expense = buildTransactionRequest(
+    { type: 'expense', amount: '20', description: 'Market', date: chosenDate },
+    today,
+  );
+
+  assert.equal(income.payload.date, chosenDate);
+  assert.equal(expense.payload.date, chosenDate);
+});
+
+test('date-picker cancellation preserves the previous Android date', () => {
+  assert.equal(
+    resolveTransactionDateSelection('2026-07-15', undefined),
+    '2026-07-15',
+  );
+  assert.equal(
+    resolveTransactionDateSelection('2026-07-15', new Date(2026, 6, 12, 12)),
+    '2026-07-12',
+  );
+});
+
+test('local calendar conversion is stable across Toronto and extreme time zones', () => {
+  const moduleUrl = new URL('../src/transactions/transaction-form.ts', import.meta.url).href;
+  const script = `
+    import {
+      formatTransactionDateValue,
+      getLocalDateFromValue,
+      getLocalDateValue,
+      getMinimumTransactionDateValue,
+      getOldTransactionCutoffValue,
+    } from ${JSON.stringify(moduleUrl)};
+    const parsed = getLocalDateFromValue('2026-07-22');
+    const referenceDate = new Date(2026, 6, 16, 12);
+    process.stdout.write(JSON.stringify({
+      apiValue: getLocalDateValue(parsed),
+      displayValue: formatTransactionDateValue('2026-07-22'),
+      minimumValue: getMinimumTransactionDateValue(referenceDate),
+      oldDateCutoff: getOldTransactionCutoffValue(referenceDate),
+    }));
+  `;
+
+  for (const timeZone of ['America/Toronto', 'Pacific/Kiritimati', 'Pacific/Honolulu']) {
+    const result = spawnSync(
+      process.execPath,
+      ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--input-type=module', '-e', script],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, TZ: timeZone },
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), {
+      apiValue: '2026-07-22',
+      displayValue: 'Jul 22, 2026',
+      minimumValue: '2025-07-16',
+      oldDateCutoff: '2026-04-17',
+    });
+  }
+});
+
+test('old-transaction confirmation starts only after the 90-day boundary', () => {
+  assert.equal(getOldTransactionCutoffValue(today), '2026-04-17');
+  assert.equal(requiresOldTransactionConfirmation('2026-04-18', today), false);
+  assert.equal(requiresOldTransactionConfirmation('2026-04-17', today), false);
+  assert.equal(requiresOldTransactionConfirmation('2026-04-16', today), true);
+});
+
+test('income and expense old dates require the same confirmation', () => {
+  for (const type of ['income', 'expense']) {
+    const values = {
+      type,
+      amount: '25',
+      description: type === 'income' ? 'Client' : 'Vendor',
+      date: '2026-04-16',
+    };
+
+    assert.deepEqual(validateTransactionForm(values, today), {});
+    assert.equal(requiresOldTransactionConfirmation(values.date, today), true);
+  }
+});
+
+test('cancelling old-transaction confirmation preserves the form and blocks submission', async () => {
+  const values = {
+    type: 'expense',
+    amount: '25',
+    description: 'Vendor',
+    date: '2026-04-16',
+  };
+  const originalValues = { ...values };
+  const messages = [];
+
+  const confirmed = await confirmOldTransactionSubmission(
+    values.date,
+    (message) => {
+      messages.push(message);
+      return false;
+    },
+    today,
+  );
+
+  assert.equal(confirmed, false);
+  assert.deepEqual(messages, [OLD_TRANSACTION_CONFIRMATION_MESSAGE]);
+  assert.deepEqual(values, originalValues);
+});
+
+test('accepted old dates proceed while current and 90-day boundary dates skip confirmation', async () => {
+  let confirmationCount = 0;
+  const confirm = () => {
+    confirmationCount += 1;
+    return true;
+  };
+
+  assert.equal(
+    await confirmOldTransactionSubmission('2026-04-16', confirm, today),
+    true,
+  );
+  assert.equal(
+    await confirmOldTransactionSubmission('2026-04-17', confirm, today),
+    true,
+  );
+  assert.equal(
+    await confirmOldTransactionSubmission('2026-07-16', confirm, today),
+    true,
+  );
+  assert.equal(confirmationCount, 1);
 });
