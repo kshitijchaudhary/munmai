@@ -138,30 +138,21 @@ test('authenticated tab roots share one calm header and page-shell contract', ()
   assert.doesNotMatch(sources.spaces, /Your Spaces|SPACES/);
 });
 
-test('Today has one monthly summary and one navigable recent-activity section', () => {
+test('Today has one financial pulse and no legacy dashboard sections', () => {
   const todaySource = readFileSync(
     new URL('../src/app/(app)/index.tsx', import.meta.url),
-    'utf8',
-  );
-  const snapshotSource = readFileSync(
-    new URL('../src/components/monthly-snapshot.tsx', import.meta.url),
     'utf8',
   );
 
   assert.match(todaySource, /title=\{`\$\{greeting\}, \$\{firstName\}`\}/);
   assert.match(todaySource, /subtitle=\{dateContext\}/);
   assert.match(todaySource, /<AvatarButton/);
-  assert.equal(todaySource.match(/<MonthlySnapshot/g)?.length, 1);
-  assert.doesNotMatch(todaySource, /Quick capture|Financial snapshot|Recent transactions/);
-  assert.match(snapshotSource, />This month</);
-  assert.match(snapshotSource, />Net</);
-  assert.match(snapshotSource, />Income</);
-  assert.match(snapshotSource, />Expenses</);
-  assert.doesNotMatch(snapshotSource, /netCard|breakdownCard|monthLabel/);
-  assert.match(todaySource, /actionLabel="See all"/);
-  assert.match(todaySource, /PUBLIC_ROUTES\.transactions/);
-  assert.match(todaySource, /buildTransactionDetailRoute/);
-  assert.match(todaySource, /actionLabel="Open Capture"/);
+  assert.equal(todaySource.match(/<TodayPulse/g)?.length, 1);
+  assert.doesNotMatch(todaySource, /MonthlySnapshot|Recent activity|RecentTransactionRow/);
+  assert.doesNotMatch(todaySource, /Quick capture|Financial snapshot|Quick Actions/);
+  assert.match(todaySource, /<TodayContextCard/);
+  assert.match(todaySource, /<TodayInsightCard/);
+  assert.equal(todaySource.match(/actionLabel="Open Capture"/g)?.length, 1);
   assert.match(todaySource, /PUBLIC_ROUTES\.add/);
 });
 
