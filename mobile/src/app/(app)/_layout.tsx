@@ -1,4 +1,4 @@
-import { type Href, Tabs, useRouter } from 'expo-router';
+import { type Href, Tabs, usePathname, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import {
   AUTHENTICATED_TABS,
   getAuthenticatedTabHref,
   PUBLIC_ROUTES,
+  shouldHideAuthenticatedTabBar,
 } from '@/navigation/routes';
 import { CAPTURE_TAB_ICON } from '@/navigation/tab-icons';
 
@@ -27,12 +28,15 @@ const insightsIcon = {
 const spacesIcon = { ios: 'person.2.fill', android: 'group', web: 'group' } as const;
 
 const [todayTab, activityTab, captureTab, insightsTab, spacesTab] = AUTHENTICATED_TABS;
+const renderHiddenTabBar = () => null;
 
 export default function AuthenticatedTabsLayout() {
+  const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isCaptureFocused, setIsCaptureFocused] = useState(false);
   const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
+  const isTabBarHidden = shouldHideAuthenticatedTabBar(pathname);
   const tabBarStyle = useMemo(
     () => [
       styles.tabBar,
@@ -50,6 +54,7 @@ export default function AuthenticatedTabsLayout() {
         <View style={styles.shell}>
           <Tabs
             backBehavior="initialRoute"
+            tabBar={isTabBarHidden ? renderHiddenTabBar : undefined}
             screenOptions={({ route }) => ({
               headerShown: false,
               href: getAuthenticatedTabHref(route.name),

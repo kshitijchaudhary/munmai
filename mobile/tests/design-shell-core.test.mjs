@@ -57,24 +57,45 @@ test('five-tab geometry fits supported widths without horizontal overflow', () =
   assert.equal(getTabItemWidth(375) >= touchTargets.minimum, true);
 });
 
-test('nested forms clear the tab bar and bottom safe area', () => {
-  assert.equal(getFormBottomPadding(), layout.tabBarBaseHeight + spacing.lg);
-  assert.equal(
-    getFormBottomPadding(34),
-    layout.tabBarBaseHeight + spacing.lg + 34,
-  );
-  assert.equal(getFormBottomPadding(-10), layout.tabBarBaseHeight + spacing.lg);
+test('focused forms preserve action spacing and the bottom safe area', () => {
+  assert.equal(getFormBottomPadding(), spacing.lg);
+  assert.equal(getFormBottomPadding(34), spacing.lg + 34);
+  assert.equal(getFormBottomPadding(-10), spacing.lg);
 
-  const formSources = [
-    '../src/screens/add-transaction-screen.tsx',
+  const transactionFormSource = readFileSync(
+    new URL('../src/screens/add-transaction-screen.tsx', import.meta.url),
+    'utf8',
+  );
+  const otherFormSources = [
     '../src/app/(app)/groups/[groupId]/add-expense.tsx',
     '../src/app/(app)/groups/[groupId]/settlements/new.tsx',
   ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'));
 
-  for (const source of formSources) {
+  assert.match(
+    transactionFormSource,
+    /edges=\{\['top', 'bottom', 'left', 'right'\]\}/,
+  );
+  assert.match(transactionFormSource, /contentContainerStyle=\{styles\.scrollContent\}/);
+  assert.match(transactionFormSource, /bottomSpacer: \{\s*height: getFormBottomPadding\(\)/);
+  assert.doesNotMatch(transactionFormSource, /useSafeAreaInsets/);
+  assert.equal(
+    transactionFormSource.match(/label=\{isIncome \? 'Save income' : 'Save expense'\}/g)
+      ?.length,
+    1,
+  );
+  assert.equal(
+    transactionFormSource.indexOf(
+      "label={isIncome ? 'Save income' : 'Save expense'}",
+    ) < transactionFormSource.indexOf('<View style={styles.bottomSpacer} />'),
+    true,
+  );
+
+  for (const source of otherFormSources) {
     assert.match(source, /getFormBottomPadding\(insets\.bottom\)/);
     assert.match(source, /keyboardShouldPersistTaps="handled"/);
   }
+
+  assert.match(transactionFormSource, /keyboardShouldPersistTaps="handled"/);
 });
 
 test('authenticated tab roots share one calm header and page-shell contract', () => {
@@ -155,7 +176,7 @@ test('Add Transaction begins with form controls and does not repeat its native t
   assert.match(source, /transactionTypes\.map/);
   assert.match(source, /maxWidth: layout\.appShellMaxWidth/);
   assert.match(source, /paddingHorizontal: layout\.pageHorizontalPadding/);
-  assert.match(source, /getFormBottomPadding\(insets\.bottom\)/);
+  assert.match(source, /<View style=\{styles\.bottomSpacer\} \/>/);
 });
 
 test('tab roots and compact-link screens hide native headers while other nested forms retain them', () => {
