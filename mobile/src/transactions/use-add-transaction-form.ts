@@ -24,6 +24,7 @@ import {
 import type { ReceiptImage } from '@/receipts/receipt-image';
 import {
   buildTransactionRequest,
+  confirmOldTransactionSubmission,
   createInitialTransactionFormValues,
   type TransactionFormErrors,
   type TransactionFormField,
@@ -45,6 +46,7 @@ type PendingAttachmentWorkflow =
   | { transactionType: 'income'; workflow: PendingIncomeProofWorkflow };
 
 interface UseAddTransactionFormOptions {
+  confirmOldTransaction: (message: string) => Promise<boolean>;
   initialType: TransactionType;
   onSuccess: (type: TransactionType) => void;
 }
@@ -113,6 +115,7 @@ function attachmentUploadErrorMessage(
 }
 
 export function useAddTransactionForm({
+  confirmOldTransaction,
   initialType,
   onSuccess,
 }: UseAddTransactionFormOptions): AddTransactionFormState {
@@ -125,13 +128,18 @@ export function useAddTransactionForm({
     useState<PendingAttachmentWorkflow | null>(null);
   const coordinator = useRef(createRequestCoordinator());
   const activeController = useRef<AbortController | null>(null);
+  const confirmationInProgress = useRef(false);
+  const isMounted = useRef(true);
   const isSubmitting = submissionStage === 'saving' || submissionStage === 'uploading-attachment';
   const isFormLocked = pendingAttachmentWorkflow !== null;
 
   useEffect(() => {
     const requestCoordinator = coordinator.current;
+    isMounted.current = true;
 
     return () => {
+      isMounted.current = false;
+      confirmationInProgress.current = false;
       requestCoordinator.invalidate();
       activeController.current?.abort();
       activeController.current = null;
@@ -227,11 +235,39 @@ export function useAddTransactionForm({
         return;
       }
 
-      const nextErrors = validateTransactionForm(values);
+      const referenceDate = new Date();
+      const nextErrors = validateTransactionForm(values, referenceDate);
 
       if (Object.keys(nextErrors).length > 0) {
         setErrors(nextErrors);
         setRequestError(null);
+        return;
+      }
+
+      if (confirmationInProgress.current) {
+        return;
+      }
+
+      confirmationInProgress.current = true;
+
+      let shouldSubmit = false;
+
+      try {
+        shouldSubmit = await confirmOldTransactionSubmission(
+          values.date.trim(),
+          confirmOldTransaction,
+          referenceDate,
+        );
+      } catch {
+        if (isMounted.current) {
+          setRequestError('The transaction date could not be confirmed. Please try again.');
+        }
+        return;
+      } finally {
+        confirmationInProgress.current = false;
+      }
+
+      if (!shouldSubmit || !isMounted.current) {
         return;
       }
 
@@ -248,7 +284,7 @@ export function useAddTransactionForm({
       setSubmissionStage('saving');
 
       try {
-        const request = buildTransactionRequest(values);
+        const request = buildTransactionRequest(values, referenceDate);
 
         if (request.type === 'expense' && receipt) {
           const pending = createPendingExpenseReceiptWorkflow(request.payload, receipt);
@@ -353,6 +389,7 @@ export function useAddTransactionForm({
       }
     },
     [
+      confirmOldTransaction,
       finishSuccessfulSubmission,
       pendingAttachmentWorkflow,
       updateIncomeWorkflowStage,
