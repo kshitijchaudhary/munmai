@@ -1,4 +1,8 @@
 import type { GroupMember } from '@/groups/group-model';
+import {
+  getMoneyAmountInputError,
+  parseMoneyAmountInput,
+} from '../money/money-amount.js';
 
 export interface SharedExpenseFormValues {
   amount: string;
@@ -24,9 +28,9 @@ export interface SharedExpenseFormErrors {
 
 export function validateSharedExpense(values: SharedExpenseFormValues, members: GroupMember[]) {
   const errors: SharedExpenseFormErrors = {};
-  const amount = Number(values.amount);
   const memberIds = new Set(members.map((member) => member.user.id));
-  if (!Number.isFinite(amount) || amount <= 0) errors.amount = 'Enter an amount greater than 0.';
+  const amountError = getMoneyAmountInputError(values.amount);
+  if (amountError) errors.amount = amountError;
   if (!values.description.trim()) errors.description = 'Description is required.';
   if (!memberIds.has(values.paidBy)) errors.paidBy = 'Select a current Space member.';
   const participants = [...new Set(values.participantIds)];
@@ -37,11 +41,13 @@ export function validateSharedExpense(values: SharedExpenseFormValues, members: 
 
 export function buildEqualSplitPayload(groupId: string, values: SharedExpenseFormValues, members: GroupMember[]): CreateSharedExpensePayload | null {
   if (Object.keys(validateSharedExpense(values, members)).length > 0) return null;
+  const amount = parseMoneyAmountInput(values.amount);
+  if (amount === null) return null;
   return {
     groupId,
     paidBy: values.paidBy,
     participants: [...new Set(values.participantIds)].sort(),
-    amount: Math.round(Number(values.amount) * 100) / 100,
+    amount,
     description: values.description.trim(),
   };
 }

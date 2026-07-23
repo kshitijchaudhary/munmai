@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  MAX_MONEY_AMOUNT,
+  MONEY_AMOUNT_MAX_MESSAGE,
+  MONEY_AMOUNT_PRECISION_MESSAGE,
+} from '../src/money/money-amount.js';
+import {
   buildNewSettlementRoute,
   buildSettlementHistoryRoute,
   parseSettlementRoute,
@@ -75,6 +80,34 @@ test('validates positive decimal amounts and different active members', () => {
   assert.match(validateSettlement({ amount: '10', note: '' }, sameMember, members).direction, /different/i);
   const outsiderDirection = { ...direction, to: user(thirdUserId, 'Casey') };
   assert.match(validateSettlement({ amount: '10', note: '' }, outsiderDirection, members).direction, /active Space members/i);
+});
+
+test('settlements reject fractional cents and enforce the canonical maximum', () => {
+  const direction = getSettlementDirection(
+    { from: currentUser, to: otherUser, amount: MAX_MONEY_AMOUNT },
+    currentUserId,
+  );
+
+  assert.equal(
+    validateSettlement({ amount: '1.999', note: '' }, direction, members).amount,
+    MONEY_AMOUNT_PRECISION_MESSAGE,
+  );
+  assert.equal(
+    validateSettlement(
+      { amount: String(MAX_MONEY_AMOUNT + 0.01), note: '' },
+      direction,
+      members,
+    ).amount,
+    MONEY_AMOUNT_MAX_MESSAGE,
+  );
+  assert.equal(
+    buildSettlementPayload(
+      { amount: String(MAX_MONEY_AMOUNT), note: '' },
+      direction,
+      members,
+    ).amount,
+    MAX_MONEY_AMOUNT,
+  );
 });
 
 test('builds a normalized partial-settlement payload', () => {

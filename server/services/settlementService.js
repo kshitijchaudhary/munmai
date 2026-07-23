@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Group from "../models/Group.js";
 import Settlement from "../models/Settlement.js";
+import { validateMoneyAmount } from "../utils/moneyAmount.js";
 import { getActiveMemberIds } from "./groupMembershipService.js";
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
@@ -28,7 +29,6 @@ const getActiveGroupMemberIds = async (groupId) => {
 export const createSettlement = async (groupId, payload, currentUserId) => {
   const from = payload?.from;
   const to = payload?.to;
-  const amount = Number(payload?.amount);
   const note = String(payload?.note || "").trim();
 
   if (!currentUserId || !isValidObjectId(currentUserId)) {
@@ -51,10 +51,13 @@ export const createSettlement = async (groupId, payload, currentUserId) => {
     throw createError("Settlement users must be different", 400);
   }
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw createError("Amount must be greater than 0", 400);
+  const amountValidation = validateMoneyAmount(payload?.amount);
+
+  if (!amountValidation.valid) {
+    throw createError(amountValidation.error, 400);
   }
 
+  const amount = amountValidation.amount;
   const memberIds = await getActiveGroupMemberIds(groupId);
 
   if (!memberIds.has(toIdString(currentUserId))) {

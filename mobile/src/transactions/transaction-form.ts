@@ -1,3 +1,8 @@
+import {
+  getMoneyAmountInputError,
+  parseMoneyAmountInput,
+} from '../money/money-amount.js';
+
 export type TransactionType = 'income' | 'expense';
 export type TransactionFormField = 'amount' | 'description' | 'date';
 
@@ -153,14 +158,13 @@ export function validateTransactionForm(
   referenceDate = new Date(),
 ): TransactionFormErrors {
   const errors: TransactionFormErrors = {};
-  const amount = Number(values.amount.trim());
   const date = values.date.trim();
   const minimumDate = getMinimumTransactionDateValue(referenceDate);
 
-  if (!values.amount.trim()) {
-    errors.amount = 'Amount is required.';
-  } else if (!Number.isFinite(amount) || amount <= 0) {
-    errors.amount = 'Enter an amount greater than 0.';
+  const amountError = getMoneyAmountInputError(values.amount);
+
+  if (amountError) {
+    errors.amount = amountError;
   }
 
   if (!values.description.trim()) {
@@ -190,9 +194,13 @@ export function buildTransactionRequest(
     throw new Error('Cannot build a transaction request from invalid form values.');
   }
 
-  const amount = Number(values.amount.trim());
+  const amount = parseMoneyAmountInput(values.amount);
   const description = values.description.trim();
   const date = values.date.trim();
+
+  if (amount === null) {
+    throw new Error('Cannot build a transaction request from invalid form values.');
+  }
 
   if (values.type === 'income') {
     return {

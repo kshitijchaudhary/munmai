@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Group from "../models/Group.js";
 import SharedExpense from "../models/SharedExpense.js";
 import ExpenseSplit from "../models/ExpenseSplit.js";
+import { validateMoneyAmount } from "../utils/moneyAmount.js";
 import { getActiveMemberIds } from "./groupMembershipService.js";
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
@@ -32,7 +33,6 @@ export const createSharedExpense = async (payload, currentUserId) => {
   const groupId = payload?.groupId;
   const paidBy = payload?.paidBy;
   const participants = Array.isArray(payload?.participants) ? payload.participants : [];
-  const amount = Number(payload?.amount);
   const description = String(payload?.description || "").trim();
 
   if (!currentUserId || !isValidObjectId(currentUserId)) {
@@ -61,10 +61,13 @@ export const createSharedExpense = async (payload, currentUserId) => {
     throw createError("Participants must be unique", 400);
   }
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw createError("Amount must be greater than 0", 400);
+  const amountValidation = validateMoneyAmount(payload?.amount);
+
+  if (!amountValidation.valid) {
+    throw createError(amountValidation.error, 400);
   }
 
+  const amount = amountValidation.amount;
   const memberIds = await getActiveGroupMemberIds(groupId);
 
   if (!memberIds.has(toIdString(currentUserId))) {
