@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
+import { BackLink } from '@/components/back-link';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { GroupBalanceRow } from '@/components/group-balance-row';
 import { PrimaryButton } from '@/components/primary-button';
@@ -17,6 +18,7 @@ import {
 } from '@/groups/group-routes';
 import { useGroupDetail } from '@/groups/use-group-detail';
 import { useSettlementSuccessFeedback } from '@/groups/use-settlement-success-feedback';
+import { PUBLIC_ROUTES } from '@/navigation/routes';
 
 type Section = 'overview' | 'activity' | 'members';
 const sections: Section[] = ['overview', 'activity', 'members'];
@@ -40,18 +42,29 @@ export default function GroupDetailScreen() {
     else hasFocused.current = true;
   }, [detail.refresh]));
 
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace(PUBLIC_ROUTES.groups as Href);
+  }, [router]);
+
   if (detail.isLoading && detail.data === null) {
-    return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard loading title="Loading Space" message="Refreshing balances, activity, and members." /></View></SafeAreaView>;
+    return <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}><View style={styles.shell}><BackLink label="Spaces" onPress={goBack} /><View style={styles.state}><DashboardStatusCard loading title="Loading Space" message="Refreshing balances, activity, and members." /></View></View></SafeAreaView>;
   }
   if (!detail.isLoading && detail.data === null) {
-    return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard title={detail.error?.kind === 'offline' ? "You're offline" : detail.error?.kind === 'inaccessible' ? 'Space unavailable' : 'Unable to open Space'} message={detail.error?.message ?? 'This Space link is invalid.'} onRetry={groupId ? detail.retry : undefined} /></View></SafeAreaView>;
+    return <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}><View style={styles.shell}><BackLink label="Spaces" onPress={goBack} /><View style={styles.state}><DashboardStatusCard title={detail.error?.kind === 'offline' ? "You're offline" : detail.error?.kind === 'inaccessible' ? 'Space unavailable' : 'Unable to open Space'} message={detail.error?.message ?? 'This Space link is invalid.'} onRetry={groupId ? detail.retry : undefined} /></View></View></SafeAreaView>;
   }
   if (!detail.data) return null;
 
   const data = detail.data;
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl colors={[colors.accent]} tintColor={colors.accent} refreshing={detail.isRefreshing} onRefresh={detail.refresh} />} showsVerticalScrollIndicator={false}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
+      <View style={styles.shell}>
+        <BackLink label="Spaces" onPress={goBack} />
+        <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl colors={[colors.accent]} tintColor={colors.accent} refreshing={detail.isRefreshing} onRefresh={detail.refresh} />} showsVerticalScrollIndicator={false}>
         <View style={styles.heading}><Text style={styles.eyebrow}>SHARED SPACE</Text><Text style={styles.title}>{data.group.name}</Text><Text style={styles.subtitle}>{data.members.length} members · {data.summary.expenseCount} shared expenses</Text></View>
         {detail.error ? <Text accessibilityRole="alert" style={styles.error}>{detail.error.kind === 'offline' ? "You're offline. Showing the last loaded Space." : 'Refresh failed. Existing Space data is still shown.'}</Text> : null}
         {settlementSuccess.isVisible ? <View accessibilityLiveRegion="polite" style={styles.successBanner}><View style={styles.successCopy}><Text style={styles.successTitle}>Settlement recorded</Text><Text style={styles.muted}>Balances and activity have been refreshed.</Text></View><Pressable accessibilityLabel="Dismiss settlement confirmation" accessibilityRole="button" onPress={settlementSuccess.dismiss} style={({ pressed }) => [styles.dismissButton, pressed && styles.pressed]}><Text style={styles.dismissText}>Dismiss</Text></Pressable></View> : null}
@@ -73,13 +86,14 @@ export default function GroupDetailScreen() {
         {section === 'activity' ? <View style={styles.section}><View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Financial activity</Text><Pressable accessibilityRole="link" onPress={() => groupId && router.push(buildSettlementHistoryRoute(groupId) as Href)}><Text style={styles.sectionLink}>Settlements</Text></Pressable></View>{data.activity.length ? data.activity.map((activity) => <View key={activity.id} style={styles.row}><View style={[styles.activityMark, activity.kind === 'settlement' && styles.settlementMark]}><Text style={[styles.activityMarkText, activity.kind === 'settlement' && styles.settlementMarkText]}>{activity.kind === 'settlement' ? '✓' : '$'}</Text></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{activity.title}</Text><Text style={styles.muted}>{activity.kind === 'shared-expense' ? `${activity.paidBy.name} paid` : activity.note || 'Settlement recorded'} · {formatTransactionDate(activity.occurredAt)}</Text></View><Text style={[styles.amount, activity.kind === 'settlement' && styles.owed]}>{formatCurrency(activity.amount)}</Text></View>) : <Text style={styles.emptyText}>No shared financial activity yet.</Text>}</View> : null}
 
         {section === 'members' ? <View style={styles.section}><Text style={styles.sectionTitle}>Members</Text>{data.members.length ? data.members.map((member) => <View key={member.id} style={styles.row}><View style={styles.memberAvatar}><Text style={styles.memberAvatarText}>{member.user.name.charAt(0).toUpperCase()}</Text></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{member.user.name}{member.user.id === user?.id ? ' (you)' : ''}</Text><Text style={styles.muted}>{member.user.email || member.user.username || 'Member'}</Text></View><Text style={styles.role}>{member.role}</Text></View>) : <Text style={styles.emptyText}>No member information is available.</Text>}</View> : null}
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background }, state: { flex: 1, justifyContent: 'center', padding: 20 }, content: { width: '100%', maxWidth: 540, alignSelf: 'center', gap: 18, padding: 20, paddingBottom: 32 },
+  safeArea: { flex: 1, backgroundColor: colors.background }, shell: { width: '100%', maxWidth: 560, flex: 1, alignSelf: 'center' }, state: { flex: 1, justifyContent: 'center', padding: 20 }, content: { width: '100%', gap: 18, padding: 20, paddingTop: 12, paddingBottom: 32 },
   heading: { gap: 5 }, eyebrow: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 28, fontWeight: '900' }, subtitle: { color: colors.textMuted, fontSize: 13 }, error: { color: colors.expense, fontSize: 12 }, successBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.income, borderRadius: 15, backgroundColor: colors.incomeSoft, padding: 13 }, successCopy: { flex: 1, gap: 3 }, successTitle: { color: colors.income, fontSize: 14, fontWeight: '900' }, dismissButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 }, dismissText: { color: colors.income, fontSize: 12, fontWeight: '900' },
   tabs: { flexDirection: 'row', gap: 5, borderRadius: 15, backgroundColor: colors.surface, padding: 4 }, tab: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, tabActive: { backgroundColor: colors.accentSoft }, tabText: { color: colors.textMuted, fontSize: 12, fontWeight: '800' }, tabTextActive: { color: colors.text }, pressed: { opacity: 0.7 },
   summaryGrid: { flexDirection: 'row', gap: 10 }, summaryCard: { flex: 1, gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface, padding: 16 }, summaryLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1 }, summaryValue: { fontSize: 20, fontWeight: '900' }, owed: { color: colors.income }, owe: { color: colors.expense }, totalCard: { gap: 7, borderWidth: 1, borderColor: colors.border, borderRadius: 20, backgroundColor: colors.surface, padding: 18 }, totalValue: { color: colors.text, fontSize: 26, fontWeight: '900' }, historyButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13 }, historyButtonText: { color: colors.accent, fontSize: 13, fontWeight: '900' },

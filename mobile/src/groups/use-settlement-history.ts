@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getErrorMessage } from '@/api/client';
-import { getSettlementHistory } from '@/api/groups';
+import { getGroup, getSettlementHistory } from '@/api/groups';
 import { isNormalizedApiError } from '@/auth/types';
+import { parseGroupsResponse } from '@/groups/group-model';
 import { parseSettlementHistory, type SettlementRecord } from '@/groups/settlement-model';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
 
@@ -13,6 +14,7 @@ interface SettlementHistoryError {
 
 export function useSettlementHistory(groupId: string | null) {
   const [data, setData] = useState<SettlementRecord[] | null>(null);
+  const [groupName, setGroupName] = useState<string | null>(null);
   const [error, setError] = useState<SettlementHistoryError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -33,8 +35,17 @@ export function useSettlementHistory(groupId: string | null) {
     if (refresh) setIsRefreshing(true);
     else setIsLoading(true);
     try {
-      const response = await getSettlementHistory(groupId, abortController.signal);
-      if (coordinator.current.isCurrent(requestId)) setData(parseSettlementHistory(response));
+      const [response, groupResponse] = await Promise.all([
+        getSettlementHistory(groupId, abortController.signal),
+        getGroup(groupId, abortController.signal).catch(() => null),
+      ]);
+      if (coordinator.current.isCurrent(requestId)) {
+        setData(parseSettlementHistory(response));
+        const nextGroupName = parseGroupsResponse(groupResponse ? [groupResponse] : [])[0]?.name;
+        if (nextGroupName) {
+          setGroupName(nextGroupName);
+        }
+      }
     } catch (requestError) {
       if (!coordinator.current.isCurrent(requestId) || (isNormalizedApiError(requestError) && requestError.isAuthenticationFailure)) return;
       const status = isNormalizedApiError(requestError) ? requestError.status : undefined;
@@ -61,6 +72,7 @@ export function useSettlementHistory(groupId: string | null) {
   return {
     data,
     error,
+    groupName,
     isLoading,
     isRefreshing,
     refresh: useCallback(() => void load(true), [load]),

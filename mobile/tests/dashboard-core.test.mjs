@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   formatCurrency,
+  formatRecentTransactionDate,
   formatSignedCurrency,
   formatTransactionDate,
   getNetDirection,
@@ -131,6 +132,7 @@ test('dashboard formatters use CAD and stable UTC calendar dates', () => {
   assert.match(formatSignedCurrency(-25), /^-.*25\.00/);
   assert.equal(formatSignedCurrency(0), formatCurrency(0));
   assert.equal(formatTransactionDate('2026-07-01T00:00:00.000Z'), 'Jul 1, 2026');
+  assert.equal(formatRecentTransactionDate('2026-07-01T00:00:00.000Z'), 'Jul 1');
 });
 
 test('net direction distinguishes positive, negative, and balanced months', () => {

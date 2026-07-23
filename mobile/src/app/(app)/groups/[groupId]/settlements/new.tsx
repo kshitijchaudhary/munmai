@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
+import { BackLink } from '@/components/back-link';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
@@ -43,12 +44,14 @@ export default function NewSettlementScreen() {
     }
   }, [form, route, router]);
 
-  if (detail.isLoading && !detail.data) return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard loading title="Loading balance" message="Confirming the latest backend-calculated amount." /></View></SafeAreaView>;
-  if (!route || !detail.data || !direction) return <SafeAreaView edges={['left', 'right']} style={styles.safeArea}><View style={styles.state}><DashboardStatusCard title="Settlement unavailable" message={detail.error?.message ?? 'This balance is invalid, inaccessible, or already settled.'} onRetry={route ? detail.retry : undefined} /></View></SafeAreaView>;
+  if (detail.isLoading && !detail.data) return <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}><View style={styles.shell}><BackLink label="Space" onPress={close} /><View style={styles.state}><DashboardStatusCard loading title="Loading balance" message="Confirming the latest backend-calculated amount." /></View></View></SafeAreaView>;
+  if (!route || !detail.data || !direction) return <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}><View style={styles.shell}><BackLink label={detail.data?.group.name ?? 'Space'} onPress={close} /><View style={styles.state}><DashboardStatusCard title="Settlement unavailable" message={detail.error?.message ?? 'This balance is invalid, inaccessible, or already settled.'} onRetry={route ? detail.retry : undefined} /></View></View></SafeAreaView>;
 
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
+      <View style={styles.shell}>
+        <BackLink label={detail.data.group.name} onPress={close} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: getFormBottomPadding(insets.bottom) }]} keyboardShouldPersistTaps="handled">
           <View style={styles.heading}><Text style={styles.eyebrow}>RECORD PAYMENT</Text><Text style={styles.title}>{detail.data.group.name}</Text><Text style={styles.subtitle}>Confirm a payment already made between Space members.</Text></View>
           <View style={styles.directionCard}><Text style={styles.directionLabel}>FROM</Text><Text style={styles.directionName}>{direction.from.name}{direction.from.id === user?.id ? ' (you)' : ''}</Text><Text style={styles.arrow}>↓</Text><Text style={styles.directionLabel}>TO</Text><Text style={styles.directionName}>{direction.to.name}{direction.to.id === user?.id ? ' (you)' : ''}</Text><View style={styles.outstandingRow}><Text style={styles.outstandingLabel}>Outstanding</Text><Text style={styles.outstandingAmount}>{formatCurrency(centsToAmount(direction.outstandingCents))}</Text></View></View>
@@ -62,13 +65,14 @@ export default function NewSettlementScreen() {
           <PrimaryButton disabled={form.isSubmitting} label="Record settlement" loading={form.isSubmitting} loadingLabel="Recording…" onPress={() => void handleSubmit()} tone="income" />
           <Pressable accessibilityRole="button" disabled={form.isSubmitting} onPress={close} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
         </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background }, flex: { flex: 1 }, state: { flex: 1, justifyContent: 'center', padding: 20 }, content: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: 18, padding: 20 }, heading: { gap: 5 }, eyebrow: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  safeArea: { flex: 1, backgroundColor: colors.background }, shell: { width: '100%', maxWidth: 560, flex: 1, alignSelf: 'center' }, flex: { flex: 1 }, state: { flex: 1, justifyContent: 'center', padding: 20 }, content: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: 18, padding: 20, paddingTop: 12 }, heading: { gap: 5 }, eyebrow: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   directionCard: { gap: 5, borderWidth: 1, borderColor: colors.border, borderRadius: 20, backgroundColor: colors.surface, padding: 18 }, directionLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1 }, directionName: { color: colors.text, fontSize: 18, fontWeight: '900' }, arrow: { color: colors.accent, fontSize: 20, fontWeight: '900', paddingVertical: 2 }, outstandingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 13 }, outstandingLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700' }, outstandingAmount: { color: colors.expense, fontSize: 18, fontWeight: '900' },
   fullButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.accentSoft, marginTop: -8 }, fullButtonText: { color: colors.accent, fontSize: 12, fontWeight: '900' }, remaining: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, backgroundColor: colors.surface, padding: 13 }, remainingLabel: { color: colors.textMuted, fontSize: 12 }, remainingAmount: { color: colors.text, fontSize: 15, fontWeight: '900' }, note: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: -8 }, error: { color: colors.expense, fontSize: 12 }, submitError: { color: colors.expense, fontSize: 13, lineHeight: 19, borderWidth: 1, borderColor: colors.expense, borderRadius: 14, backgroundColor: colors.expenseSoft, padding: 12 }, cancel: { minHeight: 48, alignItems: 'center', justifyContent: 'center' }, cancelText: { color: colors.textMuted, fontSize: 14, fontWeight: '800' }, pressed: { opacity: 0.7 },
 });

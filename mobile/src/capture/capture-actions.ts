@@ -1,14 +1,13 @@
 export type CaptureActionId =
-  | 'scan-receipt'
-  | 'add-expense'
-  | 'add-income';
+  | 'scan-document'
+  | 'manual-entry';
 
 export interface CaptureAction {
   description: string;
   id: CaptureActionId;
   label: string;
-  pathname: string;
-  params?: Readonly<Record<string, string>>;
+  pathname: string | null;
+  primary: boolean;
 }
 
 interface CaptureRoutes {
@@ -18,25 +17,18 @@ interface CaptureRoutes {
 export function getCaptureActions(routes: CaptureRoutes): readonly CaptureAction[] {
   return [
     {
-      id: 'scan-receipt',
-      label: 'Scan receipt',
-      description: 'Add a receipt image to a new expense.',
-      pathname: routes.transactionForm,
-      params: { capture: 'receipt', type: 'expense' },
+      id: 'scan-document',
+      label: 'Scan document',
+      description: 'Take a photo and review the transaction.',
+      pathname: null,
+      primary: true,
     },
     {
-      id: 'add-expense',
-      label: 'Add expense',
-      description: 'Record money you spent.',
+      id: 'manual-entry',
+      label: 'Manual entry',
+      description: 'Enter income or expense details yourself.',
       pathname: routes.transactionForm,
-      params: { type: 'expense' },
-    },
-    {
-      id: 'add-income',
-      label: 'Add income',
-      description: 'Record money you received.',
-      pathname: routes.transactionForm,
-      params: { type: 'income' },
+      primary: false,
     },
   ] as const;
 }

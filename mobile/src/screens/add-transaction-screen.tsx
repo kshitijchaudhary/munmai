@@ -11,12 +11,20 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/back-link';
 import { PrimaryButton } from '@/components/primary-button';
 import { ReceiptPickerField } from '@/components/receipt-picker-field';
 import { TextField } from '@/components/text-field';
 import { TransactionDateField } from '@/components/transaction-date-field';
-import { colors, getFormBottomPadding } from '@/constants/theme';
+import {
+  colors,
+  getFormBottomPadding,
+  layout,
+  radii,
+  spacing,
+} from '@/constants/theme';
 import { getHomeAfterTransactionTarget } from '@/navigation/routes';
+import type { ReceiptImage } from '@/receipts/receipt-image';
 import { useReceiptPicker } from '@/receipts/use-receipt-picker';
 import { shouldClearTransactionAttachment } from '@/transactions/transaction-attachment-copy';
 import { type TransactionType } from '@/transactions/transaction-form';
@@ -24,23 +32,32 @@ import { requestOldTransactionConfirmation } from '@/transactions/transaction-ol
 import { useAddTransactionForm } from '@/transactions/use-add-transaction-form';
 
 interface AddTransactionScreenProps {
+  initialAttachment?: ReceiptImage | null;
   initialType: TransactionType;
-  receiptFirst?: boolean;
+  isCaptureTypeLocked?: boolean;
+  onBack: () => void;
+  onCaptureFinished?: () => void;
+  onChangeCaptureType?: () => void;
 }
 
 const transactionTypes = ['income', 'expense'] as const;
 
 export function AddTransactionScreen({
+  initialAttachment = null,
   initialType,
-  receiptFirst = false,
+  isCaptureTypeLocked = false,
+  onBack,
+  onCaptureFinished,
+  onChangeCaptureType,
 }: AddTransactionScreenProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const handleSuccess = useCallback(
     (type: TransactionType) => {
+      onCaptureFinished?.();
       router.replace(getHomeAfterTransactionTarget(type) as unknown as Href);
     },
-    [router],
+    [onCaptureFinished, router],
   );
   const {
     discardPendingAttachment,
@@ -71,7 +88,10 @@ export function AddTransactionScreen({
     receipt,
     removeReceipt,
     takePhoto,
-  } = useReceiptPicker(isIncome ? 'income-proof' : 'receipt');
+  } = useReceiptPicker(
+    isIncome ? 'income-proof' : 'receipt',
+    initialAttachment,
+  );
   const formDisabled = isSubmitting || isFormLocked;
   const loadingLabel =
     submissionStage === 'uploading-attachment'
@@ -96,7 +116,16 @@ export function AddTransactionScreen({
   const handleDiscardPendingAttachment = useCallback(() => {
     discardPendingAttachment();
     removeReceipt();
-  }, [discardPendingAttachment, removeReceipt]);
+    onCaptureFinished?.();
+  }, [discardPendingAttachment, onCaptureFinished, removeReceipt]);
+
+  const handleRemoveAttachment = useCallback(() => {
+    removeReceipt();
+
+    if (isCaptureTypeLocked) {
+      onCaptureFinished?.();
+    }
+  }, [isCaptureTypeLocked, onCaptureFinished, removeReceipt]);
 
   const attachmentField = (
     <ReceiptPickerField
@@ -105,7 +134,7 @@ export function AddTransactionScreen({
       onChooseFromLibrary={() => void chooseFromLibrary()}
       onChoosePdf={() => void choosePdf()}
       onOpenSettings={() => void openSettings()}
-      onRemove={removeReceipt}
+      onRemove={handleRemoveAttachment}
       onTakePhoto={() => void takePhoto()}
       permissionIssue={permissionIssue}
       pickerError={pickerError}
@@ -115,7 +144,8 @@ export function AddTransactionScreen({
   );
 
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
+      <BackLink label="Capture" onPress={onBack} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}>
@@ -126,20 +156,6 @@ export function AddTransactionScreen({
           ]}
           keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
-            <View style={styles.heading}>
-              <Text style={styles.eyebrow}>
-                {receiptFirst ? 'CAPTURE' : 'NEW TRANSACTION'}
-              </Text>
-              <Text style={styles.title}>
-                {receiptFirst ? 'Scan a receipt' : 'Add money in or out'}
-              </Text>
-              <Text style={styles.subtitle}>
-                {receiptFirst
-                  ? 'Take a photo or choose one receipt image or PDF, then confirm the expense details.'
-                  : 'Save the essentials now. Add one supporting image or PDF when needed.'}
-              </Text>
-            </View>
-
             <View style={styles.card}>
               {requestError ? (
                 <View
@@ -174,44 +190,65 @@ export function AddTransactionScreen({
                 </View>
               ) : null}
 
-              {receiptFirst ? attachmentField : null}
-
-              <View style={styles.selectorGroup}>
-                <Text style={styles.label}>Type</Text>
-                <View style={styles.selector}>
-                  {transactionTypes.map((type) => {
-                    const isSelected = values.type === type;
-
-                    return (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{
-                          disabled: formDisabled,
-                          selected: isSelected,
-                        }}
-                        disabled={formDisabled}
-                        key={type}
-                        onPress={() => handleSelectType(type)}
-                        style={({ pressed }) => [
-                          styles.selectorButton,
-                          isSelected &&
-                            (type === 'income'
-                              ? styles.incomeSelectorButton
-                              : styles.expenseSelectorButton),
-                          pressed && !formDisabled && styles.selectorPressed,
-                        ]}>
-                        <Text
-                          style={[
-                            styles.selectorText,
-                            isSelected && styles.selectorTextActive,
-                          ]}>
-                          {type === 'income' ? 'Income' : 'Expense'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+              {isCaptureTypeLocked ? (
+                <View style={styles.lockedTypeRow}>
+                  <View style={styles.lockedTypeCopy}>
+                    <Text style={styles.label}>Type</Text>
+                    <Text style={styles.lockedTypeValue}>
+                      {isIncome ? 'Income' : 'Expense'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityLabel="Change transaction type"
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: formDisabled }}
+                    disabled={formDisabled}
+                    onPress={onChangeCaptureType}
+                    style={({ pressed }) => [
+                      styles.changeTypeButton,
+                      pressed && !formDisabled && styles.selectorPressed,
+                    ]}>
+                    <Text style={styles.changeTypeText}>Change</Text>
+                  </Pressable>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.selectorGroup}>
+                  <Text style={styles.label}>Type</Text>
+                  <View style={styles.selector}>
+                    {transactionTypes.map((type) => {
+                      const isSelected = values.type === type;
+
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{
+                            disabled: formDisabled,
+                            selected: isSelected,
+                          }}
+                          disabled={formDisabled}
+                          key={type}
+                          onPress={() => handleSelectType(type)}
+                          style={({ pressed }) => [
+                            styles.selectorButton,
+                            isSelected &&
+                              (type === 'income'
+                                ? styles.incomeSelectorButton
+                                : styles.expenseSelectorButton),
+                            pressed && !formDisabled && styles.selectorPressed,
+                          ]}>
+                          <Text
+                            style={[
+                              styles.selectorText,
+                              isSelected && styles.selectorTextActive,
+                            ]}>
+                            {type === 'income' ? 'Income' : 'Expense'}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
 
               <View style={styles.fields}>
                 <TextField
@@ -241,7 +278,7 @@ export function AddTransactionScreen({
                 />
               </View>
 
-              {!receiptFirst ? attachmentField : null}
+              {attachmentField}
 
               <Text style={styles.helperText}>
                 {isIncome
@@ -307,42 +344,21 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingTop: 24,
+    paddingTop: layout.pageTopPadding,
   },
   content: {
     width: '100%',
-    maxWidth: 520,
+    maxWidth: layout.appShellMaxWidth,
     alignSelf: 'center',
-    gap: 24,
-    paddingHorizontal: 20,
-  },
-  heading: {
-    gap: 7,
-  },
-  eyebrow: {
-    color: colors.accent,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1.6,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 29,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
+    paddingHorizontal: layout.pageHorizontalPadding,
   },
   card: {
-    gap: 22,
+    gap: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 24,
+    borderRadius: radii.xl,
     backgroundColor: colors.surface,
-    padding: 22,
+    padding: spacing.lg,
   },
   errorNotice: {
     borderWidth: 1,
@@ -391,6 +407,39 @@ const styles = StyleSheet.create({
   },
   selectorGroup: {
     gap: 8,
+  },
+  lockedTypeRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceRaised,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  lockedTypeCopy: {
+    gap: 3,
+  },
+  lockedTypeValue: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  changeTypeButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  changeTypeText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '800',
   },
   label: {
     color: colors.text,

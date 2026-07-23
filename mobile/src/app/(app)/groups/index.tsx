@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { GroupCard } from '@/components/group-card';
-import { colors } from '@/constants/theme';
+import { ScreenHeader } from '@/components/screen-header';
+import { colors, layout } from '@/constants/theme';
 import { buildGroupAddExpenseRoute, buildGroupRoute } from '@/groups/group-routes';
 import type { GroupListItem } from '@/groups/group-model';
 import { useGroups } from '@/groups/use-groups';
@@ -37,11 +38,12 @@ export default function GroupsScreen() {
           contentContainerStyle={data.length ? styles.content : styles.emptyContent}
           data={data}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={<View style={styles.heading}><Text style={styles.eyebrow}>SPACES</Text><Text style={styles.title}>{isChoosingForSplit ? 'Choose a Space' : 'Your Spaces'}</Text><Text style={styles.subtitle}>{isChoosingForSplit ? 'Select where you want to split this expense.' : 'Track shared costs and see where everyone stands.'}</Text>{error ? <Text accessibilityRole="alert" style={styles.error}>{error.kind === 'offline' ? "You're offline. Showing saved results." : 'Refresh failed. Showing your current list.'}</Text> : null}</View>}
+          ListHeaderComponent={<View style={styles.heading}><ScreenHeader title="Spaces" />{error ? <Text accessibilityRole="alert" style={styles.error}>{error.kind === 'offline' ? "You're offline. Showing saved results." : 'Refresh failed. Showing your current list.'}</Text> : null}</View>}
           ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No Spaces yet</Text><Text style={styles.emptyText}>Shared Spaces you join on Munmai will appear here.</Text></View>}
           refreshControl={<RefreshControl colors={[colors.accent]} tintColor={colors.accent} refreshing={isRefreshing} onRefresh={refresh} />}
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}
+          style={styles.list}
         />
       ) : null}
     </SafeAreaView>
@@ -50,13 +52,11 @@ export default function GroupsScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  state: { flex: 1, justifyContent: 'center', padding: 20 },
-  content: { gap: 10, paddingHorizontal: 20, paddingBottom: 28 },
-  emptyContent: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 28 },
-  heading: { gap: 5, paddingBottom: 20, paddingTop: 18 },
-  eyebrow: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: colors.text, fontSize: 28, fontWeight: '900' },
-  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  state: { flex: 1, justifyContent: 'center', padding: layout.pageHorizontalPadding },
+  list: { width: '100%', maxWidth: layout.appShellMaxWidth, alignSelf: 'center' },
+  content: { gap: 10, paddingHorizontal: layout.pageHorizontalPadding, paddingBottom: layout.pageBottomPadding },
+  emptyContent: { flexGrow: 1, paddingHorizontal: layout.pageHorizontalPadding, paddingBottom: layout.pageBottomPadding },
+  heading: { gap: 5, paddingBottom: 20, paddingTop: layout.pageTopPadding },
   error: { color: colors.expense, fontSize: 12, lineHeight: 17, paddingTop: 7 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 22, backgroundColor: colors.surface, marginVertical: 20, padding: 28 },
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },

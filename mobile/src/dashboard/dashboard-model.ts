@@ -218,3 +218,11 @@ export function formatTransactionDate(dateValue: string): string {
     timeZone: 'UTC',
   }).format(new Date(dateValue));
 }
+
+export function formatRecentTransactionDate(dateValue: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(dateValue));
+}

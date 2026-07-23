@@ -12,6 +12,8 @@ import {
   PUBLIC_ROUTES,
 } from '../src/navigation/routes.ts';
 
+const readMobileSource = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
 test('authenticated tabs use the required five-tab order', () => {
   assert.equal(AUTHENTICATED_TABS.length, 5);
   assert.deepEqual(
@@ -146,4 +148,54 @@ test('application navigation constants contain no deleted public routes', () => 
   for (const path of Object.values(PUBLIC_ROUTES)) {
     assert.equal(deletedPaths.has(path), false, `${path} is a deleted public route`);
   }
+});
+
+test('nested screens share the Activity detail compact back-link presentation', () => {
+  const backLinkSource = readMobileSource('../src/components/back-link.tsx');
+  const activityDetailSource = readMobileSource(
+    '../src/app/(app)/transactions/[type]/[id].tsx',
+  );
+  const spaceDetailSource = readMobileSource('../src/app/(app)/groups/[groupId]/index.tsx');
+  const addTransactionScreenSource = readMobileSource(
+    '../src/screens/add-transaction-screen.tsx',
+  );
+
+  assert.match(backLinkSource, /<Text style=\{styles\.text\}>‹ \{label\}<\/Text>/);
+  assert.match(backLinkSource, /minHeight: 48/);
+  assert.match(backLinkSource, /color: colors\.accent/);
+  assert.match(activityDetailSource, /<BackLink label="Activity" onPress=\{goBack\} \/>/);
+  assert.match(spaceDetailSource, /<BackLink label="Spaces" onPress=\{goBack\} \/>/);
+  assert.match(
+    addTransactionScreenSource,
+    /<BackLink label="Capture" onPress=\{onBack\} \/>/,
+  );
+});
+
+test('Space detail hides the generic stack title and returns to Spaces', () => {
+  const groupLayoutSource = readMobileSource('../src/app/(app)/groups/_layout.tsx');
+  const spaceDetailSource = readMobileSource('../src/app/(app)/groups/[groupId]/index.tsx');
+
+  assert.match(
+    groupLayoutSource,
+    /name="\[groupId\]\/index" options=\{\{ headerShown: false \}\}/,
+  );
+  assert.doesNotMatch(groupLayoutSource, /title: 'Space'/);
+  assert.match(spaceDetailSource, /router\.replace\(PUBLIC_ROUTES\.groups as Href\)/);
+  assert.match(spaceDetailSource, /<Text style=\{styles\.title\}>\{data\.group\.name\}<\/Text>/);
+});
+
+test('Add Transaction has one Capture back link and no repeated page title', () => {
+  const captureLayoutSource = readMobileSource('../src/app/(app)/add/_layout.tsx');
+  const transactionRouteSource = readMobileSource('../src/app/(app)/add/transaction.tsx');
+  const transactionScreenSource = readMobileSource('../src/screens/add-transaction-screen.tsx');
+
+  assert.match(
+    captureLayoutSource,
+    /name="transaction" options=\{\{ headerShown: false \}\}/,
+  );
+  assert.doesNotMatch(captureLayoutSource, /title: 'Add transaction'/);
+  assert.doesNotMatch(transactionRouteSource, /<Stack\.Screen|title: 'Add transaction'/);
+  assert.doesNotMatch(transactionScreenSource, />Add transaction</);
+  assert.match(transactionRouteSource, /onBack=\{returnToCapture\}/);
+  assert.match(transactionRouteSource, /router\.replace\(PUBLIC_ROUTES\.add as Href\)/);
 });

@@ -24,15 +24,15 @@ export interface ReceiptPermissionIssue {
 }
 
 export interface ReceiptPickerState {
-  choosePdf: () => Promise<void>;
-  chooseFromLibrary: () => Promise<void>;
+  choosePdf: () => Promise<ReceiptImage | null>;
+  chooseFromLibrary: () => Promise<ReceiptImage | null>;
   isPicking: boolean;
   openSettings: () => Promise<void>;
   permissionIssue: ReceiptPermissionIssue | null;
   pickerError: string | null;
   receipt: ReceiptImage | null;
   removeReceipt: () => void;
-  takePhoto: () => Promise<void>;
+  takePhoto: () => Promise<ReceiptImage | null>;
 }
 
 const pickerOptions: ImagePicker.ImagePickerOptions = {
@@ -43,8 +43,9 @@ const pickerOptions: ImagePicker.ImagePickerOptions = {
 
 export function useReceiptPicker(
   documentKind: SupportingDocumentKind = 'receipt',
+  initialReceipt: ReceiptImage | null = null,
 ): ReceiptPickerState {
-  const [receipt, dispatchReceipt] = useReducer(receiptSelectionReducer, null);
+  const [receipt, dispatchReceipt] = useReducer(receiptSelectionReducer, initialReceipt);
   const [permissionIssue, setPermissionIssue] = useState<ReceiptPermissionIssue | null>(null);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [isPicking, setIsPicking] = useState(false);
@@ -56,7 +57,7 @@ export function useReceiptPicker(
     documentKindRef.current = documentKind;
   }, [documentKind]);
 
-  const handleAsset = useCallback((asset: ImagePicker.ImagePickerAsset) => {
+  const handleAsset = useCallback((asset: ImagePicker.ImagePickerAsset): ReceiptImage | null => {
     const currentDocumentKind = documentKindRef.current;
 
     if (Platform.OS === 'web' && !asset.file) {
@@ -65,7 +66,7 @@ export function useReceiptPicker(
           ? 'This browser did not provide an uploadable image file. Choose another income document.'
           : 'This browser did not provide an uploadable image file. Choose another receipt image.',
       );
-      return;
+      return null;
     }
 
     const result = normalizeReceiptImage(
@@ -83,19 +84,22 @@ export function useReceiptPicker(
 
     if (!result.ok) {
       setPickerError(result.message);
-      return;
+      return null;
     }
 
     dispatchReceipt({ type: 'select', image: result.image });
     setPermissionIssue(null);
     setPickerError(null);
+    return result.image;
   }, []);
 
   const handlePickerResult = useCallback(
-    (result: ImagePicker.ImagePickerResult) => {
+    (result: ImagePicker.ImagePickerResult): ReceiptImage | null => {
       if (!result.canceled && result.assets[0]) {
-        handleAsset(result.assets[0]);
+        return handleAsset(result.assets[0]);
       }
+
+      return null;
     },
     [handleAsset],
   );
@@ -159,7 +163,7 @@ export function useReceiptPicker(
   const launchPicker = useCallback(
     async (source: ReceiptPickerSource) => {
       if (pickingRef.current) {
-        return;
+        return null;
       }
 
       pickingRef.current = true;
@@ -172,7 +176,7 @@ export function useReceiptPicker(
           const hasPermission = await requestPermission(source);
 
           if (!hasPermission) {
-            return;
+            return null;
           }
         }
 
@@ -182,8 +186,10 @@ export function useReceiptPicker(
             : await ImagePicker.launchImageLibraryAsync(pickerOptions);
 
         if (mountedRef.current) {
-          handlePickerResult(result);
+          return handlePickerResult(result);
         }
+
+        return null;
       } catch {
         if (mountedRef.current) {
           const currentDocumentKind = documentKindRef.current;
@@ -195,6 +201,7 @@ export function useReceiptPicker(
                 : 'Munmai could not open your photo library. Try again or continue without a receipt.',
           );
         }
+        return null;
       } finally {
         pickingRef.current = false;
 
@@ -211,7 +218,7 @@ export function useReceiptPicker(
 
   const choosePdf = useCallback(async () => {
     if (pickingRef.current) {
-      return;
+      return null;
     }
 
     pickingRef.current = true;
@@ -223,7 +230,7 @@ export function useReceiptPicker(
       const result = await DocumentPicker.getDocumentAsync(PDF_DOCUMENT_PICKER_OPTIONS);
 
       if (!mountedRef.current) {
-        return;
+        return null;
       }
 
       const normalized = normalizePdfDocumentPickerResult(
@@ -232,15 +239,16 @@ export function useReceiptPicker(
       );
 
       if (!normalized) {
-        return;
+        return null;
       }
 
       if (!normalized.ok) {
         setPickerError(normalized.message);
-        return;
+        return null;
       }
 
       dispatchReceipt({ type: 'select', image: normalized.image });
+      return normalized.image;
     } catch {
       if (mountedRef.current) {
         setPickerError(
@@ -249,6 +257,7 @@ export function useReceiptPicker(
             : 'Munmai could not open the file picker. Try again or continue without a receipt.',
         );
       }
+      return null;
     } finally {
       pickingRef.current = false;
 
