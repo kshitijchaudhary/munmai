@@ -2,6 +2,11 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import DocumentUploadField from "./DocumentUploadField";
+import {
+  getLocalDateValue,
+  getTransactionDateValidationError,
+} from "../utils/transactionDateValidation";
+import { submitTransactionRequest } from "../utils/transactionSubmission";
 
 const expenseCategories = [
   "Rent",
@@ -97,7 +102,7 @@ const formatDateInput = (dateValue) => {
   )}`;
 };
 
-const getTodayString = () => formatDateInput(new Date());
+const getTodayString = () => getLocalDateValue();
 
 const getYesterdayString = () => {
   const yesterday = new Date();
@@ -109,12 +114,6 @@ const getMinAllowedDate = () => {
   const minDate = new Date();
   minDate.setFullYear(minDate.getFullYear() - 6);
   return formatDateInput(minDate);
-};
-
-const getMaxAllowedDate = () => {
-  const maxDate = new Date();
-  maxDate.setFullYear(maxDate.getFullYear() + 1);
-  return formatDateInput(maxDate);
 };
 
 const AddTransaction = ({
@@ -151,7 +150,6 @@ const AddTransaction = ({
   const [showDetails, setShowDetails] = useState(false);
 
   const minAllowedDate = getMinAllowedDate();
-  const maxAllowedDate = getMaxAllowedDate();
   const isEditing = !!editingTransaction;
   const hasExistingReceipt =
     isEditing && type === "expense" && Boolean(editingTransaction?.receiptUrl);
@@ -235,12 +233,10 @@ const AddTransaction = ({
   }, [editingTransaction]);
 
   const validateDate = (selectedDate) => {
-    if (!selectedDate) return "Date is required";
+    const dateError = getTransactionDateValidationError(selectedDate);
+    if (dateError) return dateError;
     if (selectedDate < minAllowedDate) {
       return "You can keep records up to 6 years in the past.";
-    }
-    if (selectedDate > maxAllowedDate) {
-      return "You can only plan transactions up to 1 year ahead.";
     }
     return "";
   };
@@ -431,10 +427,17 @@ const AddTransaction = ({
 
         const data = buildExpenseFormData();
 
-        if (isEditing) {
-          await api.put(`/expenses/${editingTransaction._id}`, data);
-        } else {
-          await api.post("/expenses", data);
+        const submission = await submitTransactionRequest({
+          apiClient: api,
+          date: formData.date,
+          payload: data,
+          transactionId: isEditing ? editingTransaction._id : "",
+          type: "expense",
+        });
+
+        if (!submission.submitted) {
+          setFormStatus({ type: "error", message: submission.message });
+          return;
         }
       } else {
         if (!formData.amount || !formData.source || !formData.category) {
@@ -453,10 +456,17 @@ const AddTransaction = ({
           date: formData.date,
         };
 
-        if (isEditing) {
-          await api.put(`/income/${editingTransaction._id}`, payload);
-        } else {
-          await api.post("/income", payload);
+        const submission = await submitTransactionRequest({
+          apiClient: api,
+          date: formData.date,
+          payload,
+          transactionId: isEditing ? editingTransaction._id : "",
+          type: "income",
+        });
+
+        if (!submission.submitted) {
+          setFormStatus({ type: "error", message: submission.message });
+          return;
         }
       }
 
@@ -596,7 +606,7 @@ const AddTransaction = ({
             className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             value={formData.date}
             min={minAllowedDate}
-            max={maxAllowedDate}
+            max={getTodayString()}
             onChange={handleChange}
           />
 

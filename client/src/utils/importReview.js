@@ -1,3 +1,9 @@
+import {
+  TRANSACTION_DATE_FUTURE_MESSAGE,
+  getTransactionDateValidationError,
+  normalizeTransactionDateValue,
+} from "./transactionDateValidation.js";
+
 const findHeader = (headers, keywords) => {
   const normalizedHeaders = headers.map((header) => ({
     original: header,
@@ -74,7 +80,9 @@ export const inferTypeFromCell = (value) => {
 export const validateReviewRow = (row) => {
   const issues = [];
   const amount = parseAmount(row.amount);
-  const date = new Date(row.date);
+  const dateError = getTransactionDateValidationError(row.date, {
+    allowFlexibleFormat: true,
+  });
 
   if (!["income", "expense"].includes(row.type)) {
     issues.push("Type");
@@ -88,8 +96,10 @@ export const validateReviewRow = (row) => {
     issues.push("Amount");
   }
 
-  if (Number.isNaN(date.getTime())) {
-    issues.push("Date");
+  if (dateError) {
+    issues.push(
+      dateError === TRANSACTION_DATE_FUTURE_MESSAGE ? dateError : "Date"
+    );
   }
 
   return issues;
@@ -123,7 +133,10 @@ export const buildReviewRows = ({ rows, mappings, importMode }) =>
         amount,
         typeCell: row[mappings.type],
       }),
-      date: row[mappings.date] || "",
+      date:
+        normalizeTransactionDateValue(row[mappings.date]) ||
+        row[mappings.date] ||
+        "",
       title: row[mappings.description] || "",
       amount: Number.isFinite(amount) ? String(Math.abs(amount)) : row[mappings.amount] || "",
       category: mappings.category ? row[mappings.category] || "" : "",
