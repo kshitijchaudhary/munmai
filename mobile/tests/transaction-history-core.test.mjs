@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  createTransactionMonth,
   filterTransactionRecords,
   findTransactionRecord,
   getCurrentTransactionMonth,
+  isSelectableTransactionMonth,
   mergeTransactionRecords,
   shiftTransactionMonth,
 } from '../src/transactions/transaction-history-model.ts';
@@ -108,6 +110,30 @@ test('month filtering respects UTC calendar boundaries', () => {
   assert.equal(shiftTransactionMonth('2026-07', -1), '2026-06');
   assert.equal(shiftTransactionMonth('2026-12', 1), '2027-01');
   assert.equal(getCurrentTransactionMonth(new Date(2026, 6, 31)), '2026-07');
+});
+
+test('month jump selects a distant month and preserves the chosen year', () => {
+  const draftMonth = createTransactionMonth('2018', 3);
+
+  assert.equal(draftMonth, '2018-03');
+  assert.equal(isSelectableTransactionMonth(draftMonth, '2026-07'), true);
+});
+
+test('month jump enforces the existing earliest and current-month boundaries', () => {
+  assert.equal(isSelectableTransactionMonth('2000-01', '2026-07'), true);
+  assert.equal(isSelectableTransactionMonth('1999-12', '2026-07'), false);
+  assert.equal(isSelectableTransactionMonth('2026-07', '2026-07'), true);
+  assert.equal(isSelectableTransactionMonth('2026-08', '2026-07'), false);
+  assert.equal(createTransactionMonth('2026', 13), null);
+  assert.equal(createTransactionMonth('26', 7), null);
+  assert.equal(createTransactionMonth('20a6', 7), null);
+  assert.equal(createTransactionMonth(' 2026', 7), null);
+  assert.equal(createTransactionMonth('2026 ', 7), null);
+});
+
+test('previous and next month arrows retain December and January rollover', () => {
+  assert.equal(shiftTransactionMonth('2026-01', -1), '2025-12');
+  assert.equal(shiftTransactionMonth('2026-12', 1), '2027-01');
 });
 
 test('equal dates use a stable type-and-ID secondary sort', () => {

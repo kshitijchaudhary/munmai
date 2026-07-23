@@ -198,6 +198,34 @@ export function isTransactionMonth(value: string): boolean {
   return MONTH_PATTERN.test(value);
 }
 
+export function createTransactionMonth(
+  year: string,
+  monthNumber: number,
+): string | null {
+  if (
+    !/^\d{4}$/.test(year) ||
+    !Number.isInteger(monthNumber) ||
+    monthNumber < 1 ||
+    monthNumber > 12
+  ) {
+    return null;
+  }
+
+  return `${year}-${String(monthNumber).padStart(2, '0')}`;
+}
+
+export function isSelectableTransactionMonth(
+  month: string,
+  maximumMonth: string,
+): boolean {
+  return (
+    isTransactionMonth(month) &&
+    isTransactionMonth(maximumMonth) &&
+    month >= EARLIEST_TRANSACTION_MONTH &&
+    month <= maximumMonth
+  );
+}
+
 export function getCurrentTransactionMonth(referenceDate = new Date()): string {
   const month = String(referenceDate.getMonth() + 1).padStart(2, '0');
 
