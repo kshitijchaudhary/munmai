@@ -46,12 +46,34 @@ const settlementSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      maxLength: [128, "Idempotency key cannot exceed 128 characters"],
+      select: false,
+    },
   },
   { timestamps: true }
 );
 
 settlementSchema.index({ group: 1, createdAt: -1 });
 settlementSchema.index({ recordedBy: 1, createdAt: -1 });
+settlementSchema.index(
+  { recordedBy: 1, idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      idempotencyKey: { $exists: true, $type: "string" },
+    },
+  },
+);
+
+settlementSchema.set("toJSON", {
+  transform: (_document, result) => {
+    delete result.idempotencyKey;
+    return result;
+  },
+});
 
 const Settlement = mongoose.model("Settlement", settlementSchema);
 

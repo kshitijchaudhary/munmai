@@ -45,9 +45,21 @@ const groupSchema = new mongoose.Schema(
         },
       ],
     },
+    settlementVersion: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
   },
   { timestamps: true }
 );
+
+groupSchema.set("toJSON", {
+  transform: (_document, result) => {
+    delete result.settlementVersion;
+    return result;
+  },
+});
 
 groupSchema.index({ members: 1, updatedAt: -1 });
 groupSchema.index({ createdBy: 1, createdAt: -1 });

@@ -6,6 +6,9 @@ import User from "../models/User.js";
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
+const applySession = (query, session) =>
+  session ? query.session(session) : query;
+
 const normalizeGroupIds = (groupIds) => [
   ...new Set(groupIds.map((groupId) => String(groupId)).filter(Boolean)),
 ];
@@ -98,7 +101,10 @@ const hydrateBalanceUsers = async (balances) => {
   }));
 };
 
-const getRawGroupBalancesByGroupId = async (groupIds) => {
+const getRawGroupBalancesByGroupId = async (
+  groupIds,
+  { session = null } = {},
+) => {
   const normalizedGroupIds = normalizeGroupIds(groupIds);
   const balancesByGroupId = new Map(
     normalizedGroupIds.map((groupId) => [groupId, []])
@@ -109,22 +115,27 @@ const getRawGroupBalancesByGroupId = async (groupIds) => {
   }
 
   const [expenses, settlements] = await Promise.all([
-    SharedExpense.find({ group: { $in: normalizedGroupIds } })
-      .select("_id group paidBy")
-      .lean(),
-    Settlement.find({ group: { $in: normalizedGroupIds } })
-      .select("group from to amount")
-      .lean(),
+    applySession(
+      SharedExpense.find({ group: { $in: normalizedGroupIds } })
+        .select("_id group paidBy"),
+      session,
+    ).lean(),
+    applySession(
+      Settlement.find({ group: { $in: normalizedGroupIds } })
+        .select("group from to amount"),
+      session,
+    ).lean(),
   ]);
 
   const expenseIds = expenses.map((expense) => expense._id);
   const splits =
     expenseIds.length > 0
-      ? await ExpenseSplit.find({
-          expense: { $in: expenseIds },
-        })
-          .select("expense user amount")
-          .lean()
+      ? await applySession(
+          ExpenseSplit.find({
+            expense: { $in: expenseIds },
+          }).select("expense user amount"),
+          session,
+        ).lean()
       : [];
 
   const splitsByExpenseId = new Map();
@@ -223,7 +234,21 @@ export const getGroupBalances = async (groupId) => {
   return hydrateBalanceUsers(balancesByGroupId.get(normalizedGroupId) || []);
 };
 
+export const getRawGroupBalances = async (
+  groupId,
+  { session = null } = {},
+) => {
+  const normalizedGroupId = String(groupId);
+  const balancesByGroupId = await getRawGroupBalancesByGroupId(
+    [normalizedGroupId],
+    { session },
+  );
+
+  return balancesByGroupId.get(normalizedGroupId) || [];
+};
+
 export default {
   getGroupBalances,
+  getRawGroupBalances,
   getUserGroupBalanceSummaries,
 };

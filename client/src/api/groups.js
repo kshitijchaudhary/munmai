@@ -35,8 +35,10 @@ export const createSharedExpense = async (payload) => {
   return response.data;
 };
 
-export const createGroupSettlement = async (groupId, payload) => {
-  const response = await api.post(`/groups/${groupId}/settlements`, payload);
+export const createGroupSettlement = async (groupId, payload, idempotencyKey) => {
+  const response = await api.post(`/groups/${groupId}/settlements`, payload, {
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
   return response.data;
 };
 

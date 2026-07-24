@@ -30,6 +30,16 @@ export async function getSettlementHistory(groupId: string, signal?: AbortSignal
   return (await apiClient.get(`/groups/${encodeURIComponent(groupId)}/settlements`, { signal })).data;
 }
 
-export async function createSettlement(groupId: string, payload: CreateSettlementPayload, signal?: AbortSignal): Promise<unknown> {
-  return (await apiClient.post(`/groups/${encodeURIComponent(groupId)}/settlements`, payload, { signal })).data;
+export async function createSettlement(
+  groupId: string,
+  payload: CreateSettlementPayload,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  return (
+    await apiClient.post(`/groups/${encodeURIComponent(groupId)}/settlements`, payload, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+      signal,
+    })
+  ).data;
 }

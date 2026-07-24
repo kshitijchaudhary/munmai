@@ -6,6 +6,7 @@ process.env.JWT_SECRET = "money-amount-validation-test-secret";
 const [
   { default: express },
   { default: jwt },
+  { default: mongoose },
   { default: User },
   { default: Income },
   { default: Expense },
@@ -31,6 +32,7 @@ const [
 ] = await Promise.all([
   import("express"),
   import("jsonwebtoken"),
+  import("mongoose"),
   import("../models/User.js"),
   import("../models/Income.js"),
   import("../models/Expense.js"),
@@ -73,15 +75,23 @@ after(
 );
 
 const asQuery = (value) => ({
+  select() {
+    return this;
+  },
+  session() {
+    return this;
+  },
   lean: async () => value,
   then(resolve, reject) {
     return Promise.resolve(value).then(resolve, reject);
   },
 });
 
+let idempotencyCounter = 0;
 const authenticatedHeaders = () => ({
   Authorization: `Bearer ${token}`,
   "Content-Type": "application/json",
+  "Idempotency-Key": `money-validation-request-${++idempotencyCounter}`,
 });
 
 const allowAuthentication = (t) => {
@@ -96,6 +106,9 @@ const allowGroupMembership = (t) => {
   }));
   t.mock.method(GroupMembership, "find", () => ({
     select() {
+      return this;
+    },
+    session() {
       return this;
     },
     lean: async () => [{ userId }, { userId: otherUserId }],
@@ -500,9 +513,46 @@ test("settlement creation accepts canonical amounts and rejects strings, fractio
   allowGroupMembership(t);
   const createdAmounts = [];
 
-  t.mock.method(Settlement, "create", async (payload) => {
+  t.mock.method(mongoose, "startSession", async () => {
+    let inTransaction = false;
+    return {
+      abortTransaction: async () => {
+        inTransaction = false;
+      },
+      commitTransaction: async () => {
+        inTransaction = false;
+      },
+      endSession: async () => {},
+      inTransaction: () => inTransaction,
+      startTransaction: () => {
+        inTransaction = true;
+      },
+    };
+  });
+  t.mock.method(Group, "updateOne", async () => ({ matchedCount: 1 }));
+  t.mock.method(SharedExpense, "find", () =>
+    asQuery([
+      {
+        _id: "507f1f77bcf86cd799439017",
+        group: groupId,
+        paidBy: otherUserId,
+      },
+    ]),
+  );
+  t.mock.method(ExpenseSplit, "find", () =>
+    asQuery([
+      {
+        expense: "507f1f77bcf86cd799439017",
+        user: userId,
+        amount: MAX_MONEY_AMOUNT,
+      },
+    ]),
+  );
+  t.mock.method(Settlement, "find", () => asQuery([]));
+  t.mock.method(Settlement, "findOne", () => asQuery(null));
+  t.mock.method(Settlement, "create", async ([payload]) => {
     createdAmounts.push(payload.amount);
-    return { _id: "507f1f77bcf86cd799439016", ...payload };
+    return [{ _id: "507f1f77bcf86cd799439016", ...payload }];
   });
 
   const payload = {
