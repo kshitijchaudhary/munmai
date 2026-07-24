@@ -192,11 +192,11 @@ test("transaction import review marks future rows with the expected message", ()
   };
 
   assert.deepEqual(
-    validateReviewRow({ ...baseRow, date: yesterday }),
+    validateReviewRow({ ...baseRow, date: yesterday }, { now: referenceDate }),
     []
   );
   assert.ok(
-    validateReviewRow({ ...baseRow, date: tomorrow }).includes(
+    validateReviewRow({ ...baseRow, date: tomorrow }, { now: referenceDate }).includes(
       TRANSACTION_DATE_FUTURE_MESSAGE
     )
   );
