@@ -77,11 +77,15 @@ export const inferTypeFromCell = (value) => {
   return "";
 };
 
-export const validateReviewRow = (row) => {
+export const validateReviewRow = (
+  row,
+  { now = new Date() } = {},
+) => {
   const issues = [];
   const amount = parseAmount(row.amount);
   const dateError = getTransactionDateValidationError(row.date, {
     allowFlexibleFormat: true,
+    now,
   });
 
   if (!["income", "expense"].includes(row.type)) {
