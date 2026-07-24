@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Crypto from 'expo-crypto';
 
 import { getErrorMessage } from '@/api/client';
 import { createSettlement } from '@/api/groups';
@@ -11,6 +12,7 @@ import {
   type SettlementFormValues,
   validateSettlement,
 } from '@/groups/settlement-model';
+import { getSettlementRequestId } from '@/groups/settlement-request-id';
 import { createRequestCoordinator } from '@/utils/request-coordinator';
 
 export function useSettlementForm(
@@ -24,10 +26,12 @@ export function useSettlementForm(
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coordinator = useRef(createRequestCoordinator());
   const controller = useRef<AbortController | null>(null);
+  const logicalRequestId = useRef<string | null>(null);
 
   useEffect(() => () => { coordinator.current.invalidate(); controller.current?.abort(); }, []);
 
   const setField = useCallback(<Key extends keyof SettlementFormValues>(key: Key, value: SettlementFormValues[Key]) => {
+    logicalRequestId.current = null;
     setValues((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
     setSubmitError(null);
@@ -42,11 +46,21 @@ export function useSettlementForm(
     const requestId = coordinator.current.begin();
     if (!payload || requestId === null) return false;
     const abortController = new AbortController();
+    const idempotencyKey = getSettlementRequestId(
+      logicalRequestId.current,
+      Crypto.randomUUID,
+    );
+    logicalRequestId.current = idempotencyKey;
     controller.current = abortController;
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await createSettlement(groupId, payload, abortController.signal);
+      await createSettlement(
+        groupId,
+        payload,
+        idempotencyKey,
+        abortController.signal,
+      );
       return coordinator.current.isCurrent(requestId);
     } catch (requestError) {
       if (coordinator.current.isCurrent(requestId) && !(isNormalizedApiError(requestError) && requestError.isAuthenticationFailure)) {

@@ -21,8 +21,15 @@ const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 
 export const createGroupSettlement = asyncHandler(async (req, res) => {
   try {
-    const result = await createSettlement(req.params.groupId, req.body, req.user.id);
-    return res.status(201).json(result);
+    const result = await createSettlement(
+      req.params.groupId,
+      req.body,
+      req.user.id,
+      { idempotencyKey: req.get("Idempotency-Key") },
+    );
+    return res
+      .status(result.replayed ? 200 : 201)
+      .json({ settlement: result.settlement });
   } catch (error) {
     return respondWithError(res, error);
   }
@@ -55,8 +62,15 @@ export const getGroupSettlementHistory = asyncHandler(async (req, res) => {
 
 export const createSettlementFromBody = asyncHandler(async (req, res) => {
   try {
-    const result = await createSettlement(req.body?.groupId, req.body, req.user.id);
-    return res.status(201).json(result);
+    const result = await createSettlement(
+      req.body?.groupId,
+      req.body,
+      req.user.id,
+      { idempotencyKey: req.get("Idempotency-Key") },
+    );
+    return res
+      .status(result.replayed ? 200 : 201)
+      .json({ settlement: result.settlement });
   } catch (error) {
     return respondWithError(res, error);
   }

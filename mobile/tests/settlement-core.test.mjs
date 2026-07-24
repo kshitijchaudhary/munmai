@@ -30,6 +30,7 @@ import {
   scheduleSettlementSuccessDismiss,
   shouldRestartSettlementSuccessTimer,
 } from '../src/groups/settlement-success-feedback.ts';
+import { getSettlementRequestId } from '../src/groups/settlement-request-id.ts';
 
 const groupId = '64a000000000000000000001';
 const currentUserId = '64b000000000000000000001';
@@ -169,6 +170,32 @@ test('request coordinator prevents duplicate submits and invalidates stale respo
   const next = coordinator.begin();
   assert.equal(coordinator.isCurrent(next), true);
   coordinator.finish(next);
+});
+
+test('a settlement retry reuses its logical request identifier', () => {
+  let generated = 0;
+  const generate = () => `settlement-request-${++generated}`;
+  const first = getSettlementRequestId(null, generate);
+  const retry = getSettlementRequestId(first, generate);
+
+  assert.equal(retry, first);
+  assert.equal(generated, 1);
+});
+
+test('a genuinely new settlement submission receives a new identifier', () => {
+  let generated = 0;
+  const generate = () => `settlement-request-${++generated}`;
+  const first = getSettlementRequestId(null, generate);
+  const next = getSettlementRequestId(null, generate);
+
+  assert.notEqual(next, first);
+  assert.equal(generated, 2);
+});
+
+test('the settlement API sends the stable identifier through Idempotency-Key', () => {
+  const apiSource = readMobileSource('../src/api/groups.ts');
+
+  assert.match(apiSource, /headers: \{ 'Idempotency-Key': idempotencyKey \}/);
 });
 
 test('settlement success feedback is shown once after successful creation', () => {

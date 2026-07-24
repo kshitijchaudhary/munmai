@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createGroupSettlement } from "../api/groups";
 
 const getMemberId = (member) => String(member?._id || member?.id || member || "");
@@ -29,6 +29,12 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
   });
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
+  const logicalRequestId = useRef(null);
+
+  const updateFormData = useCallback((updater) => {
+    logicalRequestId.current = null;
+    setFormData(updater);
+  }, []);
 
   const memberOptions = useMemo(
     () =>
@@ -58,7 +64,7 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
       return;
     }
 
-    setFormData({
+    updateFormData({
       from: settlementDraft.from || "",
       to: settlementDraft.to || "",
       amount:
@@ -68,9 +74,10 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
       note: settlementDraft.note || "",
     });
     setStatusMessage(null);
-  }, [settlementDraft]);
+  }, [settlementDraft, updateFormData]);
 
   const resetForm = () => {
+    logicalRequestId.current = null;
     setFormData({
       from: "",
       to: "",
@@ -110,13 +117,16 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
 
     try {
       setSubmitting(true);
+      const idempotencyKey =
+        logicalRequestId.current || globalThis.crypto.randomUUID();
+      logicalRequestId.current = idempotencyKey;
 
       await createGroupSettlement(groupId, {
         from: formData.from,
         to: formData.to,
         amount: Number(formData.amount),
         note: formData.note.trim(),
-      });
+      }, idempotencyKey);
 
       resetForm();
       setStatusMessage({
@@ -166,7 +176,7 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
           <select
             value={formData.from}
             onChange={(event) =>
-              setFormData((prev) => ({
+              updateFormData((prev) => ({
                 ...prev,
                 from: event.target.value,
                 to: prev.to === event.target.value ? "" : prev.to,
@@ -191,7 +201,7 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
           <select
             value={formData.to}
             onChange={(event) =>
-              setFormData((prev) => ({
+              updateFormData((prev) => ({
                 ...prev,
                 to: event.target.value,
                 from: prev.from === event.target.value ? "" : prev.from,
@@ -219,7 +229,7 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
             step="0.01"
             value={formData.amount}
             onChange={(event) =>
-              setFormData((prev) => ({ ...prev, amount: event.target.value }))
+              updateFormData((prev) => ({ ...prev, amount: event.target.value }))
             }
             placeholder="50.00"
             disabled={submitting}
@@ -235,7 +245,7 @@ const SettlementForm = ({ groupId, members = [], settlementDraft, onCreated }) =
             type="text"
             value={formData.note}
             onChange={(event) =>
-              setFormData((prev) => ({ ...prev, note: event.target.value }))
+              updateFormData((prev) => ({ ...prev, note: event.target.value }))
             }
             placeholder="Cash, e-transfer, reimbursement"
             disabled={submitting}

@@ -175,14 +175,19 @@ const buildMembershipActiveMatch = (groupId, userId) => ({
   status: "active",
 });
 
-export const getActiveMemberIds = async (groupId) => {
-  const activeMemberships = await GroupMembership.find({
+export const getActiveMemberIds = async (groupId, { session = null } = {}) => {
+  let query = GroupMembership.find({
     groupId,
     status: "active",
     userId: { $ne: null },
   })
-    .select("userId")
-    .lean();
+    .select("userId");
+
+  if (session) {
+    query = query.session(session);
+  }
+
+  const activeMemberships = await query.lean();
 
   return new Set(
     activeMemberships
