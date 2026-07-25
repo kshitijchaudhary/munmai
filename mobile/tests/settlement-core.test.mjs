@@ -8,6 +8,7 @@ import {
   MONEY_AMOUNT_PRECISION_MESSAGE,
 } from '../src/money/money-amount.js';
 import {
+  buildGroupDetailRoute,
   buildNewSettlementRoute,
   buildSettlementHistoryRoute,
   parseSettlementRoute,
@@ -143,8 +144,17 @@ test('parses settlement history, removes private fields, and sorts deterministic
 test('constructs and parses public settlement routes', () => {
   const history = buildSettlementHistoryRoute(groupId);
   const create = buildNewSettlementRoute(groupId, currentUserId, otherUserId);
+  const detail = buildGroupDetailRoute(groupId);
   assert.equal(history, `/groups/${groupId}/settlements`);
   assert.equal(create, `/groups/${groupId}/settlements/new?from=${currentUserId}&to=${otherUserId}`);
+  assert.deepEqual(detail, {
+    pathname: '/groups/[groupId]',
+    params: { groupId },
+  });
+  assert.throws(
+    () => buildGroupDetailRoute('invalid'),
+    /Invalid group route parameters/,
+  );
   assert.deepEqual(parseSettlementRoute(groupId, currentUserId, otherUserId), { groupId, from: currentUserId, to: otherUserId });
   assert.equal(parseSettlementRoute(groupId, currentUserId, currentUserId), null);
   assert.equal(create.includes('(app)'), false);
@@ -247,7 +257,7 @@ test('navigation back cannot consume stale feedback and a new settlement gets a 
   assert.equal(consumeSettlementSuccess(groupId), nextToken);
 });
 
-test('settlement screens use the Space back link and preserve stack state', () => {
+test('settlement Cancel dismisses to its Space with a safe root fallback', () => {
   const groupLayoutSource = readMobileSource('../src/app/(app)/groups/_layout.tsx');
   const historySource = readMobileSource(
     '../src/app/(app)/groups/[groupId]/settlements/index.tsx',
@@ -276,7 +286,20 @@ test('settlement screens use the Space back link and preserve stack state', () =
   assert.match(historyHookSource, /getGroup\(groupId, abortController\.signal\)/);
   assert.match(historySource, /router\.back\(\)/);
   assert.match(historySource, /router\.replace\(buildGroupRoute\(groupId\) as Href\)/);
-  assert.match(newSettlementSource, /router\.back\(\)/);
+  assert.match(
+    newSettlementSource,
+    /router\.dismissTo\(buildGroupDetailRoute\(groupId\) as Href\)/,
+  );
+  assert.match(
+    newSettlementSource,
+    /router\.replace\(PUBLIC_ROUTES\.groups as Href\)/,
+  );
+  assert.doesNotMatch(newSettlementSource, /router\.back\(\)/);
+  assert.doesNotMatch(newSettlementSource, /PUBLIC_ROUTES\.home|router\.(?:navigate|replace)\(['"]\/['"]\)/);
+  assert.match(
+    newSettlementSource,
+    /router\.replace\(buildGroupRoute\(route\.groupId\) as Href\)/,
+  );
   assert.doesNotMatch(historySource, /clear|reset/);
   assert.doesNotMatch(newSettlementSource, /onPress=\{close\}[\s\S]*form\.reset/);
 });

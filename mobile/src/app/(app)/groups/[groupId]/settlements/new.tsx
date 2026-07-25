@@ -10,14 +10,21 @@ import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { colors, getFormBottomPadding } from '@/constants/theme';
 import { formatCurrency } from '@/dashboard/dashboard-model';
-import { buildGroupRoute, parseSettlementRoute } from '@/groups/group-routes';
+import {
+  buildGroupDetailRoute,
+  buildGroupRoute,
+  parseGroupRoute,
+  parseSettlementRoute,
+} from '@/groups/group-routes';
 import { centsToAmount, currencyToCents, findSettlementDirection } from '@/groups/settlement-model';
 import { markSettlementSuccess } from '@/groups/settlement-success-feedback';
 import { useGroupDetail } from '@/groups/use-group-detail';
 import { useSettlementForm } from '@/groups/use-settlement-form';
+import { PUBLIC_ROUTES } from '@/navigation/routes';
 
 export default function NewSettlementScreen() {
   const params = useLocalSearchParams<{ groupId?: string | string[]; from?: string | string[]; to?: string | string[] }>();
+  const groupId = parseGroupRoute(params.groupId);
   const route = parseSettlementRoute(params.groupId, params.from, params.to);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -33,9 +40,13 @@ export default function NewSettlementScreen() {
     : null;
 
   const close = useCallback(() => {
-    if (router.canGoBack()) router.back();
-    else if (route) router.replace(buildGroupRoute(route.groupId) as Href);
-  }, [route, router]);
+    if (groupId) {
+      router.dismissTo(buildGroupDetailRoute(groupId) as Href);
+      return;
+    }
+
+    router.replace(PUBLIC_ROUTES.groups as Href);
+  }, [groupId, router]);
 
   const handleSubmit = useCallback(async () => {
     if (await form.submit() && route) {

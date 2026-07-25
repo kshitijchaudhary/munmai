@@ -43,6 +43,10 @@ export interface SharedExpenseActivity {
   occurredAt: string;
   paidBy: GroupUser;
   participants: GroupUser[];
+  splits: {
+    user: GroupUser;
+    amount: number;
+  }[];
 }
 
 export interface SettlementActivity {
@@ -152,9 +156,14 @@ export function parseActivityResponse(value: unknown): GroupActivity[] {
     const paidBy = parseGroupUser(expense?.paidBy);
     if (!id || amount === null || !occurredAt || !paidBy) return [];
     const splits = Array.isArray(expense?.splits) ? expense.splits : [];
-    const participants = splits
-      .map((split) => parseGroupUser(record(split)?.user))
-      .filter((user): user is GroupUser => Boolean(user));
+    const parsedSplits = splits.flatMap((entry) => {
+      const split = record(entry);
+      const user = parseGroupUser(split?.user);
+      const splitAmount = money(split?.amount);
+      return user && splitAmount !== null && splitAmount > 0
+        ? [{ user, amount: splitAmount }]
+        : [];
+    });
     return [{
       id,
       kind: 'shared-expense' as const,
@@ -162,7 +171,8 @@ export function parseActivityResponse(value: unknown): GroupActivity[] {
       amount,
       occurredAt,
       paidBy,
-      participants,
+      participants: parsedSplits.map((split) => split.user),
+      splits: parsedSplits,
     }];
   }).sort((left, right) =>
     Date.parse(right.occurredAt) - Date.parse(left.occurredAt) || left.id.localeCompare(right.id),

@@ -148,6 +148,12 @@ export default function AuthenticatedTabsLayout() {
             />
             <Tabs.Screen
               name={spacesTab.route}
+              listeners={{
+                tabPress: (event) => {
+                  event.preventDefault();
+                  router.navigate(PUBLIC_ROUTES.groups as Href);
+                },
+              }}
               options={{
                 title: spacesTab.label,
                 tabBarIcon: ({ color, focused }) => (

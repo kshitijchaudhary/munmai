@@ -5,6 +5,14 @@ export function buildGroupRoute(groupId: string) {
   return `/groups/${groupId.toLowerCase()}` as const;
 }
 
+export function buildGroupDetailRoute(groupId: string) {
+  if (!objectIdPattern.test(groupId)) throw new Error('Invalid group route parameters');
+  return {
+    pathname: '/groups/[groupId]',
+    params: { groupId: groupId.toLowerCase() },
+  } as const;
+}
+
 export function buildGroupAddExpenseRoute(groupId: string) {
   return `${buildGroupRoute(groupId)}/add-expense` as const;
 }

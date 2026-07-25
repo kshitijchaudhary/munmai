@@ -28,6 +28,48 @@ test('authenticated tabs use the required five-tab order', () => {
   );
 });
 
+test('Spaces tab presses always target the Spaces root', () => {
+  const authenticatedLayoutSource = readMobileSource(
+    '../src/app/(app)/_layout.tsx',
+  );
+  const spacesScreen = authenticatedLayoutSource.slice(
+    authenticatedLayoutSource.indexOf('name={spacesTab.route}'),
+    authenticatedLayoutSource.indexOf('<Tabs.Screen name="more"'),
+  );
+
+  assert.match(spacesScreen, /tabPress: \(event\) => \{/);
+  assert.match(spacesScreen, /event\.preventDefault\(\)/);
+  assert.match(
+    spacesScreen,
+    /router\.navigate\(PUBLIC_ROUTES\.groups as Href\)/,
+  );
+  assert.doesNotMatch(spacesScreen, /\[groupId\]|settlements|PUBLIC_ROUTES\.home/);
+  assert.equal(PUBLIC_ROUTES.groups, '/groups');
+});
+
+test('Activity-owned Space detail is nested under the registered Activity tab', () => {
+  const activityTab = AUTHENTICATED_TABS.find(
+    (tab) => tab.label === 'Activity',
+  );
+  const authenticatedLayoutSource = readMobileSource(
+    '../src/app/(app)/_layout.tsx',
+  );
+  const activitySpaceRoute = readMobileSource(
+    '../src/app/(app)/transactions/spaces/[groupId].tsx',
+  );
+
+  assert.equal(activityTab?.route, 'transactions');
+  assert.match(
+    authenticatedLayoutSource,
+    /<Tabs\.Screen\s+name=\{activityTab\.route\}/,
+  );
+  assert.match(activitySpaceRoute, /initialSection="activity"/);
+  assert.match(
+    activitySpaceRoute,
+    /router\.replace\(PUBLIC_ROUTES\.transactions as Href\)/,
+  );
+});
+
 test('Capture is the exact center tab', () => {
   assert.equal(AUTHENTICATED_TABS.length, 5);
   assert.deepEqual(AUTHENTICATED_TABS[Math.floor(AUTHENTICATED_TABS.length / 2)], {
@@ -199,7 +241,7 @@ test('nested screens share the Activity detail compact back-link presentation', 
   const activityDetailSource = readMobileSource(
     '../src/app/(app)/transactions/[type]/[id].tsx',
   );
-  const spaceDetailSource = readMobileSource('../src/app/(app)/groups/[groupId]/index.tsx');
+  const groupDetailSource = readMobileSource('../src/groups/group-detail-screen.tsx');
   const addTransactionScreenSource = readMobileSource(
     '../src/screens/add-transaction-screen.tsx',
   );
@@ -208,16 +250,17 @@ test('nested screens share the Activity detail compact back-link presentation', 
   assert.match(backLinkSource, /minHeight: 48/);
   assert.match(backLinkSource, /color: colors\.accent/);
   assert.match(activityDetailSource, /<BackLink label="Activity" onPress=\{goBack\} \/>/);
-  assert.match(spaceDetailSource, /<BackLink label="Spaces" onPress=\{goBack\} \/>/);
+  assert.match(groupDetailSource, /<BackLink label="Back" onPress=\{onBack\} \/>/);
   assert.match(
     addTransactionScreenSource,
     /<BackLink label="Capture" onPress=\{onBack\} \/>/,
   );
 });
 
-test('Space detail hides the generic stack title and returns to Spaces', () => {
+test('Space detail hides the generic stack title and has a safe Spaces fallback', () => {
   const groupLayoutSource = readMobileSource('../src/app/(app)/groups/_layout.tsx');
   const spaceDetailSource = readMobileSource('../src/app/(app)/groups/[groupId]/index.tsx');
+  const groupDetailSource = readMobileSource('../src/groups/group-detail-screen.tsx');
 
   assert.match(
     groupLayoutSource,
@@ -225,7 +268,7 @@ test('Space detail hides the generic stack title and returns to Spaces', () => {
   );
   assert.doesNotMatch(groupLayoutSource, /title: 'Space'/);
   assert.match(spaceDetailSource, /router\.replace\(PUBLIC_ROUTES\.groups as Href\)/);
-  assert.match(spaceDetailSource, /<Text style=\{styles\.title\}>\{data\.group\.name\}<\/Text>/);
+  assert.match(groupDetailSource, /<Text style=\{styles\.title\}>\{data\.group\.name\}<\/Text>/);
 });
 
 test('Add Transaction has one Capture back link and no repeated page title', () => {

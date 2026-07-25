@@ -6,6 +6,8 @@ export type ActivityEventType =
   | 'shared-expense'
   | 'settlement';
 
+export type ActivityFeedFilter = 'all' | 'personal' | 'shared';
+
 export interface ActivityEventUser {
   id: string;
   name: string;
@@ -170,4 +172,17 @@ export function parseActivityFeedResponse(value: unknown): ActivityEvent[] {
   if (!isRecord(value)) return [];
   if (!Array.isArray(value.events)) return [];
   return value.events.map(parseActivityEvent).filter((e): e is ActivityEvent => e !== null);
+}
+
+export function filterActivityEvents(
+  events: readonly ActivityEvent[],
+  filter: ActivityFeedFilter,
+): ActivityEvent[] {
+  if (filter === 'all') return [...events];
+  const personal = filter === 'personal';
+  return events.filter((event) =>
+    personal
+      ? event.type === 'income' || event.type === 'expense'
+      : event.type === 'shared-expense' || event.type === 'settlement',
+  );
 }

@@ -1,8 +1,4 @@
-import {
-  type Href,
-  useFocusEffect,
-  useRouter,
-} from 'expo-router';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -15,40 +11,35 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ActivityEventCard } from '@/components/activity-event-card';
+import { getActivityEventNavigationTarget } from '@/activity/activity-navigation';
 import { DashboardStatusCard } from '@/components/dashboard-status-card';
 import { EmptyState } from '@/components/empty-state';
 import { ScreenHeader } from '@/components/screen-header';
-import { TransactionFeedRow } from '@/components/transaction-feed-row';
-import { TransactionMonthSelector } from '@/components/transaction-month-selector';
-import { TransactionTypeFilterControl } from '@/components/transaction-type-filter';
 import { colors, layout } from '@/constants/theme';
 import { CAPTURE_HUB_TARGET } from '@/navigation/routes';
+import { useActivityFeed } from '@/activity/use-activity-feed';
 import {
-  filterTransactionRecords,
-  getCurrentTransactionMonth,
-  type TransactionRecord,
-  type TransactionTypeFilter,
-} from '@/transactions/transaction-history-model';
-import { buildTransactionDetailRoute } from '@/transactions/transaction-routes';
-import { useTransactionHistory } from '@/transactions/use-transaction-history';
+  filterActivityEvents,
+  type ActivityEvent,
+  type ActivityFeedFilter,
+} from '@/activity/activity-model';
+
+const filters: { label: string; value: ActivityFeedFilter }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Personal', value: 'personal' },
+  { label: 'Shared', value: 'shared' },
+];
 
 export default function TransactionsScreen() {
   const router = useRouter();
-  const [currentMonth] = useState(() => getCurrentTransactionMonth());
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [selectedType, setSelectedType] = useState<TransactionTypeFilter>('all');
+  const [filter, setFilter] = useState<ActivityFeedFilter>('all');
   const hasFocused = useRef(false);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
-    useTransactionHistory();
-  const visibleTransactions = useMemo(
-    () =>
-      data
-        ? filterTransactionRecords(data, {
-            month: selectedMonth,
-            type: selectedType,
-          })
-        : [],
-    [data, selectedMonth, selectedType],
+    useActivityFeed();
+  const visibleEvents = useMemo(
+    () => filterActivityEvents(data ?? [], filter),
+    [data, filter],
   );
 
   useFocusEffect(
@@ -61,44 +52,28 @@ export default function TransactionsScreen() {
     }, [refresh]),
   );
 
-  const openTransaction = useCallback(
-    (transaction: TransactionRecord) => {
-      router.push(
-        buildTransactionDetailRoute(transaction.type, transaction.id) as Href,
-      );
+  const handleEventPress = useCallback(
+    (event: ActivityEvent) => {
+      router.push(getActivityEventNavigationTarget(event) as Href);
     },
     [router],
   );
 
-  const renderTransaction = useCallback<ListRenderItem<TransactionRecord>>(
+  const renderEvent = useCallback<ListRenderItem<ActivityEvent>>(
     ({ item }) => (
-      <TransactionFeedRow
-        onPress={() => openTransaction(item)}
-        transaction={item}
+      <ActivityEventCard
+        context="main"
+        event={item}
+        onPress={() => handleEventPress(item)}
       />
     ),
-    [openTransaction],
+    [handleEventPress],
   );
 
   const keyExtractor = useCallback(
-    (transaction: TransactionRecord) => `${transaction.type}:${transaction.id}`,
+    (event: ActivityEvent) => event.id,
     [],
   );
-  const listContentStyle =
-    visibleTransactions.length === 0
-      ? styles.emptyListContent
-      : styles.listContent;
-  const hasActiveFilter = selectedMonth !== currentMonth || selectedType !== 'all';
-
-  const handleEmptyAction = useCallback(() => {
-    if (hasActiveFilter) {
-      setSelectedMonth(currentMonth);
-      setSelectedType('all');
-      return;
-    }
-
-    router.navigate(CAPTURE_HUB_TARGET as Href);
-  }, [currentMonth, hasActiveFilter, router]);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
@@ -106,24 +81,37 @@ export default function TransactionsScreen() {
         <View style={styles.pageHeader}>
           <ScreenHeader title="Activity" />
         </View>
-
-        <View style={styles.filters}>
-          <TransactionTypeFilterControl
-            onChange={setSelectedType}
-            value={selectedType}
-          />
-          <TransactionMonthSelector
-            maximumMonth={currentMonth}
-            onChange={setSelectedMonth}
-            value={selectedMonth}
-          />
+        <View accessibilityRole="tablist" style={styles.filters}>
+          {filters.map((item) => {
+            const selected = filter === item.value;
+            return (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                key={item.value}
+                onPress={() => setFilter(item.value)}
+                style={({ pressed }) => [
+                  styles.filter,
+                  selected && styles.filterSelected,
+                  pressed && styles.filterPressed,
+                ]}>
+                <Text
+                  style={[
+                    styles.filterText,
+                    selected && styles.filterTextSelected,
+                  ]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {isLoading && data === null ? (
           <View style={styles.stateContent}>
             <DashboardStatusCard
               loading
-              message="Bringing your income and expenses together."
+              message="Bringing your income, expenses, and shared activity together."
               title="Loading activity"
             />
           </View>
@@ -170,21 +158,17 @@ export default function TransactionsScreen() {
             ) : null}
 
             <FlatList
-              contentContainerStyle={listContentStyle}
-              data={visibleTransactions}
+              contentContainerStyle={visibleEvents.length ? styles.listContent : styles.emptyListContent}
+              data={visibleEvents}
               keyExtractor={keyExtractor}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
                 <EmptyState
-                  actionLabel={hasActiveFilter ? 'Show current activity' : 'Capture a transaction'}
+                  actionLabel={filter === 'all' ? 'Capture a transaction' : 'Show all activity'}
                   icon={{ ios: 'list.bullet.rectangle', android: 'receipt_long', web: 'receipt_long' }}
-                  message={
-                    hasActiveFilter
-                      ? 'Try the current month with all transaction types.'
-                      : 'Income and expenses you add will appear here.'
-                  }
-                  onAction={handleEmptyAction}
-                  title="No transactions here"
+                  message={filter === 'all' ? 'Income, expenses, and shared activity will appear here.' : `No ${filter} activity matches this view.`}
+                  onAction={() => filter === 'all' ? router.navigate(CAPTURE_HUB_TARGET as Href) : setFilter('all')}
+                  title="No activity here"
                 />
               }
               refreshControl={
@@ -195,7 +179,7 @@ export default function TransactionsScreen() {
                   tintColor={colors.accent}
                 />
               }
-              renderItem={renderTransaction}
+              renderItem={renderEvent}
               showsVerticalScrollIndicator={false}
               style={styles.list}
             />
@@ -220,11 +204,28 @@ const styles = StyleSheet.create({
   },
   pageHeader: { paddingHorizontal: layout.pageHorizontalPadding },
   filters: {
-    gap: 9,
+    flexDirection: 'row',
+    gap: 6,
     paddingHorizontal: layout.pageHorizontalPadding,
-    paddingBottom: 12,
-    paddingTop: 17,
+    paddingBottom: 4,
+    paddingTop: 12,
   },
+  filter: {
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+  },
+  filterSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  filterPressed: { opacity: 0.7 },
+  filterText: { color: colors.textMuted, fontSize: 12, fontWeight: '800' },
+  filterTextSelected: { color: colors.text },
   stateContent: {
     flex: 1,
     justifyContent: 'center',
