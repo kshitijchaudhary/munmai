@@ -5,7 +5,7 @@ import { GroupDetailScreen } from '@/groups/group-detail-screen';
 import { parseGroupRoute } from '@/groups/group-routes';
 import { PUBLIC_ROUTES } from '@/navigation/routes';
 
-export default function SpacesGroupDetailRoute() {
+export default function ActivityGroupDetailRoute() {
   const params = useLocalSearchParams<{ groupId?: string | string[] }>();
   const groupId = parseGroupRoute(params.groupId);
   const router = useRouter();
@@ -15,13 +15,13 @@ export default function SpacesGroupDetailRoute() {
       return;
     }
 
-    router.replace(PUBLIC_ROUTES.groups as Href);
+    router.replace(PUBLIC_ROUTES.transactions as Href);
   }, [router]);
 
   return (
     <GroupDetailScreen
       groupId={groupId}
-      initialSection="overview"
+      initialSection="activity"
       onBack={goBack}
     />
   );

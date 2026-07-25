@@ -23,6 +23,7 @@ import groupMembershipRoutes from "./routes/groupMembershipRoutes.js";
 import budgetRoutes from "./routes/budgetRoutes.js";
 import liabilityRoutes from "./routes/liabilityRoutes.js";
 import importRoutes from "./routes/importRoutes.js";
+import activityRoutes from "./routes/activityRoutes.js";
 import { ensureUploadDir } from "./utils/uploadPaths.js";
 
 dotenv.config();
@@ -137,6 +138,7 @@ app.use("/api/opening-balance", personalOpeningBalanceRoutes);
 app.use("/api/budget", budgetRoutes);
 app.use("/api/liabilities", liabilityRoutes);
 app.use("/api/imports", importRoutes);
+app.use("/api/activity", activityRoutes);
 
 app.get("/api/test/protected", protect, (req, res) => {
   res.json({

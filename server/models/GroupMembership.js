@@ -61,6 +61,7 @@ const groupMembershipSchema = new mongoose.Schema(
 
 groupMembershipSchema.index({ groupId: 1, invitedEmail: 1, status: 1 });
 groupMembershipSchema.index({ groupId: 1, userId: 1, status: 1 });
+groupMembershipSchema.index({ userId: 1, status: 1, groupId: 1 });
 groupMembershipSchema.index(
   { groupId: 1, invitedEmail: 1 },
   {

@@ -10,7 +10,7 @@ interface BackLinkProps {
 export function BackLink({ label, onPress }: BackLinkProps) {
   return (
     <Pressable
-      accessibilityLabel={`Back to ${label}`}
+      accessibilityLabel={label === 'Back' ? 'Back' : `Back to ${label}`}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>

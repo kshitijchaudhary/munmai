@@ -12,6 +12,24 @@ export const MONEY_AMOUNT_MAX_MESSAGE =
 const DECIMAL_AMOUNT_PATTERN = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 /**
+ * @param {unknown} amount
+ * @returns {amount is number}
+ */
+export function isCanonicalMoneyAmount(amount) {
+  if (
+    typeof amount !== 'number' ||
+    !Number.isFinite(amount) ||
+    amount < 0.01 ||
+    amount > MAX_MONEY_AMOUNT
+  ) {
+    return false;
+  }
+
+  const nearestCent = Math.round(amount * 100);
+  return Number.isSafeInteger(nearestCent) && amount === nearestCent / 100;
+}
+
+/**
  * @param {string} value
  * @returns {string | null}
  */
