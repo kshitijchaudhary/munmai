@@ -36,6 +36,7 @@ export function validateSharedExpense(values: SharedExpenseFormValues, members: 
   const participants = [...new Set(values.participantIds)];
   if (participants.length === 0) errors.participants = 'Select at least one participant.';
   else if (participants.some((id) => !memberIds.has(id))) errors.participants = 'Every participant must be a current Space member.';
+  else if (!participants.includes(values.paidBy)) errors.participants = 'The payer must be included in the participants.';
   return errors;
 }
 

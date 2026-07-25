@@ -1,4 +1,8 @@
 import mongoose from "mongoose";
+import {
+  isCanonicalMoneyAmount,
+  MONEY_AMOUNT_SCHEMA_MESSAGE,
+} from "../utils/moneyAmount.js";
 
 const expenseSplitSchema = new mongoose.Schema(
   {
@@ -16,6 +20,10 @@ const expenseSplitSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: [true, "Amount is required"],
+      validate: {
+        validator: isCanonicalMoneyAmount,
+        message: MONEY_AMOUNT_SCHEMA_MESSAGE,
+      },
     },
   },
   { timestamps: true }

@@ -473,11 +473,23 @@ test("shared-expense creation accepts canonical amounts and rejects strings, fra
   allowGroupMembership(t);
   const createdAmounts = [];
 
-  t.mock.method(SharedExpense, "create", async (payload) => {
-    createdAmounts.push(payload.amount);
-    return { _id: expenseId, ...payload };
+  t.mock.method(mongoose, "startSession", async () => {
+    let inTransaction = false;
+    return {
+      abortTransaction: async () => { inTransaction = false; },
+      commitTransaction: async () => { inTransaction = false; },
+      endSession: async () => {},
+      inTransaction: () => inTransaction,
+      startTransaction: () => { inTransaction = true; },
+    };
   });
-  t.mock.method(ExpenseSplit, "insertMany", async (splits) => splits);
+  t.mock.method(SharedExpense, "findOne", () => asQuery(null));
+  t.mock.method(SharedExpense, "create", async ([doc]) => {
+    const item = { _id: expenseId, ...doc };
+    createdAmounts.push(item.amount);
+    return [item];
+  });
+  t.mock.method(ExpenseSplit, "insertMany", async (splits) => splits.map((s, i) => ({ _id: "split-" + i, ...s })));
 
   const payload = {
     groupId,

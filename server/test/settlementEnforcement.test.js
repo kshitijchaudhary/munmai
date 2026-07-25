@@ -34,7 +34,10 @@ const [
   import("../services/balanceService.js"),
 ]);
 
-const databaseUri = process.env.MONGO_TRANSACTION_TEST_URI;
+const baseUri = process.env.MONGO_TRANSACTION_TEST_URI;
+const databaseUri = baseUri
+  ? (() => { const u = new URL(baseUri); u.pathname = "/munmai-test-settlements"; return u.toString(); })()
+  : null;
 const databaseTest = (name, callback) =>
   test(name, { skip: databaseUri ? false : "MONGO_TRANSACTION_TEST_URI is not set" }, callback);
 

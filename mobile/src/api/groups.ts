@@ -22,8 +22,17 @@ export async function getGroupActivity(groupId: string, signal?: AbortSignal): P
   return (await apiClient.get(`/groups/${encodeURIComponent(groupId)}/expenses`, { signal })).data;
 }
 
-export async function createSharedExpense(payload: CreateSharedExpensePayload, signal?: AbortSignal): Promise<unknown> {
-  return (await apiClient.post('/shared-expenses', payload, { signal })).data;
+export async function createSharedExpense(
+  payload: CreateSharedExpensePayload,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  return (
+    await apiClient.post('/shared-expenses', payload, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+      signal,
+    })
+  ).data;
 }
 
 export async function getSettlementHistory(groupId: string, signal?: AbortSignal): Promise<unknown> {

@@ -35,12 +35,39 @@ const sharedExpenseSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      maxLength: [128, "Idempotency key cannot exceed 128 characters"],
+      select: false,
+    },
+    idempotencyParticipants: {
+      type: [String],
+      select: false,
+    },
   },
   { timestamps: true }
 );
 
 sharedExpenseSchema.index({ group: 1, createdAt: -1 });
 sharedExpenseSchema.index({ createdBy: 1, createdAt: -1 });
+sharedExpenseSchema.index(
+  { createdBy: 1, idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      idempotencyKey: { $exists: true, $type: "string" },
+    },
+  },
+);
+
+sharedExpenseSchema.set("toJSON", {
+  transform: (_document, result) => {
+    delete result.idempotencyKey;
+    delete result.idempotencyParticipants;
+    return result;
+  },
+});
 
 const SharedExpense = mongoose.model("SharedExpense", sharedExpenseSchema);
 

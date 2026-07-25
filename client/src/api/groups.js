@@ -30,8 +30,10 @@ export const getGroupSettlementHistory = async (groupId) => {
   return response.data;
 };
 
-export const createSharedExpense = async (payload) => {
-  const response = await api.post("/shared-expenses", payload);
+export const createSharedExpense = async (payload, idempotencyKey) => {
+  const response = await api.post("/shared-expenses", payload, {
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
   return response.data;
 };
 
