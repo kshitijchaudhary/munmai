@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -22,6 +23,10 @@ import {
   MONEY_AMOUNT_PRECISION_MESSAGE,
 } from '../src/money/money-amount.js';
 import { createRequestCoordinator } from '../src/utils/request-coordinator.ts';
+import { getSettlementRequestId } from '../src/groups/settlement-request-id.ts';
+
+const readMobileSource = (relativePath) =>
+  readFileSync(new URL(relativePath, import.meta.url), 'utf-8');
 
 const groupId = '64a000000000000000000001';
 const ownerId = '64b000000000000000000001';
@@ -111,6 +116,65 @@ test('shared expenses reject fractional cents instead of silently rounding and e
     ).amount,
     MAX_MONEY_AMOUNT,
   );
+});
+
+test('payer must be included in participants', () => {
+  assert.equal(
+    validateSharedExpense({ amount: '10', description: 'Taxi', paidBy: ownerId, participantIds: [memberId] }, members).participants,
+    'The payer must be included in the participants.',
+  );
+  assert.equal(
+    validateSharedExpense({ amount: '10', description: 'Taxi', paidBy: ownerId, participantIds: [ownerId, memberId] }, members).participants,
+    undefined,
+  );
+});
+
+test('the shared expense API sends the Idempotency-Key header', () => {
+  assert.match(readMobileSource('../src/api/groups.ts'), /headers: \{ /);
+});
+
+test('shared-expense request-ID lifecycle: generate, retry, edit clears, reset clears, new key', () => {
+  let currentKey = null;
+  let generated = 0;
+  const generate = () => `shared-expense-req-${++generated}`;
+  const submit = () => { currentKey = getSettlementRequestId(currentKey, generate); return currentKey; };
+  const editField = () => { currentKey = null; };
+  const reset = () => { currentKey = null; };
+
+  assert.equal(currentKey, null, 'initial state: no key');
+
+  const k1 = submit();
+  assert.equal(generated, 1, 'first submit generates one key');
+  assert.equal(k1, currentKey, 'key is stored');
+
+  const k2 = submit();
+  assert.equal(k2, k1, 'retried request reuses the same key');
+  assert.equal(generated, 1, 'no new generation on retry');
+
+  editField();
+  assert.equal(currentKey, null, 'amount edit clears key');
+
+  submit();
+  assert.equal(generated, 2, 'new submission after edit generates new key');
+
+  editField();
+  assert.equal(currentKey, null, 'payer edit clears key');
+
+  editField();
+  assert.equal(currentKey, null, 'description edit clears key');
+
+  editField();
+  assert.equal(currentKey, null, 'participant toggle clears key');
+
+  submit();
+  assert.equal(generated, 3, 'next new submission generates another key');
+
+  reset();
+  assert.equal(currentKey, null, 'successful reset clears key');
+
+  submit();
+  assert.equal(generated, 4, 'submission after reset generates a new key');
+  assert.notEqual(currentKey, k1, 'new key differs from first');
 });
 
 test('group routes are valid public paths and safely parse IDs', () => {

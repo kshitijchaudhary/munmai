@@ -21,8 +21,14 @@ const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 
 export const createSharedExpense = asyncHandler(async (req, res) => {
   try {
-    const result = await createSharedExpenseService(req.body, req.user.id);
-    return res.status(201).json(result);
+    const result = await createSharedExpenseService(
+      req.body,
+      req.user.id,
+      { idempotencyKey: req.get("Idempotency-Key") },
+    );
+    return res
+      .status(result.replayed ? 200 : 201)
+      .json({ expense: result.expense, splits: result.splits });
   } catch (error) {
     return respondWithError(res, error);
   }

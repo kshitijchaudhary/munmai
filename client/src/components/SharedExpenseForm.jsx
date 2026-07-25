@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { createSharedExpense } from "../api/groups";
 
 const getMemberId = (member) => String(member?._id || member?.id || member || "");
@@ -29,6 +29,12 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
+  const logicalRequestId = useRef(null);
+
+  const updateFormData = useCallback((updater) => {
+    logicalRequestId.current = null;
+    setFormData(updater);
+  }, []);
 
   const memberOptions = useMemo(
     () =>
@@ -42,7 +48,7 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
   );
 
   const handleParticipantToggle = (memberId) => {
-    setFormData((prev) => {
+    updateFormData((prev) => {
       const exists = prev.participants.includes(memberId);
 
       return {
@@ -55,6 +61,7 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
   };
 
   const resetForm = () => {
+    logicalRequestId.current = null;
     setFormData({
       paidBy: "",
       participants: [],
@@ -138,14 +145,17 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
   
     try {
       setSubmitting(true);
-  
+      const idempotencyKey =
+        logicalRequestId.current || globalThis.crypto.randomUUID();
+      logicalRequestId.current = idempotencyKey;
+
       await createSharedExpense({
         groupId,
         paidBy: formData.paidBy,
         participants: formData.participants,
         amount: Number(formData.amount),
         description: formData.description.trim(),
-      });
+      }, idempotencyKey);
   
       resetForm();
       setStatusMessage({
@@ -195,7 +205,7 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
           <select
             value={formData.paidBy}
             onChange={(event) =>
-              setFormData((prev) => ({ ...prev, paidBy: event.target.value }))
+              updateFormData((prev) => ({ ...prev, paidBy: event.target.value }))
             }
             disabled={submitting}
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
@@ -241,7 +251,7 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
             step="0.01"
             value={formData.amount}
             onChange={(event) =>
-              setFormData((prev) => ({ ...prev, amount: event.target.value }))
+              updateFormData((prev) => ({ ...prev, amount: event.target.value }))
             }
             placeholder="120.50"
             disabled={submitting}
@@ -257,7 +267,7 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
             type="text"
             value={formData.description}
             onChange={(event) =>
-              setFormData((prev) => ({
+              updateFormData((prev) => ({
                 ...prev,
                 description: event.target.value,
               }))
