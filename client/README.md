@@ -1,16 +1,37 @@
-# React + Vite
+# Munmai Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The web client is a React/Vite application for detailed financial review:
+personal transactions, receipts, statement imports, monthly reporting, budgets,
+liabilities, Spaces, shared expenses, settlements, profile, and trust pages.
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```powershell
+cd client
+npm ci
+Copy-Item .env.example .env
+npm run dev
+```
 
-## React Compiler
+Set the API base URL, including `/api`:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```env
+VITE_API_URL=http://localhost:5000/api
+```
 
-## Expanding the ESLint configuration
+## Commands
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```powershell
+npm test
+npm run lint
+npm run build
+npm run preview
+npm run csv:qa
+```
+
+Password-reset requests can be initiated on `/forgot-password`; emailed links
+open `/reset-password/:token`. The API constructs those links from its
+`CLIENT_URL`.
+
+See the [root setup guide](../README.md), [architecture](../docs/ARCHITECTURE.md),
+and [deployment guide](../DEPLOYMENT.md).
