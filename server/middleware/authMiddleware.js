@@ -17,7 +17,9 @@ export const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Attach user to request only when the token still references an account
-      const user = await User.findById(decoded.id).select("-password");
+      const user = await User.findById(decoded.id).select(
+        "-password -verificationToken -verificationTokenExpires -resetPasswordToken -resetPasswordExpires"
+      );
 
       if (!user) {
         return res.status(401).json({ message: "Not authorized, token failed" });

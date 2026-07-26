@@ -2,6 +2,7 @@ import { apiClient } from '@/api/client';
 import {
   type LoginRequest,
   type LoginResponse,
+  type ForgotPasswordResponse,
   type RegisterRequest,
   type RegisterResponse,
   type User,
@@ -22,6 +23,14 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
   const response = await apiClient.post<LoginResponse>('/auth/login', {
     email: request.email.trim().toLowerCase(),
     password: request.password,
+  });
+
+  return response.data;
+}
+
+export async function requestPasswordReset(email: string): Promise<ForgotPasswordResponse> {
+  const response = await apiClient.post<ForgotPasswordResponse>('/auth/forgot-password', {
+    email: email.trim().toLowerCase(),
   });
 
   return response.data;

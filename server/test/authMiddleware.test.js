@@ -55,7 +55,10 @@ test("protect authenticates a valid JWT when the user exists", async (t) => {
 
   await protect(req, res, next);
 
-  assert.equal(select.mock.calls[0].arguments[0], "-password");
+  assert.equal(
+    select.mock.calls[0].arguments[0],
+    "-password -verificationToken -verificationTokenExpires -resetPasswordToken -resetPasswordExpires"
+  );
   assert.equal(next.mock.callCount(), 1);
   assert.equal(req.user, user);
   assert.equal(res.statusCode, undefined);

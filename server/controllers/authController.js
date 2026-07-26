@@ -49,7 +49,7 @@ const createSecureToken = () => {
   return { rawToken, hashedToken };
 };
 
-const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 
 const extractEmailAddress = (value = "") => {
   const match = String(value).match(/<([^>]+)>/);
@@ -59,12 +59,46 @@ const extractEmailAddress = (value = "") => {
 const isValidEmailAddress = (value) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 
+const isPrivateIpv4Address = (hostname) => {
+  const parts = hostname.split(".").map(Number);
+
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false;
+  }
+
+  return (
+    parts[0] === 10 ||
+    parts[0] === 127 ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168)
+  );
+};
+
 const isLocalUrl = (value) => {
   try {
-    const hostname = new URL(value).hostname.toLowerCase();
-    return LOCAL_HOSTNAMES.has(hostname);
+    const hostname = new URL(value).hostname
+      .toLowerCase()
+      .replace(/^\[|\]$/g, "");
+    return (
+      LOCAL_HOSTNAMES.has(hostname) ||
+      hostname.endsWith(".local") ||
+      isPrivateIpv4Address(hostname) ||
+      /^f[cd][\da-f:]*$/i.test(hostname) ||
+      /^fe[89ab][\da-f:]*$/i.test(hostname)
+    );
   } catch (error) {
     return true;
+  }
+};
+
+const isHttpsUrl = (value) => {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
   }
 };
 
@@ -97,7 +131,15 @@ const buildEmailConfigValidation = () => {
   }
 
   if (!allowLocalhostEmailLinks && isLocalUrl(process.env.CLIENT_URL)) {
-    issues.push("CLIENT_URL still points to localhost");
+    issues.push("CLIENT_URL points to a local or private address");
+  }
+
+  if (
+    !allowLocalhostEmailLinks &&
+    !isLocalUrl(process.env.CLIENT_URL) &&
+    !isHttpsUrl(process.env.CLIENT_URL)
+  ) {
+    issues.push("CLIENT_URL must use HTTPS");
   }
 
   return {
@@ -484,10 +526,9 @@ export const forgotPassword = async (req, res) => {
 
     try {
       await sendPasswordResetEmail(user.email, user.name, rawToken);
-    } catch (error) {
+    } catch {
       console.warn("Password reset email failed", {
         userId: String(user._id),
-        error: error?.message,
       });
     }
 
@@ -527,22 +568,31 @@ export const resetPassword = async (req, res) => {
       .update(token)
       .digest("hex");
 
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpires: { $gt: new Date() },
-    });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const user = await User.findOneAndUpdate(
+      {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpires: { $gt: new Date() },
+      },
+      {
+        $set: {
+          password: hashedPassword,
+          resetPasswordToken: "",
+          resetPasswordExpires: null,
+        },
+      },
+      {
+        projection: { _id: 1 },
+        runValidators: true,
+      }
+    );
 
     if (!user) {
       return res.status(400).json({
         message: "Password reset link is invalid or expired",
       });
     }
-
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-    user.resetPasswordToken = "";
-    user.resetPasswordExpires = null;
-    await user.save();
 
     return res.status(200).json({
       message: "Password reset successful. You can now log in.",
