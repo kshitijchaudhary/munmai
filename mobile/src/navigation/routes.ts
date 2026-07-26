@@ -12,6 +12,7 @@ export const PUBLIC_ROUTES = {
   account: '/more',
   groups: '/groups',
   signIn: '/sign-in',
+  forgotPassword: '/forgot-password',
   register: '/register',
 } as const;
 

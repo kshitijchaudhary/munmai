@@ -3,7 +3,15 @@ import test from 'node:test';
 
 import { isSessionAuthenticationFailure } from '../src/api/session-failure.ts';
 import { createSessionOperationQueue } from '../src/auth/session-operation-queue.ts';
+import {
+  FORGOT_PASSWORD_CONFIRMATION,
+  validateForgotPasswordEmail,
+} from '../src/auth/forgot-password.ts';
 import { parseSession, SESSION_VERSION } from '../src/auth/types.ts';
+import { readFileSync } from 'node:fs';
+
+const readMobileSource = (path) =>
+  readFileSync(new URL(path, import.meta.url), 'utf8');
 
 const validSession = {
   version: SESSION_VERSION,
@@ -84,4 +92,56 @@ test('session operation queue continues after a failed storage operation', async
   );
 
   assert.equal(await queue.run(async () => 'recovered'), 'recovered');
+});
+
+test('forgot-password email validation is local, trimmed, and consistent', () => {
+  assert.equal(validateForgotPasswordEmail(''), 'Email is required.');
+  assert.equal(
+    validateForgotPasswordEmail('not-an-email'),
+    'Enter a valid email address.',
+  );
+  assert.equal(validateForgotPasswordEmail(' person@example.com '), null);
+  assert.equal(
+    FORGOT_PASSWORD_CONFIRMATION,
+    'If an account exists, a password reset email has been sent.',
+  );
+});
+
+test('signed-out forgot-password navigation and API submission are wired safely', () => {
+  const signInSource = readMobileSource('../src/app/sign-in.tsx');
+  const forgotSource = readMobileSource('../src/app/forgot-password.tsx');
+  const rootLayoutSource = readMobileSource('../src/app/_layout.tsx');
+  const apiSource = readMobileSource('../src/api/auth.ts');
+  const routeSource = readMobileSource('../src/navigation/routes.ts');
+
+  assert.match(signInSource, /href=\{PUBLIC_ROUTES\.forgotPassword\}/);
+  assert.match(signInSource, />Forgot password\?<\/Text>/);
+  const passwordInputIndex = signInSource.indexOf('textContentType="password"');
+  const signInButtonIndex = signInSource.indexOf('label="Sign In"');
+  const forgotPasswordLinkIndex = signInSource.indexOf(
+    'href={PUBLIC_ROUTES.forgotPassword}',
+  );
+  assert.ok(passwordInputIndex >= 0);
+  assert.ok(signInButtonIndex > passwordInputIndex);
+  assert.ok(forgotPasswordLinkIndex > signInButtonIndex);
+  assert.match(
+    rootLayoutSource,
+    /<Stack\.Protected guard=\{!isAuthenticated\}>[\s\S]*<Stack\.Screen name="forgot-password" \/>/,
+  );
+  assert.match(routeSource, /forgotPassword: '\/forgot-password'/);
+  assert.match(
+    apiSource,
+    /apiClient\.post<ForgotPasswordResponse>\('\/auth\/forgot-password'/,
+  );
+  assert.match(apiSource, /email: email\.trim\(\)\.toLowerCase\(\)/);
+  assert.match(forgotSource, /submissionInProgress\.current/);
+  assert.match(forgotSource, /disabled=\{isSubmitting\}/);
+  assert.match(forgotSource, /loadingLabel="Sending…"/);
+  assert.equal(forgotSource.includes('Sending\\u2026'), false);
+  assert.match(forgotSource, />Forgot your password\?<\/Text>/);
+  assert.match(forgotSource, />Check your email<\/Text>/);
+  assert.match(forgotSource, /setIsComplete\(true\)/);
+  assert.match(forgotSource, /FORGOT_PASSWORD_CONFIRMATION/);
+  assert.match(forgotSource, /href=\{PUBLIC_ROUTES\.signIn\} replace/);
+  assert.doesNotMatch(forgotSource, /reset-password\/|rawToken|SecureStore/);
 });

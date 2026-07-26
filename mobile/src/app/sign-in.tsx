@@ -160,6 +160,15 @@ export default function SignInScreen() {
                 onPress={() => void submit()}
               />
 
+              <Link href={PUBLIC_ROUTES.forgotPassword} asChild>
+                <Pressable
+                  accessibilityRole="link"
+                  hitSlop={8}
+                  style={styles.forgotPasswordLink}>
+                  <Text style={styles.link}>Forgot password?</Text>
+                </Pressable>
+              </Link>
+
               <View style={styles.footerRow}>
                 <Text style={styles.footerText}>New to Munmai?</Text>
                 <Link href={PUBLIC_ROUTES.register} asChild>
@@ -285,6 +294,13 @@ const styles = StyleSheet.create({
   },
   fields: {
     gap: 16,
+  },
+  forgotPasswordLink: {
+    minHeight: 44,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -4,
   },
   footerRow: {
     flexDirection: 'row',
