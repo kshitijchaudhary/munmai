@@ -7,10 +7,11 @@ project or remote environments exist.
 
 ## APK versus AAB
 
-- `preview` produces an APK with `distribution: internal`. Testers can download
-  and sideload it.
-- `production` produces an AAB for Play Store delivery. An AAB is not normally
-  installed directly on a tester's phone.
+- `preview` produces an internal-distribution Android APK for direct tester
+  installation. Testers download and sideload it; it is not uploaded to Google
+  Play.
+- `production` produces an Android App Bundle (AAB) intended for Google Play
+  delivery. It is not directly installable as an APK.
 
 An internal APK is a pre-release artifact, not a production/store approval.
 The repository is not currently ready for an unattended cloud build:
@@ -41,25 +42,34 @@ project ID to app configuration. Review generated changes before committing
 them. Approve or replace the Android package identifier before sharing an APK,
 not only before a public store release.
 
-## Required runtime configuration
+## Pre-build environment checklist
 
 Before creating a tester build:
 
 1. Deploy the API to a public HTTPS URL.
-2. Set `EXPO_PUBLIC_API_URL` in the matching EAS `preview` or `production`
-   environment to that URL including `/api`.
-3. Configure the API's `CLIENT_URL` as the deployed HTTPS web client.
-4. Keep `ALLOW_LOCALHOST_EMAIL_LINKS=false` in that API environment.
-5. Verify MongoDB, SMTP, CORS, persistent upload storage, and API health.
+2. Inspect the remotely configured preview environment:
 
-Do not build a tester APK with `localhost`, `10.0.2.2`, or a private LAN address.
-Those values are appropriate only for local development. Password-reset email
-completion depends on the deployed web client because mobile intentionally
-provides only the request stage.
+   ```powershell
+   npx eas-cli env:list --environment preview
+   ```
+
+3. Confirm `EXPO_PUBLIC_API_URL`:
+   - exists;
+   - points to the deployed API;
+   - uses HTTPS;
+   - includes the expected `/api` path;
+   - is not `localhost`, `127.0.0.1`, `10.0.2.2`, or a private/LAN address.
+4. Confirm `CLIENT_URL` on the deployed backend points to the deployed HTTPS web
+   client so verification and password-reset links work outside the developer
+   network.
+5. Keep `ALLOW_LOCALHOST_EMAIL_LINKS=false` in that API environment.
+6. Verify MongoDB, SMTP, CORS, persistent upload storage, and API health.
 
 `mobile/eas.json` explicitly maps each build profile to its same-named EAS
 environment. Expo public variables are embedded at build time, so rebuilding is
-required after changing the API URL.
+required after changing the API URL. The profile mapping does not validate the
+URL; the explicit environment inspection above is the pre-build protection
+against embedding a local or incorrect API address.
 
 No signing credentials or application secrets belong in `eas.json`. EAS handles
 Android signing credentials through the linked project. `EXPO_PUBLIC_API_URL`
@@ -87,13 +97,12 @@ device and permits installation from that browser/file source when prompted.
 
 ## Pre-release checklist
 
+- The pre-build environment checklist above has been completed.
 - `npm test` passes in `mobile/`.
 - `npx tsc --noEmit` passes.
 - `npx expo install --check` reports no unreviewed dependency mismatch.
 - `npx expo export --platform web` passes.
-- `EXPO_PUBLIC_API_URL` uses deployed HTTPS and ends in `/api`.
 - API `/api/health` responds.
-- API `CLIENT_URL` uses the deployed HTTPS web client.
 - Registration verification and password-reset email work.
 - Sign-in, restoration, session expiry, and logout work.
 - Today, Activity, Capture, Insights, and Spaces load.
