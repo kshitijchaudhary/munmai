@@ -1,241 +1,224 @@
-<div align="center">
-
 # Munmai
 
-### Your money, without the accounting friction.
+Munmai is a full-stack personal and shared-finance application. The web client
+supports deeper review, imports, reporting, debt, budgets, receipts, and group
+administration. The Expo mobile client focuses on daily capture, a unified
+Activity feed, financial context, and shared Spaces.
 
-A production-deployed personal and shared finance platform for transactions, receipts, bank-statement imports, debt, budgets, and group expenses.
+- Web: React/Vite application deployed to Vercel
+- API: Express/MongoDB service deployed to Render
+- Mobile: Expo/React Native application in active stabilization
 
-[**Open Munmai**](https://munmai.com) · [API Health](https://munmai-api.onrender.com/api/health) · [View Repository](https://github.com/kshitijchaudhary/munmai)
+The merged codebase is the source of truth. OCR, open banking, subscriptions,
+offline queues, and predictive financial advice are not current capabilities.
 
-**Web: Live** · **Mobile: Active development**
+## Core capabilities
 
-</div>
+- Create and update personal income and expenses.
+- Attach protected JPEG, PNG, or PDF receipts to expenses and proof documents
+  to income.
+- Review a unified mobile Activity feed containing income, personal expenses,
+  shared expenses, and settlements.
+- Create Spaces, manage membership workflows, split shared expenses, inspect
+  persisted participant splits, calculate balances, and record settlements.
+- Register, verify email, sign in with JWT authentication, restore native
+  sessions from SecureStore, sign out, and request password recovery.
+- Review dashboard and monthly summaries, budget pace, liabilities, receipt
+  coverage, and tax-oriented exports on the web.
+- Preview and review CSV or text-based PDF statement imports before committing
+  them, with duplicate detection, history, archive, and revert support.
 
----
-
-## The product
-
-Munmai is designed around the questions people actually ask about money:
-
-> How much do I have left? Where did my money go? Did my friend pay me back? Can I scan this receipt and move on?
-
-Instead of behaving like a traditional accounting tool, Munmai connects daily money activity with the records behind it—transactions, receipts, imported statements, debts, budgets, shared expenses, and settlements.
-
-## One system, two experiences
-
-| Munmai Web | Munmai Mobile |
-| --- | --- |
-| Deeper review, reporting, imports, debt, tax, and group management | Fast capture, recent activity, receipts, insights, and shared spaces |
-| Production deployed | Expo/React Native client in active development |
-| Built for reviewing and understanding | Built for completing common actions in seconds |
-
-The mobile experience is evolving around five human-centered destinations:
-
-**Today · Activity · Capture · Insights · Spaces**
-
-## What works today
-
-| Area | Capability |
-| --- | --- |
-| **Daily money** | Add, edit, filter, and review income and expenses; maintain an opening balance |
-| **Receipts** | Upload images/PDFs, manage metadata, search, filter, archive, and check receipt coverage |
-| **Statement imports** | Review CSV rows and preview text-based PDFs before anything affects financial records |
-| **Import safety** | Detect duplicate rows, inspect batch history, archive imports, and safely revert them |
-| **Monthly control** | Track income, spending, net flow, categories, budget pace, and safe-spend status |
-| **Debt reality** | Track liabilities, due dates, balances, payments, and debt pressure |
-| **Shared money** | Create groups, invite or approve members, split expenses, record settlements, and calculate net balances |
-| **Tax foundation** | Mark deductible expenses and export tax-oriented CSV data |
-| **Trust** | Protected files, user-scoped records, legal pages, and clear storage information |
-
-## The engineering behind it
-
-Munmai goes beyond basic financial CRUD. Several workflows are designed specifically around data trust and failure recovery.
-
-### Review before commit
-
-Uploaded bank statements first become reviewable rows. Users can classify, edit, select, or skip those rows before confirming an import.
-
-### Duplicate prevention
-
-Deterministic fingerprints prevent the same statement row from being imported repeatedly across batches.
-
-### Reversible imports
-
-Confirmed imports retain batch and row history, allowing users to inspect and safely revert previously created records.
-
-### Protected documents
-
-Receipt files are not exposed as public static uploads. The API authenticates the request and verifies ownership before streaming a file.
-
-### Mobile partial-failure recovery
-
-An expense and its receipt are uploaded in separate steps. If the receipt fails after the expense is created, the mobile client preserves a retry state without creating a duplicate expense.
-
-## System architecture
-
-```mermaid
-flowchart TD
-    WEB[React web client] --> API[Express API]
-    MOBILE[Expo mobile client] --> API
-    API --> AUTH[JWT authentication]
-    API --> DB[(MongoDB Atlas)]
-    API --> FILES[Protected document storage]
-```
-
-The backend uses route, controller, service, and Mongoose model layers. Authentication middleware resolves the current user, personal records are owner-scoped, and shared workflows require group membership.
+## Repository structure
 
 ```text
-client/    React + Vite web application
-server/    Express API and business logic
-mobile/    Expo + React Native application
-docs/      Architecture and project documentation
+client/       React 19 + Vite web application
+server/       Express 5 API, Mongoose models, services, and tests
+mobile/       Expo SDK 57 + React Native application
+docs/         Maintained architecture and operations documentation
+.github/      CI workflow
+render.yaml   Render API deployment blueprint
 ```
 
-
-## Quick demo
-
-1. Open the current money overview.
-2. Add an income or expense.
-3. Upload and organize a receipt.
-4. Preview a CSV or PDF statement and confirm selected rows.
-5. Inspect duplicate protection and reversible import history.
-6. Review budget pace and debt pressure.
-7. Add a shared expense and record a settlement.
-8. Open Monthly Summary and the Tax Pack foundation.
-
-Demo access is available upon request.
+Generated output, local environment files, uploads, native build output, and
+dependencies are intentionally ignored.
 
 ## Technology
 
-| Layer | Stack |
+| Layer | Current stack |
 | --- | --- |
-| Web | React, Vite, Tailwind CSS, Axios, Recharts |
-| Mobile | React Native, Expo, Expo Router |
-| Backend | Node.js, Express.js |
-| Database | MongoDB, Mongoose |
-| Security | JWT authentication, protected routes, owner-scoped access |
-| Deployment | Vercel, Render, MongoDB Atlas |
+| Web | React 19, React Router 7, Vite 8 beta, Tailwind CSS 4, Axios, Recharts |
+| Mobile | Expo SDK 57, React Native 0.86, Expo Router, TypeScript, Axios |
+| API | Node.js 20 in CI, Express 5, Mongoose 9 |
+| Data | MongoDB; replica-set transactions for shared expenses and settlements |
+| Auth | JWT, bcrypt, email verification, rate-limited password reset |
+| Files | Multer uploads stored outside public static serving and streamed after authorization |
+| Deployment | Vercel, Render persistent disk, MongoDB Atlas, Expo/EAS |
 
-<details>
-<summary><strong>Run the web application locally</strong></summary>
+Exact package versions are recorded in each package's `package.json` and lockfile.
 
-### Clone and install
+## Local setup
 
-```bash
-git clone https://github.com/kshitijchaudhary/munmai.git
-cd munmai
+### Prerequisites
 
-npm install
-npm install --prefix server
-npm install --prefix client
+- Node.js 20 or a compatible current Node.js release
+- npm
+- MongoDB
+- SMTP credentials for registration verification and password recovery
+- Android Studio, Xcode, or a compatible Expo Go/development build for native work
+
+Install all packages from PowerShell:
+
+```powershell
+cd D:\work\fintrack
+npm ci
+npm ci --prefix server
+npm ci --prefix client
+npm ci --prefix mobile
 ```
 
-### Backend environment
+Copy the environment examples and replace placeholders locally:
 
-Create `server/.env`:
-
-```env
-MONGO_URI=mongodb+srv://<user>:<password>@<cluster>/<database>
-JWT_SECRET=replace_with_a_strong_secret
-CLIENT_URL=http://localhost:5173
-SERVER_URL=http://localhost:5000
-CLIENT_ORIGINS=http://localhost:5173,https://munmai.com
-FORCE_HTTPS=false
-REQUEST_BODY_LIMIT=1mb
-UPLOAD_DIR=./uploads
-
-RECEIPT_UPLOAD_DAILY_LIMIT=3
-RECEIPT_UPLOAD_WEEKLY_LIMIT=15
-RECEIPT_UPLOAD_MAX_SIZE_MB=10
-
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USER=example@example.com
-SMTP_PASS=replace_with_smtp_password
-SMTP_FROM="Munmai <no-reply@example.com>"
+```powershell
+Copy-Item server\.env.example server\.env
+Copy-Item client\.env.example client\.env
+Copy-Item mobile\.env.example mobile\.env.local
 ```
 
-Create `client/.env`:
+Never commit real credentials.
 
-```env
-VITE_API_URL=http://localhost:5000/api
-```
+### Start the backend
 
-Never commit real secrets.
+Set `MONGO_URI`, `JWT_SECRET`, app URLs, upload settings, and SMTP variables in
+`server/.env`, then run:
 
-### Start development
-
-```bash
-npm run dev
-```
-
-Or run each workspace separately:
-
-```bash
+```powershell
 npm run dev --prefix server
+```
+
+The default API health endpoint is `http://localhost:5000/api/health`.
+
+### Start the web client
+
+Set `VITE_API_URL=http://localhost:5000/api` in `client/.env`, then run:
+
+```powershell
 npm run dev --prefix client
 ```
 
-</details>
+The default Vite URL is `http://localhost:5173`.
 
-## Deployment notes
+### Start the mobile client
 
-- The web client runs on Vercel.
-- The API runs on Render and exposes `/api/health`.
-- Application data is stored in MongoDB Atlas.
-- Receipt and statement files currently use server-side storage.
-- Durable object storage such as Amazon S3 or Cloudflare R2 is planned before storage-heavy scaling.
+Set `EXPO_PUBLIC_API_URL` in `mobile/.env.local`, then run:
 
-## Current focus
+```powershell
+cd mobile
+npm start
+```
 
-- Complete and verify the mobile UI/UX hardening release.
-- Validate receipt capture and core workflows on a physical device.
-- Refresh product screenshots and demo documentation.
-- Keep OCR, open banking, subscriptions, and country-aware tax automation in the future backlog.
+Use `http://localhost:5000/api` for Expo web. A physical device must use a
+LAN-reachable API address or the deployed HTTPS API; `localhost` on the phone is
+the phone itself. See [mobile/README.md](mobile/README.md).
 
-## What this project demonstrates
+The normal startup order is MongoDB, API, then web and/or mobile.
 
-- Production full-stack development across web, mobile, API, and database layers.
-- Authentication, authorization, and user-owned data access.
-- Secure file-upload and protected file-delivery patterns.
-- Reviewable, duplicate-safe, and reversible data imports.
-- Financial modeling for debts, payments, groups, splits, and settlements.
-- Recovery from partial failures in mobile workflows.
-- Incremental product delivery, stabilization, and UX hardening.
+## Environment configuration
 
----
+The checked-in examples are authoritative:
 
-<div align="center">
+- [`server/.env.example`](server/.env.example)
+- [`client/.env.example`](client/.env.example)
+- [`mobile/.env.example`](mobile/.env.example)
 
-Built and maintained by **Kshitij Chaudhary**  
-Full-Stack Developer in Canada
+| Variable | Purpose |
+| --- | --- |
+| `MONGO_URI` | MongoDB connection used by the API |
+| `JWT_SECRET` | Signs seven-day access tokens |
+| `PORT`, `NODE_ENV` | API listener and runtime mode |
+| `CLIENT_URL` | Canonical web origin and password-reset destination |
+| `CLIENT_ORIGINS` | Additional comma-separated browser origins allowed by CORS |
+| `SERVER_URL` | Public API origin used in verification and document links |
+| `ALLOW_LOCALHOST_EMAIL_LINKS` | Explicitly permits localhost/private email links for local development |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email delivery |
+| `FORCE_HTTPS` | Redirects forwarded HTTP requests when enabled |
+| `REQUEST_BODY_LIMIT` | Express JSON/form body limit |
+| `UPLOAD_DIR`, `UPLOAD_LIMIT_MB` | Protected transaction attachment storage and size limit |
+| `RECEIPT_UPLOAD_DAILY_LIMIT`, `RECEIPT_UPLOAD_WEEKLY_LIMIT`, `RECEIPT_UPLOAD_MAX_SIZE_MB` | Receipt Inbox limits |
+| `VITE_API_URL` | Web API base URL, including `/api` |
+| `EXPO_PUBLIC_API_URL` | Expo API base URL, including `/api` |
+| `MONGO_TRANSACTION_TEST_URI` | Optional replica-set MongoDB URI for transactional integration tests |
+| `MONGO_STANDALONE_TEST_URI` | Optional standalone MongoDB URI for unsupported-transaction regression tests |
 
-</div>
+Password-reset email links always target `CLIENT_URL`. Local/LAN links require
+`ALLOW_LOCALHOST_EMAIL_LINKS=true`; production must use the deployed HTTPS web
+client and keep that flag false.
+
+## Testing
+
+```powershell
+# Backend
+npm test --prefix server
+
+# Web
+npm test --prefix client
+npm run lint --prefix client
+npm run build --prefix client
+
+# Mobile
+npm test --prefix mobile
+Set-Location mobile
+npx tsc --noEmit
+npx expo export --platform web
+npx expo install --check
+```
+
+Integration tests that need MongoDB transactions skip when
+`MONGO_TRANSACTION_TEST_URI` is absent. Use a disposable replica-set database;
+tests delete their own fixture data. The standalone regression suite uses
+`MONGO_STANDALONE_TEST_URI`. Full guidance is in
+[`docs/TESTING.md`](docs/TESTING.md).
+
+CI currently performs backend JavaScript syntax checks and a production web
+build for pushes and pull requests targeting `main` or `mvp-core`.
+
+## Deployment overview
+
+- `render.yaml` deploys `server/` with a persistent upload disk.
+- `client/vercel.json` deploys the Vite SPA and rewrites routes to `index.html`.
+- Mobile development uses Expo; `mobile/eas.json` defines an internal APK
+  preview and a production Android App Bundle profile.
+- A tester APK must use a deployed HTTPS API through `EXPO_PUBLIC_API_URL`.
+- The API used by that APK must set `CLIENT_URL` to the deployed HTTPS web
+  client so password-reset links can be completed in a browser.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) and
+[`docs/ANDROID_TESTING.md`](docs/ANDROID_TESTING.md).
+
+## Development workflow
+
+1. Start from an up-to-date, clean `mvp-core`.
+2. Create a focused feature, fix, or documentation branch; do not work directly
+   on `mvp-core`.
+3. Run focused tests while implementing.
+4. Run the applicable complete suites, type checks, lint/build/export checks,
+   and `git diff --check`.
+5. Review the final diff and working tree before opening a pull request.
+6. Use review and squash merge so `mvp-core` remains readable.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Product principles](docs/PRODUCT_PRINCIPLES.md)
+- [Authentication and password recovery](docs/AUTHENTICATION.md)
+- [Financial integrity](docs/FINANCIAL_INTEGRITY.md)
+- [Testing](docs/TESTING.md)
+- [Deployment](DEPLOYMENT.md)
+- [Android internal testing](docs/ANDROID_TESTING.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
+- [Mobile guide](mobile/README.md)
+- [Changelog](CHANGELOG.md)
 
 ## Screenshots
 
-![Dashboard](docs/screenshots/dashboard.png)
-![Today](docs/screenshots/today.png)
-![Activity](docs/screenshots/activity.png)
-![Capture](docs/screenshots/capture.png)
-![Insights](docs/screenshots/insights.png)
-![Spaces](docs/screenshots/spaces.png)
-
-![Receipt Inbox](docs/screenshots/receipt-inbox.png)
-
-![Import Statements](docs/screenshots/import-statements.png)
-
-![Import History](docs/screenshots/import-history.png)
-
-![Monthly Summary](docs/screenshots/monthly-summary.png)
-
-![Tax Pack](docs/screenshots/tax-pack.png)
-
-![Debt Reality](docs/screenshots/debt-reality.png)
-
-![Group Summary](docs/screenshots/group-summary.png)
-
-![Settings – Trust & Legal](docs/screenshots/settings-trust-legal.png)
-
-![Opening Balance](docs/screenshots/opening-balance.png)
+Current web and mobile screenshots are available in [`docs/screenshots/`](docs/screenshots/).
