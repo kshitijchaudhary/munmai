@@ -60,7 +60,8 @@ Exact package versions are recorded in each package's `package.json` and lockfil
 
 ### Prerequisites
 
-- Node.js 20 or a compatible current Node.js release
+- Node.js 20 for server and web development
+- Node.js 24 for mobile Node-native tests (they import TypeScript modules using Node's built-in type stripping)
 - npm
 - MongoDB
 - SMTP credentials for registration verification and password recovery
@@ -181,7 +182,9 @@ tests delete their own fixture data. The standalone regression suite uses
 CI runs the complete backend suite against disposable replica-set and standalone
 MongoDB instances, validates that no backend test is skipped, and runs web and
 mobile lint, test, and production-build/export checks for pushes and pull
-requests targeting `main` or `mvp-core`.
+requests targeting `main` or `mvp-core`. Server and web CI use Node.js 20.
+Mobile Node-native tests use Node.js 24 because they import TypeScript modules
+using Node's built-in type stripping.
 
 ## Deployment overview
 
