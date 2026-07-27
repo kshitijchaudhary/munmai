@@ -178,8 +178,10 @@ tests delete their own fixture data. The standalone regression suite uses
 `MONGO_STANDALONE_TEST_URI`. Full guidance is in
 [`docs/TESTING.md`](docs/TESTING.md).
 
-CI currently performs backend JavaScript syntax checks and a production web
-build for pushes and pull requests targeting `main` or `mvp-core`.
+CI runs the complete backend suite against disposable replica-set and standalone
+MongoDB instances, validates that no backend test is skipped, and runs web and
+mobile lint, test, and production-build/export checks for pushes and pull
+requests targeting `main` or `mvp-core`.
 
 ## Deployment overview
 
