@@ -11,9 +11,13 @@ on:
       - mvp-core
 
 jobs:
-  backend:
-    name: Backend validation
+  backend-tests:
+    name: Backend tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MONGO_TRANSACTION_TEST_URI: mongodb://127.0.0.1:27017/munmai-ci?replicaSet=rs0&directConnection=true
+      MONGO_STANDALONE_TEST_URI: mongodb://127.0.0.1:27018/munmai-ci-standalone
 
     steps:
       - name: Checkout repository
@@ -30,6 +34,60 @@ jobs:
         working-directory: server
         run: npm ci
 
+      - name: Start MongoDB test instances
+        run: |
+          docker run --detach \
+            --name munmai-mongo-replica \
+            --publish 127.0.0.1:27017:27017 \
+            mongo:8.0 \
+            --replSet rs0 --bind_ip_all
+          docker run --detach \
+            --name munmai-mongo-standalone \
+            --publish 127.0.0.1:27018:27017 \
+            mongo:8.0 \
+            --bind_ip_all
+
+      - name: Initialize MongoDB replica set
+        run: |
+          for attempt in {1..30}; do
+            if docker exec munmai-mongo-replica mongosh --quiet \
+              --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)'; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "MongoDB replica-set container did not become ready." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          docker exec munmai-mongo-replica mongosh --quiet --eval \
+            'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+
+          for attempt in {1..30}; do
+            if docker exec munmai-mongo-replica mongosh --quiet \
+              --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)'; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "MongoDB replica set did not elect a primary." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Wait for standalone MongoDB
+        run: |
+          for attempt in {1..30}; do
+            if docker exec munmai-mongo-standalone mongosh --quiet \
+              --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Standalone MongoDB container did not become ready." >&2
+          exit 1
+
       - name: Run backend syntax check
         working-directory: server
         run: |
@@ -38,9 +96,32 @@ jobs:
             -path "./uploads" -prune -o \
             -name "*.js" -print0 | xargs -0 -n 1 node --check
 
-  frontend:
-    name: Frontend build
+      - name: Run backend suite without skipped integration tests
+        working-directory: server
+        run: |
+          test -n "$MONGO_TRANSACTION_TEST_URI"
+          test -n "$MONGO_STANDALONE_TEST_URI"
+          set -o pipefail
+          npm test -- --test-reporter=tap 2>&1 \
+            | tee "$RUNNER_TEMP/server-tests.tap"
+          node scripts/assertNoSkippedTests.mjs "$RUNNER_TEMP/server-tests.tap"
+
+      - name: Show MongoDB logs after failure
+        if: failure()
+        run: |
+          docker logs --tail 200 munmai-mongo-replica || true
+          docker logs --tail 200 munmai-mongo-standalone || true
+
+      - name: Stop MongoDB test instances
+        if: always()
+        run: |
+          docker rm --force munmai-mongo-replica || true
+          docker rm --force munmai-mongo-standalone || true
+
+  client-validation:
+    name: Client validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -57,6 +138,52 @@ jobs:
         working-directory: client
         run: npm ci
 
+      - name: Lint frontend
+        working-directory: client
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: client
+        run: npm test
+
       - name: Build frontend
         working-directory: client
         run: npm run build
+
+  mobile-validation:
+    name: Mobile validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Lint mobile
+        working-directory: mobile
+        run: npm run lint
+
+      - name: Test mobile
+        working-directory: mobile
+        run: npm test
+
+      - name: Type-check mobile
+        working-directory: mobile
+        run: npx tsc --noEmit
+
+      - name: Export Expo web bundle
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:5000/api
+        run: npx expo export --platform web

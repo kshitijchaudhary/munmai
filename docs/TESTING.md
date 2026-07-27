@@ -40,6 +40,13 @@ when MongoDB transactions are unavailable.
 Use isolated disposable databases only. Do not point either variable at a
 development or production database.
 
+CI provisions both modes locally: a replica-set MongoDB for transactional
+integration suites and a separate standalone MongoDB for the unsupported-
+transaction regression. Backend CI supplies both variables and fails if any
+test is reported as skipped. CI uses Docker for these disposable instances.
+Developers running the same integration coverage locally need Docker or
+equivalent disposable MongoDB instances at the two supplied URIs.
+
 ## Web
 
 ```powershell
@@ -71,20 +78,26 @@ npx expo install --check
 The mobile test script explicitly enumerates its Node-native suites. When adding
 a test file, update `mobile/package.json` so the complete command includes it.
 
-`npm run lint` invokes Expo lint, but the current mobile package does not include
-an ESLint configuration/tooling set. It is not a reliable gate until added as a
-separate intentional tooling change.
+`npm run lint` invokes Expo's ESLint configuration and is a CI gate.
 
 ## CI
 
-`.github/workflows/ci.yml` currently runs on pushes and pull requests targeting
-`main` and `mvp-core`.
+`.github/workflows/ci.yml` runs on pushes and pull requests targeting `main` and
+`mvp-core`.
 
-- Backend job: `npm ci`, then `node --check` over backend JavaScript.
-- Frontend job: `npm ci`, then the production Vite build.
+- Backend: installs with `npm ci`, starts isolated replica-set and standalone
+  MongoDB containers, checks JavaScript syntax, and runs the complete suite.
+  The job fails when either required URI is absent or any test is skipped.
+- Web: installs with `npm ci`, then runs lint, tests, and the production build.
+- Mobile: installs with `npm ci`, then runs lint, tests, TypeScript validation,
+  and an Expo web production export. The export step sets
+  `EXPO_PUBLIC_API_URL=http://127.0.0.1:5000/api` as a CI-only placeholder so
+  the build does not require a live backend, secrets, or a committed `.env`
+  file.
 
-CI does not currently run the full backend, web, or mobile test suites; run them
-locally before review.
+Developers can run the same package commands documented above. Running every
+backend integration case locally additionally requires disposable replica-set
+and standalone MongoDB instances supplied through the two documented URIs.
 
 ## Documentation validation
 

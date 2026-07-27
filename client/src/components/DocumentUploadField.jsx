@@ -21,7 +21,7 @@ const DocumentUploadField = ({
     ? "inline-flex cursor-not-allowed items-center justify-center rounded-xl bg-slate-400 px-4 py-2 text-xs font-bold text-white dark:bg-slate-700 dark:text-slate-400"
     : "inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white";
 
-  const FileInput = ({ buttonText }) => (
+  const renderFileInput = (buttonText) => (
     <label className={disabled ? "cursor-not-allowed" : "cursor-pointer"}>
       <input
         key={inputKey}
@@ -63,7 +63,7 @@ const DocumentUploadField = ({
                 )}
               </div>
             </div>
-            <FileInput buttonText="Change file" />
+            {renderFileInput("Change file")}
           </div>
           {trustText && (
             <p className="mt-3 text-[10px] text-emerald-600 dark:text-emerald-400">
@@ -112,7 +112,7 @@ const DocumentUploadField = ({
               </div>
             )}
 
-            <FileInput buttonText="Choose file" />
+            {renderFileInput("Choose file")}
 
             {trustText && (
               <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
