@@ -184,4 +184,6 @@ jobs:
 
       - name: Export Expo web bundle
         working-directory: mobile
+        env:
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:5000/api
         run: npx expo export --platform web

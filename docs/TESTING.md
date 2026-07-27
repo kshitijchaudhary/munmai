@@ -90,7 +90,10 @@ a test file, update `mobile/package.json` so the complete command includes it.
   The job fails when either required URI is absent or any test is skipped.
 - Web: installs with `npm ci`, then runs lint, tests, and the production build.
 - Mobile: installs with `npm ci`, then runs lint, tests, TypeScript validation,
-  and an Expo web production export.
+  and an Expo web production export. The export step sets
+  `EXPO_PUBLIC_API_URL=http://127.0.0.1:5000/api` as a CI-only placeholder so
+  the build does not require a live backend, secrets, or a committed `.env`
+  file.
 
 Developers can run the same package commands documented above. Running every
 backend integration case locally additionally requires disposable replica-set
