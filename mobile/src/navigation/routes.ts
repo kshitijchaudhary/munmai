@@ -19,7 +19,7 @@ export const PUBLIC_ROUTES = {
 export const CAPTURE_HUB_TARGET = PUBLIC_ROUTES.add;
 
 export const AUTHENTICATED_TABS = [
-  { route: 'index', label: 'Today', href: PUBLIC_ROUTES.home },
+  { route: 'index', label: 'Dashboard', href: PUBLIC_ROUTES.home },
   { route: 'transactions', label: 'Activity', href: PUBLIC_ROUTES.transactions },
   { route: 'add', label: 'Capture', href: PUBLIC_ROUTES.add },
   { route: 'analytics', label: 'Insights', href: PUBLIC_ROUTES.analytics },

@@ -9,13 +9,13 @@ is still required for each release and Expo Go must match Expo SDK 57.
 
 The authenticated shell has exactly five tabs:
 
-1. **Today** — adaptive financial pulse, one contextual priority, and a compact insight.
+1. **Dashboard** — adaptive financial pulse, one contextual priority, and a compact insight.
 2. **Activity** — unified income, expense, shared-expense, and settlement feed with personal/shared filters and expandable persisted splits.
 3. **Capture** — camera-first or manual income/expense entry.
 4. **Insights** — current-month income, expense, and net context.
 5. **Spaces** — shared groups, balances, members, expenses, and settlements.
 
-Account is intentionally hidden from the tab bar and opens from the Today
+Account is intentionally hidden from the tab bar and opens from the Dashboard
 avatar.
 
 ## Prerequisites
@@ -92,7 +92,7 @@ Public signed-out routes:
 Authenticated public URLs:
 
 ```text
-/                         Today
+/                         Dashboard
 /transactions             Activity
 /add                      Capture
 /analytics                Insights
@@ -160,7 +160,7 @@ authoritative.
 Transaction creation and attachment upload are separate. If creation succeeds
 but upload fails, the form retains the transaction ID and retry uploads only the
 document; it does not create a duplicate transaction. Successful mutations
-refresh Today, Activity, Insights, and relevant detail data. There is no offline
+refresh Dashboard, Activity, Insights, and relevant detail data. There is no offline
 queue or permanent polling.
 
 Transaction dates use a cross-platform picker, submit local `YYYY-MM-DD`, reject

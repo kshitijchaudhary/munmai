@@ -19,7 +19,7 @@ test('authenticated tabs use the required five-tab order', () => {
   assert.equal(AUTHENTICATED_TABS.length, 5);
   assert.deepEqual(
     AUTHENTICATED_TABS.map((tab) => tab.label),
-    ['Today', 'Activity', 'Capture', 'Insights', 'Spaces'],
+    ['Dashboard', 'Activity', 'Capture', 'Insights', 'Spaces'],
   );
   assert.deepEqual(
     AUTHENTICATED_TABS.filter((tab) => getAuthenticatedTabHref(tab.route) !== null)
