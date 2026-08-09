@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 
 import {
+  createMailTransporter,
   forgotPassword,
   loginUser,
   resetPassword,
@@ -161,6 +162,23 @@ test("email delivery failure stays neutral and logs no reset token", async (t) =
     false
   );
   assert.equal(JSON.stringify(warnings).includes("SMTP unavailable"), false);
+});
+
+test("mail transporter does not disable TLS certificate validation", async (t) => {
+  let transportOptions;
+  t.mock.method(nodemailer, "createTransport", (options) => {
+    transportOptions = options;
+    return { sendMail: async () => undefined };
+  });
+
+  createMailTransporter();
+
+  assert.ok(transportOptions);
+  assert.notEqual(
+    transportOptions.tls?.rejectUnauthorized,
+    false,
+    "TLS certificate validation must not be disabled"
+  );
 });
 
 test("local reset URLs require the explicit development control", async (t) => {

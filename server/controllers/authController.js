@@ -151,7 +151,7 @@ const buildEmailConfigValidation = () => {
 
 const isEmailConfigured = () => buildEmailConfigValidation().valid;
 
-const createMailTransporter = () => {
+export const createMailTransporter = () => {
   const validation = buildEmailConfigValidation();
 
   if (!validation.valid) {
@@ -165,9 +165,6 @@ const createMailTransporter = () => {
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
-    },
-    tls: {
-      rejectUnauthorized: false,
     },
   });
 };
