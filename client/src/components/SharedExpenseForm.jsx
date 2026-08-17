@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { createSharedExpense } from "../api/groups";
+import { getSharedExpenseIdempotencyKey } from "../api/sharedExpenseRequest";
 
 const getMemberId = (member) => String(member?._id || member?.id || member || "");
 
@@ -145,8 +146,9 @@ const SharedExpenseForm = ({ groupId, members = [], onCreated }) => {
   
     try {
       setSubmitting(true);
-      const idempotencyKey =
-        logicalRequestId.current || globalThis.crypto.randomUUID();
+      const idempotencyKey = getSharedExpenseIdempotencyKey(
+        logicalRequestId.current,
+      );
       logicalRequestId.current = idempotencyKey;
 
       await createSharedExpense({

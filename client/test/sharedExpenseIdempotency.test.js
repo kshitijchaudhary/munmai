@@ -1,75 +1,78 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const readSource = (relativePath) =>
-  readFileSync(new URL("../" + relativePath, import.meta.url), "utf-8");
+import {
+  getSharedExpenseIdempotencyKey,
+  sendCreateSharedExpenseRequest,
+} from "../src/api/sharedExpenseRequest.js";
 
-test("createSharedExpense sends Idempotency-Key header", () => {
-  const source = readSource("src/api/groups.js");
-  assert.match(source, /Idempotency-Key/i);
-});
+const VALID_KEY_PATTERN = /^[A-Za-z0-9._:-]{16,128}$/;
 
-test("SharedExpenseForm generates a key on first submission", () => {
-  const source = readSource("src/components/SharedExpenseForm.jsx");
-  assert.match(source, /logicalRequestId\.current\s*\|\|\s*globalThis\.crypto\.randomUUID/);
-});
-
-test("SharedExpenseForm clears the key on every field edit", () => {
-  const source = readSource("src/components/SharedExpenseForm.jsx");
-  const matches = source.match(/updateFormData/g);
-  assert.ok(matches && matches.length >= 4, "expected at least 4 updateFormData calls for paidBy, participants, amount, description");
-});
-
-test("SharedExpenseForm clears the key on reset after success", () => {
-  const source = readSource("src/components/SharedExpenseForm.jsx");
-  assert.match(source, /resetForm[\s\S]*?logicalRequestId\.current\s*=\s*null/);
-});
-
-test("logical request ID lifecycle: first submit generates, retry reuses, edits clear, success clears", () => {
-  let currentKey = null;
-  let generated = 0;
-  const generate = () => { generated += 1; return "key-" + generated + "-0123456789ab"; };
-
-  const submit = () => {
-    currentKey = currentKey || generate();
-    return currentKey;
+test("shared-expense request contains a valid Idempotency-Key and returns created data", async () => {
+  const calls = [];
+  const apiClient = {
+    post: async (...args) => {
+      calls.push(args);
+      return { data: { expense: { _id: "expense-1" }, splits: [] } };
+    },
   };
-  const editField = () => { currentKey = null; };
-  const reset = () => { currentKey = null; };
+  const payload = {
+    groupId: "group-1",
+    paidBy: "user-1",
+    participants: ["user-1", "user-2"],
+    amount: 42,
+    description: "Dinner",
+  };
+  const idempotencyKey = getSharedExpenseIdempotencyKey(
+    null,
+    () => "7bc5d447-1c2f-4eff-bb03-3bb2dbfebf80",
+  );
 
-  assert.equal(currentKey, null, "initial state: no key");
+  const result = await sendCreateSharedExpenseRequest(
+    apiClient,
+    payload,
+    idempotencyKey,
+  );
 
-  const k1 = submit();
-  assert.equal(generated, 1, "first submit generates one key");
-  assert.equal(k1, currentKey, "key is stored");
+  assert.match(idempotencyKey, VALID_KEY_PATTERN);
+  assert.deepEqual(calls, [[
+    "/shared-expenses",
+    payload,
+    { headers: { "Idempotency-Key": idempotencyKey } },
+  ]]);
+  assert.deepEqual(result, {
+    expense: { _id: "expense-1" },
+    splits: [],
+  });
+});
 
-  const k2 = submit();
-  assert.equal(k2, k1, "retry reuses the same key");
-  assert.equal(generated, 1, "no new generation on retry");
+test("retrying the same shared-expense submission reuses its key", () => {
+  let generated = 0;
+  let logicalRequestId = null;
+  const generate = () =>
+    `shared-expense-request-${String(++generated).padStart(4, "0")}`;
 
-  editField();
-  assert.equal(currentKey, null, "amount edit clears key");
+  logicalRequestId = getSharedExpenseIdempotencyKey(
+    logicalRequestId,
+    generate,
+  );
+  const retryKey = getSharedExpenseIdempotencyKey(
+    logicalRequestId,
+    generate,
+  );
 
-  submit();
-  assert.equal(generated, 2, "new submit after edit generates new key");
+  assert.equal(retryKey, logicalRequestId);
+  assert.equal(generated, 1);
+});
 
-  editField();
-  assert.equal(currentKey, null, "payer edit clears key");
+test("a subsequent new shared-expense submission gets a different key", () => {
+  let generated = 0;
+  const generate = () =>
+    `shared-expense-request-${String(++generated).padStart(4, "0")}`;
 
-  editField();
-  assert.equal(currentKey, null, "description edit clears key");
+  const firstKey = getSharedExpenseIdempotencyKey(null, generate);
+  const nextKey = getSharedExpenseIdempotencyKey(null, generate);
 
-  editField();
-  assert.equal(currentKey, null, "participant toggle clears key");
-
-  submit();
-  assert.equal(generated, 3, "next new submission generates another key");
-
-  reset();
-  assert.equal(currentKey, null, "successful reset clears key");
-
-  submit();
-  assert.equal(generated, 4, "next submission after reset generates a new key");
-  assert.notEqual(currentKey, k1, "new key differs from first");
+  assert.notEqual(nextKey, firstKey);
+  assert.equal(generated, 2);
 });
