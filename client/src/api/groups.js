@@ -1,4 +1,5 @@
 import api from "./axios";
+import { sendCreateSharedExpenseRequest } from "./sharedExpenseRequest";
 
 export const getGroupSummary = async (groupId) => {
   const response = await api.get(`/groups/${groupId}/summary`);
@@ -30,12 +31,8 @@ export const getGroupSettlementHistory = async (groupId) => {
   return response.data;
 };
 
-export const createSharedExpense = async (payload, idempotencyKey) => {
-  const response = await api.post("/shared-expenses", payload, {
-    headers: { "Idempotency-Key": idempotencyKey },
-  });
-  return response.data;
-};
+export const createSharedExpense = (payload, idempotencyKey) =>
+  sendCreateSharedExpenseRequest(api, payload, idempotencyKey);
 
 export const createGroupSettlement = async (groupId, payload, idempotencyKey) => {
   const response = await api.post(`/groups/${groupId}/settlements`, payload, {
