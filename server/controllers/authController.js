@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import Income from "../models/Income.js";
 import Expense from "../models/Expense.js";
+import Planning from "../models/Planning.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -601,9 +602,10 @@ export const resetPassword = async (req, res) => {
 
 export const exportUserData = async (req, res) => {
   try {
-    const [incomes, expenses] = await Promise.all([
+    const [incomes, expenses, planning] = await Promise.all([
       Income.find({ userId: req.user.id }).sort({ date: -1 }).lean(),
       Expense.find({ userId: req.user.id }).sort({ date: -1 }).lean(),
+      Planning.findOne({ user: req.user.id }).lean(),
     ]);
 
     const dataExport = {
@@ -629,6 +631,7 @@ export const exportUserData = async (req, res) => {
       },
       incomes,
       expenses,
+      planning,
     };
 
     const exportDate = new Date().toISOString().split("T")[0];
@@ -657,6 +660,8 @@ export const deleteAccount = async (req, res) => {
 
     await Expense.deleteMany({ userId: req.user.id });
     await Promise.all(expenses.map((expense) => removeStoredFile(expense.receiptUrl)));
+
+    await Planning.deleteMany({ user: req.user.id });
 
     await User.findByIdAndDelete(req.user.id);
 

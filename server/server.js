@@ -24,6 +24,7 @@ import budgetRoutes from "./routes/budgetRoutes.js";
 import liabilityRoutes from "./routes/liabilityRoutes.js";
 import importRoutes from "./routes/importRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
+import planningRoutes from "./routes/planningRoutes.js";
 import { ensureUploadDir } from "./utils/uploadPaths.js";
 
 dotenv.config();
@@ -139,6 +140,7 @@ app.use("/api/budget", budgetRoutes);
 app.use("/api/liabilities", liabilityRoutes);
 app.use("/api/imports", importRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api/planning", planningRoutes);
 
 app.get("/api/test/protected", protect, (req, res) => {
   res.json({
