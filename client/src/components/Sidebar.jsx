@@ -8,7 +8,10 @@ const futureItems = new Set();
 const getNavSections = () => [
   {
     label: "Main",
-    items: [{ label: "Dashboard", to: "/dashboard" }],
+    items: [
+      { label: "Dashboard", to: "/dashboard" },
+      { label: "Plan", to: "/planning" },
+    ],
   },
   {
     label: "Daily",
