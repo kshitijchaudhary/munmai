@@ -13,12 +13,22 @@ export const PLANNING_CATEGORIES = [
   "personal_debt",
   "other",
 ];
+export const PLANNING_AMOUNT_TYPES = ["fixed", "variable"];
+export const PLANNING_CADENCES = ["weekly", "biweekly", "monthly"];
 
 export const obligationRequiresKnownDetails = (certainty) =>
   certainty === "confirmed" || certainty === "estimated";
 
 const requiresKnownObligationDetails = function () {
   return obligationRequiresKnownDetails(this.certainty);
+};
+
+const requiresRecurringDetails = function () {
+  return this.recurring === true;
+};
+
+const recurringMetadataIsAllowed = function (value) {
+  return this.recurring === true || value === null || value === undefined;
 };
 
 const obligationSchema = new mongoose.Schema({
@@ -75,6 +85,37 @@ const obligationSchema = new mongoose.Schema({
     trim: true,
     maxLength: [500, "Obligation note cannot exceed 500 characters."],
     default: "",
+  },
+  recurring: {
+    type: Boolean,
+    default: false,
+    required: true,
+  },
+  amountType: {
+    type: String,
+    default: null,
+    required: [requiresRecurringDetails, "Recurring amount type is required."],
+    enum: {
+      values: PLANNING_AMOUNT_TYPES,
+      message: "Recurring amount type is invalid.",
+    },
+    validate: {
+      validator: recurringMetadataIsAllowed,
+      message: "Amount type is allowed only for recurring obligations.",
+    },
+  },
+  cadence: {
+    type: String,
+    default: null,
+    required: [requiresRecurringDetails, "Recurring cadence is required."],
+    enum: {
+      values: PLANNING_CADENCES,
+      message: "Recurring cadence is invalid.",
+    },
+    validate: {
+      validator: recurringMetadataIsAllowed,
+      message: "Cadence is allowed only for recurring obligations.",
+    },
   },
 });
 

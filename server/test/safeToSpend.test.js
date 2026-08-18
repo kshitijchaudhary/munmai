@@ -85,6 +85,51 @@ test("basic Safe-to-Spend calculation is high confidence", () => {
   assert.deepEqual(result.warnings, []);
 });
 
+test("recurrence metadata does not change Safe-to-Spend output", () => {
+  const payment = obligation({
+    amount: 233.45,
+    certainty: "estimated",
+    name: "Car payment",
+  });
+  const unknownPayment = obligation({
+    amount: null,
+    certainty: "unknown",
+    dueDate: null,
+    name: "Unknown bill",
+  });
+  const oneOff = calculate(
+    planning({
+      currentCash: 800,
+      essentialBuffer: 100,
+      obligations: [payment, unknownPayment],
+    }),
+  );
+  const recurring = calculate(
+    planning({
+      currentCash: 800,
+      essentialBuffer: 100,
+      obligations: [
+        {
+          ...payment,
+          amountType: "fixed",
+          cadence: "monthly",
+          recurring: true,
+        },
+        {
+          ...unknownPayment,
+          amountType: "variable",
+          cadence: "biweekly",
+          recurring: true,
+        },
+      ],
+    }),
+  );
+
+  assert.deepEqual(recurring, oneOff);
+  assert.equal(recurring.confidence, oneOff.confidence);
+  assert.deepEqual(recurring.warnings, oneOff.warnings);
+});
+
 test("obligation after payday is excluded and obligation on payday is included", () => {
   const dueOnPayday = obligation({
     amount: 100,

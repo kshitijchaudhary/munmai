@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import Planning, {
   obligationRequiresKnownDetails,
+  PLANNING_AMOUNT_TYPES,
+  PLANNING_CADENCES,
   PLANNING_CATEGORIES,
   PLANNING_CERTAINTIES,
 } from "../models/Planning.js";
@@ -39,6 +41,39 @@ const normalizeMoney = (value, label, { allowZero = false } = {}) => {
 
 const normalizeOptionalString = (value) =>
   value === undefined || value === null ? "" : String(value).trim();
+
+const normalizeRecurringMetadata = (obligation, prefix) => {
+  if (
+    obligation.recurring !== undefined &&
+    obligation.recurring !== null &&
+    typeof obligation.recurring !== "boolean"
+  ) {
+    throw createHttpError(400, `${prefix} recurring must be true or false.`);
+  }
+
+  const recurring = obligation.recurring === true;
+
+  if (!recurring) {
+    return { amountType: null, cadence: null, recurring: false };
+  }
+
+  const amountType = requireField(
+    obligation,
+    "amountType",
+    `${prefix} amount type`,
+  );
+  const cadence = requireField(obligation, "cadence", `${prefix} cadence`);
+
+  if (!PLANNING_AMOUNT_TYPES.includes(amountType)) {
+    throw createHttpError(400, `${prefix} amount type is invalid.`);
+  }
+
+  if (!PLANNING_CADENCES.includes(cadence)) {
+    throw createHttpError(400, `${prefix} cadence is invalid.`);
+  }
+
+  return { amountType, cadence, recurring: true };
+};
 
 const normalizeObligationId = (value, prefix) => {
   if (value === undefined || value === null) {
@@ -112,9 +147,12 @@ const normalizeObligation = (obligation, index) => {
     throw createHttpError(400, `${prefix} note cannot exceed 500 characters.`);
   }
 
+  const recurrence = normalizeRecurringMetadata(obligation, prefix);
+
   const normalized = {
     _id,
     amount,
+    ...recurrence,
     category,
     certainty,
     dueDate,
@@ -185,7 +223,25 @@ export const normalizePlanningPayload = (payload = {}, { now = new Date() } = {}
 export const getPlanning = async (userId) => {
   const planning = await getSavedPlanning(userId);
 
-  return planning || {
+  if (planning) {
+    return {
+      ...planning,
+      obligations: Array.isArray(planning.obligations)
+        ? planning.obligations.map((obligation) => {
+            const recurring = obligation.recurring === true;
+
+            return {
+              ...obligation,
+              recurring,
+              amountType: recurring ? obligation.amountType ?? null : null,
+              cadence: recurring ? obligation.cadence ?? null : null,
+            };
+          })
+        : [],
+    };
+  }
+
+  return {
     currentCash: 0,
     currency: "CAD",
     essentialBuffer: 0,

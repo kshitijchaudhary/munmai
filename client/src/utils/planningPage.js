@@ -11,8 +11,23 @@ export const PLANNING_CATEGORIES = [
   { value: "other", label: "Other" },
 ];
 
+export const PLANNING_AMOUNT_TYPES = [
+  { value: "fixed", label: "Same amount" },
+  { value: "variable", label: "Amount changes" },
+];
+
+export const PLANNING_CADENCES = [
+  { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "Every 2 weeks" },
+  { value: "monthly", label: "Monthly" },
+];
+
 const certaintyValues = new Set(PLANNING_CERTAINTIES.map(({ value }) => value));
 const categoryValues = new Set(PLANNING_CATEGORIES.map(({ value }) => value));
+const amountTypeValues = new Set(
+  PLANNING_AMOUNT_TYPES.map(({ value }) => value),
+);
+const cadenceValues = new Set(PLANNING_CADENCES.map(({ value }) => value));
 const strictDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 const moneyPattern = /^\d+(?:\.\d{1,2})?$/;
 let localObligationSequence = 0;
@@ -103,6 +118,9 @@ export const createEmptyObligation = (overrides = {}) => ({
   certainty: "confirmed",
   category: "bill",
   note: "",
+  recurring: false,
+  amountType: "",
+  cadence: "",
   ...overrides,
 });
 
@@ -119,18 +137,31 @@ export const createPlanningForm = (planningResponse) => {
       : "",
     essentialBuffer: toInputMoney(planning.essentialBuffer ?? 0),
     obligations: Array.isArray(planning.obligations)
-      ? planning.obligations.map((item) => ({
-          _id: item._id,
-          clientKey: createClientKey(item._id),
-          name: String(item.name || ""),
-          amount: toInputMoney(item.amount),
-          dueDate: isStrictCalendarDate(item.dueDate) ? item.dueDate : "",
-          certainty: certaintyValues.has(item.certainty)
-            ? item.certainty
-            : "unknown",
-          category: categoryValues.has(item.category) ? item.category : "other",
-          note: String(item.note || ""),
-        }))
+      ? planning.obligations.map((item) => {
+          const recurring = item.recurring === true;
+
+          return {
+            _id: item._id,
+            clientKey: createClientKey(item._id),
+            name: String(item.name || ""),
+            amount: toInputMoney(item.amount),
+            dueDate: isStrictCalendarDate(item.dueDate) ? item.dueDate : "",
+            certainty: certaintyValues.has(item.certainty)
+              ? item.certainty
+              : "unknown",
+            category: categoryValues.has(item.category)
+              ? item.category
+              : "other",
+            note: String(item.note || ""),
+            recurring,
+            amountType:
+              recurring && amountTypeValues.has(item.amountType)
+                ? item.amountType
+                : "",
+            cadence:
+              recurring && cadenceValues.has(item.cadence) ? item.cadence : "",
+          };
+        })
       : [],
   };
 };
@@ -199,6 +230,14 @@ export const validatePlanningForm = (
         : "Choose a valid category.",
       note:
         item.note.length <= 500 ? "" : "Note cannot exceed 500 characters.",
+      amountType:
+        item.recurring === true && !amountTypeValues.has(item.amountType)
+          ? "Choose whether the amount stays the same or changes."
+          : "",
+      cadence:
+        item.recurring === true && !cadenceValues.has(item.cadence)
+          ? "Choose how often this payment repeats."
+          : "",
     };
 
     if (known && !item.dueDate) {
@@ -237,6 +276,9 @@ export const buildPlanningPayload = (form, options) => {
       certainty: item.certainty,
       category: item.category,
       note: item.note.trim(),
+      recurring: item.recurring === true,
+      amountType: item.recurring === true ? item.amountType : null,
+      cadence: item.recurring === true ? item.cadence : null,
     })),
     currency: "CAD",
   };
@@ -245,6 +287,13 @@ export const buildPlanningPayload = (form, options) => {
 export const removeObligation = (form, clientKey) => ({
   ...form,
   obligations: form.obligations.filter((item) => item.clientKey !== clientKey),
+});
+
+export const updateObligationRecurrence = (obligation, recurring) => ({
+  ...obligation,
+  recurring: recurring === true,
+  amountType: "",
+  cadence: "",
 });
 
 export const addObligationForEditing = (form, overrides) => {
@@ -346,6 +395,20 @@ export const buildObligationSummary = (obligation, safeToSpendResult) => {
       ? formatCalendarDate(dueDate)
       : "Unknown date",
     certaintyLabel: certainty,
+    recurrenceLabel:
+      obligation.recurring === true &&
+      amountTypeValues.has(obligation.amountType) &&
+      cadenceValues.has(obligation.cadence)
+        ? `${
+            PLANNING_CADENCES.find(
+              (item) => item.value === obligation.cadence,
+            ).label
+          } · ${
+            PLANNING_AMOUNT_TYPES.find(
+              (item) => item.value === obligation.amountType,
+            ).label
+          }`
+        : null,
     status: resultItem
       ? statusForObligation(
           resultItem,
