@@ -183,7 +183,7 @@ export const normalizePlanningPayload = (payload = {}, { now = new Date() } = {}
 };
 
 export const getPlanning = async (userId) => {
-  const planning = await Planning.findOne({ user: userId }).lean();
+  const planning = await getSavedPlanning(userId);
 
   return planning || {
     currentCash: 0,
@@ -193,6 +193,9 @@ export const getPlanning = async (userId) => {
     obligations: [],
   };
 };
+
+export const getSavedPlanning = (userId) =>
+  Planning.findOne({ user: userId }).lean();
 
 export const upsertPlanning = async (userId, payload) => {
   const normalizedPayload = normalizePlanningPayload(payload);

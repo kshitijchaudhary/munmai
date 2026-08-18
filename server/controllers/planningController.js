@@ -2,6 +2,7 @@ import {
   getPlanning,
   upsertPlanning,
 } from "../services/planningService.js";
+import { getSafeToSpendForUser } from "../services/safeToSpendService.js";
 
 const asyncHandler = (handler) => async (req, res, next) => {
   try {
@@ -25,4 +26,9 @@ export const getUserPlanning = asyncHandler(async (req, res) => {
 export const updateUserPlanning = asyncHandler(async (req, res) => {
   const planning = await upsertPlanning(getUserId(req), req.body || {});
   return res.status(200).json({ planning });
+});
+
+export const getUserSafeToSpend = asyncHandler(async (req, res) => {
+  const result = await getSafeToSpendForUser(getUserId(req));
+  return res.status(200).json(result);
 });
