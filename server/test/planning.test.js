@@ -71,6 +71,14 @@ const basePayload = () => ({
   ],
 });
 
+const recurringObligation = (overrides = {}) => ({
+  ...basePayload().obligations[0],
+  amountType: "fixed",
+  cadence: "monthly",
+  recurring: true,
+  ...overrides,
+});
+
 const requestJson = async (
   path,
   { body, method = "GET", token = tokens[userId] } = {},
@@ -139,6 +147,39 @@ test("Planning model defines a unique per-user singleton and embedded obligation
 
   assert.equal(validationError, undefined);
   assert.ok(planning.obligations[0]._id);
+  assert.equal(planning.obligations[0].recurring, false);
+  assert.equal(planning.obligations[0].amountType, null);
+  assert.equal(planning.obligations[0].cadence, null);
+});
+
+test("Planning schema requires valid metadata only for recurring obligations", () => {
+  const validateObligation = (obligation) =>
+    new Planning({
+      ...basePayload(),
+      obligations: [obligation],
+      user: userId,
+    }).validateSync();
+
+  assert.equal(validateObligation(recurringObligation()), undefined);
+  assert.ok(
+    validateObligation(recurringObligation({ amountType: undefined }))?.errors[
+      "obligations.0.amountType"
+    ],
+  );
+  assert.ok(
+    validateObligation(recurringObligation({ cadence: undefined }))?.errors[
+      "obligations.0.cadence"
+    ],
+  );
+  assert.ok(
+    validateObligation(recurringObligation({ amountType: "sometimes" }))
+      ?.errors["obligations.0.amountType"],
+  );
+  assert.ok(
+    validateObligation(recurringObligation({ cadence: "yearly" }))?.errors[
+      "obligations.0.cadence"
+    ],
+  );
 });
 
 test("Planning schema accepts a strict past nextPayday", () => {
@@ -255,8 +296,137 @@ test("authenticated user creates Planning data and GET returns it", async (t) =>
   assert.equal(created.body.planning.user, userId);
   assert.equal(created.body.planning.currency, "CAD");
   assert.equal(created.body.planning.obligations[0].amount, 85.25);
+  assert.equal(created.body.planning.obligations[0].recurring, false);
+  assert.equal(created.body.planning.obligations[0].amountType, null);
+  assert.equal(created.body.planning.obligations[0].cadence, null);
   assert.deepEqual(fetched, created);
   assert.equal(store.records.size, 1);
+});
+
+test("one-off obligations clear stale recurrence metadata", async (t) => {
+  allowAuthentication(t);
+  createPlanningStore(t);
+  const response = await requestJson("/api/planning", {
+    body: {
+      ...basePayload(),
+      obligations: [
+        {
+          ...basePayload().obligations[0],
+          amountType: "fixed",
+          cadence: "monthly",
+          recurring: false,
+        },
+      ],
+    },
+    method: "PUT",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.planning.obligations[0].recurring, false);
+  assert.equal(response.body.planning.obligations[0].amountType, null);
+  assert.equal(response.body.planning.obligations[0].cadence, null);
+});
+
+test("valid recurring amount types and cadences persist", async (t) => {
+  allowAuthentication(t);
+  const store = createPlanningStore(t);
+  const cases = [
+    { amountType: "fixed", cadence: "monthly" },
+    { amountType: "variable", cadence: "monthly" },
+    { amountType: "fixed", cadence: "weekly" },
+    { amountType: "variable", cadence: "biweekly" },
+  ];
+
+  for (const recurrence of cases) {
+    const response = await requestJson("/api/planning", {
+      body: {
+        ...basePayload(),
+        obligations: [recurringObligation(recurrence)],
+      },
+      method: "PUT",
+    });
+
+    assert.equal(response.status, 200, JSON.stringify(recurrence));
+    assert.equal(response.body.planning.obligations[0].recurring, true);
+    assert.equal(
+      response.body.planning.obligations[0].amountType,
+      recurrence.amountType,
+    );
+    assert.equal(
+      response.body.planning.obligations[0].cadence,
+      recurrence.cadence,
+    );
+  }
+
+  assert.equal(store.upsertCalls(), cases.length);
+});
+
+test("recurring obligations require valid amountType and cadence", async (t) => {
+  allowAuthentication(t);
+  const store = createPlanningStore(t);
+  const cases = [
+    recurringObligation({ amountType: undefined }),
+    recurringObligation({ cadence: undefined }),
+    recurringObligation({ amountType: "sometimes" }),
+    recurringObligation({ cadence: "yearly" }),
+  ];
+
+  for (const obligation of cases) {
+    const response = await requestJson("/api/planning", {
+      body: { ...basePayload(), obligations: [obligation] },
+      method: "PUT",
+    });
+
+    assert.equal(response.status, 400);
+  }
+
+  assert.equal(store.upsertCalls(), 0);
+});
+
+test("PUT and GET round-trip recurring metadata while preserving obligation id", async (t) => {
+  allowAuthentication(t);
+  createPlanningStore(t);
+  const suppliedId = "507f1f77bcf86cd799439099";
+  const created = await requestJson("/api/planning", {
+    body: {
+      ...basePayload(),
+      obligations: [
+        recurringObligation({
+          _id: suppliedId,
+          amountType: "variable",
+          cadence: "biweekly",
+        }),
+      ],
+    },
+    method: "PUT",
+  });
+  const fetched = await requestJson("/api/planning");
+  const obligation = fetched.body.planning.obligations[0];
+
+  assert.equal(created.status, 200);
+  assert.equal(fetched.status, 200);
+  assert.equal(obligation._id, suppliedId);
+  assert.equal(obligation.recurring, true);
+  assert.equal(obligation.amountType, "variable");
+  assert.equal(obligation.cadence, "biweekly");
+});
+
+test("GET normalizes legacy obligations as one-off without a migration", async (t) => {
+  allowAuthentication(t);
+  const store = createPlanningStore(t);
+  store.records.set(userId, {
+    ...basePayload(),
+    _id: "planning-legacy",
+    user: userId,
+  });
+
+  const fetched = await requestJson("/api/planning");
+  const obligation = fetched.body.planning.obligations[0];
+
+  assert.equal(fetched.status, 200);
+  assert.equal(obligation.recurring, false);
+  assert.equal(obligation.amountType, null);
+  assert.equal(obligation.cadence, null);
 });
 
 test("same-user PUT updates the singleton without creating a duplicate", async (t) => {

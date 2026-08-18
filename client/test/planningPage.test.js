@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  PLANNING_AMOUNT_TYPES,
+  PLANNING_CADENCES,
   PLANNING_CERTAINTIES,
   addObligationForEditing,
   buildObligationSummary,
@@ -17,6 +19,7 @@ import {
   removeObligation,
   savePlanningExperience,
   scheduleTransientClear,
+  updateObligationRecurrence,
   validatePlanningForm,
 } from "../src/utils/planningPage.js";
 
@@ -80,6 +83,9 @@ test("loads saved Planning fields and presents the backend result", async () => 
   assert.equal(loaded.form.nextPayday, NEXT_PAYDAY);
   assert.equal(loaded.form.essentialBuffer, "25");
   assert.equal(loaded.form.obligations[0].name, "Phone bill");
+  assert.equal(loaded.form.obligations[0].recurring, false);
+  assert.equal(loaded.form.obligations[0].amountType, "");
+  assert.equal(loaded.form.obligations[0].cadence, "");
   assert.equal(view.amountLabel, "$405.00");
   assert.equal(
     view.decisionLabel,
@@ -87,6 +93,43 @@ test("loads saved Planning fields and presents the backend result", async () => 
   );
   assert.equal(view.confidenceLabel, "Based on the bills you've entered.");
   assert.equal(view.horizonLabel, "Next payday: Aug 28");
+});
+
+test("new obligations default to one-off without recurrence metadata", () => {
+  const obligation = createEmptyObligation();
+
+  assert.equal(obligation.recurring, false);
+  assert.equal(obligation.amountType, "");
+  assert.equal(obligation.cadence, "");
+});
+
+test("recurrence choices expose only the supported backend mappings", () => {
+  assert.deepEqual(PLANNING_AMOUNT_TYPES, [
+    { value: "fixed", label: "Same amount" },
+    { value: "variable", label: "Amount changes" },
+  ]);
+  assert.deepEqual(PLANNING_CADENCES, [
+    { value: "weekly", label: "Weekly" },
+    { value: "biweekly", label: "Every 2 weeks" },
+    { value: "monthly", label: "Monthly" },
+  ]);
+});
+
+test("switching recurrence on requires choices and switching it off clears them", () => {
+  const oneOff = createEmptyObligation();
+  const recurring = updateObligationRecurrence(oneOff, true);
+
+  assert.equal(recurring.recurring, true);
+  assert.equal(recurring.amountType, "");
+  assert.equal(recurring.cadence, "");
+
+  const cleared = updateObligationRecurrence(
+    { ...recurring, amountType: "fixed", cadence: "monthly" },
+    false,
+  );
+  assert.equal(cleared.recurring, false);
+  assert.equal(cleared.amountType, "");
+  assert.equal(cleared.cadence, "");
 });
 
 test("loaded saved obligations are collapsed until one is selected for editing", () => {
@@ -244,7 +287,74 @@ test("confirmed obligation payload includes every required field", () => {
     certainty: "confirmed",
     category: "personal_debt",
     note: "August payment",
+    recurring: false,
+    amountType: null,
+    cadence: null,
   });
+});
+
+test("recurring fixed and variable payments preserve explicit payload metadata", () => {
+  const cases = [
+    { amountType: "fixed", cadence: "monthly" },
+    { amountType: "variable", cadence: "monthly" },
+    { amountType: "fixed", cadence: "weekly" },
+    { amountType: "variable", cadence: "biweekly" },
+  ];
+
+  for (const recurrence of cases) {
+    const form = createPlanningForm(savedPlanning);
+    form.obligations = [
+      createEmptyObligation({
+        name: "Recurring payment",
+        amount: "125",
+        dueDate: "2026-08-22",
+        recurring: true,
+        ...recurrence,
+      }),
+    ];
+    const payload = buildPlanningPayload(form, { today: TODAY });
+
+    assert.equal(payload.obligations[0].recurring, true);
+    assert.equal(payload.obligations[0].amountType, recurrence.amountType);
+    assert.equal(payload.obligations[0].cadence, recurrence.cadence);
+  }
+});
+
+test("recurring payments require explicit amount type and cadence", () => {
+  const form = createPlanningForm(savedPlanning);
+  form.obligations = [
+    createEmptyObligation({
+      name: "Recurring payment",
+      amount: "125",
+      dueDate: "2026-08-22",
+      recurring: true,
+    }),
+  ];
+  const missingBoth = validatePlanningForm(form, { today: TODAY });
+
+  assert.equal(missingBoth.valid, false);
+  assert.match(missingBoth.errors.obligations[0].amountType, /Choose/);
+  assert.match(missingBoth.errors.obligations[0].cadence, /Choose/);
+
+  form.obligations[0].amountType = "fixed";
+  const missingCadence = validatePlanningForm(form, { today: TODAY });
+  assert.equal(missingCadence.errors.obligations[0].amountType, "");
+  assert.match(missingCadence.errors.obligations[0].cadence, /Choose/);
+});
+
+test("one-off payloads clear invalid stale recurrence metadata", () => {
+  const form = createPlanningForm(savedPlanning);
+  form.obligations[0] = {
+    ...form.obligations[0],
+    recurring: false,
+    amountType: "invalid-stale-value",
+    cadence: "yearly",
+  };
+  const payload = buildPlanningPayload(form, { today: TODAY });
+
+  assert.equal(payload.obligations[0].recurring, false);
+  assert.equal(payload.obligations[0].amountType, null);
+  assert.equal(payload.obligations[0].cadence, null);
 });
 
 test("estimated obligation requires amount and date and uses plain-language result wording", () => {
@@ -463,6 +573,50 @@ test("compact obligation summaries use backend overdue and after-payday states",
   assert.equal(overdue.certaintyLabel, "Exact amount");
 });
 
+test("compact cards show recurring metadata only for recurring payments", () => {
+  const form = createPlanningForm(savedPlanning);
+  const fixed = buildObligationSummary(
+    {
+      ...form.obligations[0],
+      recurring: true,
+      amountType: "fixed",
+      cadence: "monthly",
+    },
+    safeToSpend,
+  );
+  const variable = buildObligationSummary(
+    {
+      ...form.obligations[0],
+      recurring: true,
+      amountType: "variable",
+      cadence: "monthly",
+    },
+    safeToSpend,
+  );
+  const oneOff = buildObligationSummary(form.obligations[0], safeToSpend);
+
+  assert.equal(fixed.recurrenceLabel, "Monthly · Same amount");
+  assert.equal(variable.recurrenceLabel, "Monthly · Amount changes");
+  assert.equal(oneOff.recurrenceLabel, null);
+});
+
+test("recurrence metadata does not alter a backend Safe-to-Spend display", () => {
+  const before = buildSafeToSpendViewModel(safeToSpend);
+  const form = createPlanningForm(savedPlanning);
+  form.obligations[0] = {
+    ...form.obligations[0],
+    recurring: true,
+    amountType: "fixed",
+    cadence: "monthly",
+  };
+
+  assert.deepEqual(buildSafeToSpendViewModel(safeToSpend), before);
+  assert.equal(
+    buildObligationSummary(form.obligations[0], safeToSpend).recurrenceLabel,
+    "Monthly · Same amount",
+  );
+});
+
 test("included obligation before horizon start is identified as overdue", () => {
   const view = buildSafeToSpendViewModel({
     ...safeToSpend,
@@ -554,6 +708,10 @@ test("decision UX keeps compact editing while simplifying labels and secondary f
   assert.match(editorSource, /When is it due\?/);
   assert.match(editorSource, /How certain is the amount\?/);
   assert.match(editorSource, /<details[\s\S]*?>[\s\S]*?More options/);
+  assert.match(editorSource, /Does this payment repeat\?/);
+  assert.match(editorSource, /Does the amount usually stay the same\?/);
+  assert.match(editorSource, /How often\?/);
+  assert.match(editorSource, /obligation\.recurring &&/);
   assert.match(editorSource, /Category/);
   assert.match(editorSource, /Note \(optional\)/);
   assert.match(pageSource, /How much money do you have now\?/);
