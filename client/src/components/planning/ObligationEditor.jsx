@@ -1,15 +1,16 @@
 import {
   PLANNING_CATEGORIES,
   PLANNING_CERTAINTIES,
+  getCompactPaymentStatus,
 } from "../../utils/planningPage";
 
 const inputClass =
   "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-950 dark:disabled:bg-slate-800";
 
 const certaintyHelp = {
-  confirmed: "You know the amount and due date.",
-  estimated: "Protect an approximate amount until payday.",
-  unknown: "The amount or date is not fully known yet.",
+  confirmed: "Use this when you know the amount.",
+  estimated: "Use your best estimate for now.",
+  unknown: "You can leave the amount and date blank.",
 };
 
 const statusTone = {
@@ -41,11 +42,11 @@ const ObligationEditor = ({
   const known =
     obligation.certainty === "confirmed" || obligation.certainty === "estimated";
   const fieldId = (field) => `obligation-${obligation.clientKey}-${field}`;
-
   const update = (field, value) => onChange({ ...obligation, [field]: value });
 
   if (!expanded) {
     const headingId = fieldId("summary-heading");
+    const summaryStatus = getCompactPaymentStatus(summary.status);
 
     return (
       <article
@@ -54,16 +55,19 @@ const ObligationEditor = ({
       >
         <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h3 id={headingId} className="break-words font-black text-slate-900 dark:text-slate-100">
+            <h3
+              id={headingId}
+              className="break-words font-black text-slate-900 dark:text-slate-100"
+            >
               {summary.name}
             </h3>
             <p className="mt-1 break-words text-sm font-semibold text-slate-500">
-              {summary.amountLabel} · {summary.dueDateLabel} · {summary.certaintyLabel}
+              {summary.amountLabel} · {summary.dueDateLabel}
             </p>
             <span
-              className={`mt-2 inline-block max-w-full rounded-full px-2.5 py-1 text-[11px] font-black ${statusTone[summary.status.tone]}`}
+              className={`mt-2 inline-block max-w-full rounded-full px-2.5 py-1 text-[11px] font-black ${statusTone[summary.status.tone] || statusTone.incomplete}`}
             >
-              {summary.status.label}
+              {summaryStatus}
             </span>
           </div>
 
@@ -94,14 +98,14 @@ const ObligationEditor = ({
 
   return (
     <fieldset className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-950/40 md:p-5">
-      <legend className="sr-only">Obligation {index + 1}</legend>
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <legend className="sr-only">Payment {index + 1}</legend>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-            Obligation {index + 1}
+            Payment {index + 1}
           </p>
           {obligation._id && (
-            <p className="mt-1 text-xs text-slate-400">Saved obligation</p>
+            <p className="mt-1 text-xs text-slate-400">Saved payment</p>
           )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -126,14 +130,16 @@ const ObligationEditor = ({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block md:col-span-2" htmlFor={fieldId("name")}>
-          <span className="mb-1 block text-sm font-bold text-slate-700">Name</span>
+          <span className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">
+            What is it?
+          </span>
           <input
             id={fieldId("name")}
             value={obligation.name}
             onChange={(event) => update("name", event.target.value)}
             disabled={disabled}
             maxLength={200}
-            placeholder="Phone bill, car payment, Amex statement"
+            placeholder="Phone, car payment, Amex"
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? `${fieldId("name")}-error` : undefined}
             className={inputClass}
@@ -141,45 +147,14 @@ const ObligationEditor = ({
           <FieldError id={`${fieldId("name")}-error`} message={errors.name} />
         </label>
 
-        <label className="block" htmlFor={fieldId("certainty")}>
-          <span className="mb-1 block text-sm font-bold text-slate-700">Certainty</span>
-          <select
-            id={fieldId("certainty")}
-            value={obligation.certainty}
-            onChange={(event) => update("certainty", event.target.value)}
-            disabled={disabled}
-            className={inputClass}
-          >
-            {PLANNING_CERTAINTIES.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-slate-500">
-            {certaintyHelp[obligation.certainty]}
-          </p>
-        </label>
-
-        <label className="block" htmlFor={fieldId("category")}>
-          <span className="mb-1 block text-sm font-bold text-slate-700">Category</span>
-          <select
-            id={fieldId("category")}
-            value={obligation.category}
-            onChange={(event) => update("category", event.target.value)}
-            disabled={disabled}
-            className={inputClass}
-          >
-            {PLANNING_CATEGORIES.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-          </select>
-        </label>
-
         <label className="block" htmlFor={fieldId("amount")}>
-          <span className="mb-1 block text-sm font-bold text-slate-700">
-            Amount {known ? "" : "(optional)"}
+          <span className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">
+            How much? {known ? "" : "(optional)"}
           </span>
           <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-3 text-sm font-bold text-slate-400">$</span>
+            <span className="pointer-events-none absolute left-4 top-3 text-sm font-bold text-slate-400">
+              $
+            </span>
             <input
               id={fieldId("amount")}
               type="number"
@@ -198,8 +173,8 @@ const ObligationEditor = ({
         </label>
 
         <label className="block" htmlFor={fieldId("dueDate")}>
-          <span className="mb-1 block text-sm font-bold text-slate-700">
-            Due date {known ? "" : "(optional)"}
+          <span className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">
+            When is it due? {known ? "" : "(optional)"}
           </span>
           <input
             id={fieldId("dueDate")}
@@ -215,20 +190,87 @@ const ObligationEditor = ({
           <FieldError id={`${fieldId("dueDate")}-error`} message={errors.dueDate} />
         </label>
 
-        <label className="block md:col-span-2" htmlFor={fieldId("note")}>
-          <span className="mb-1 block text-sm font-bold text-slate-700">Note (optional)</span>
-          <textarea
-            id={fieldId("note")}
-            value={obligation.note}
-            onChange={(event) => update("note", event.target.value)}
-            disabled={disabled}
-            maxLength={500}
-            rows={2}
-            placeholder="Optional context"
-            className={`${inputClass} resize-none`}
+        <fieldset className="md:col-span-2">
+          <legend className="text-sm font-bold text-slate-700 dark:text-slate-200">
+            How certain is the amount?
+          </legend>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {PLANNING_CERTAINTIES.map((item) => (
+              <label
+                key={item.value}
+                className="flex cursor-pointer items-start gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <input
+                  type="radio"
+                  name={fieldId("certainty")}
+                  value={item.value}
+                  checked={obligation.certainty === item.value}
+                  onChange={(event) => update("certainty", event.target.value)}
+                  disabled={disabled}
+                  className="mt-0.5 accent-indigo-600"
+                />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            {certaintyHelp[obligation.certainty]}
+          </p>
+          <FieldError
+            id={`${fieldId("certainty")}-error`}
+            message={errors.certainty}
           />
-          <FieldError id={`${fieldId("note")}-error`} message={errors.note} />
-        </label>
+        </fieldset>
+
+        <details
+          className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 md:col-span-2"
+          open={errors.category || errors.note ? true : undefined}
+        >
+          <summary className="cursor-pointer rounded-lg text-sm font-black text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:text-slate-300">
+            More options
+          </summary>
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="block" htmlFor={fieldId("category")}>
+              <span className="mb-1 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                Category
+              </span>
+              <select
+                id={fieldId("category")}
+                value={obligation.category}
+                onChange={(event) => update("category", event.target.value)}
+                disabled={disabled}
+                className={inputClass}
+              >
+                {PLANNING_CATEGORIES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <FieldError
+                id={`${fieldId("category")}-error`}
+                message={errors.category}
+              />
+            </label>
+
+            <label className="block" htmlFor={fieldId("note")}>
+              <span className="mb-1 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                Note (optional)
+              </span>
+              <textarea
+                id={fieldId("note")}
+                value={obligation.note}
+                onChange={(event) => update("note", event.target.value)}
+                disabled={disabled}
+                maxLength={500}
+                rows={2}
+                placeholder="Optional context"
+                className={`${inputClass} resize-none`}
+              />
+              <FieldError id={`${fieldId("note")}-error`} message={errors.note} />
+            </label>
+          </div>
+        </details>
       </div>
     </fieldset>
   );
