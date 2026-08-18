@@ -2,14 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  addObligationForEditing,
+  buildObligationSummary,
   buildPlanningPayload,
   buildSafeToSpendViewModel,
   createEmptyObligation,
   createPlanningForm,
   createSubmissionGuard,
+  getSaveOutcomeMessage,
+  isObligationEditorOpen,
   loadPlanningExperience,
   removeObligation,
   savePlanningExperience,
+  scheduleTransientClear,
   validatePlanningForm,
 } from "../src/utils/planningPage.js";
 
@@ -77,6 +82,46 @@ test("loads saved Planning fields and presents the backend result", async () => 
   assert.equal(view.confidenceLabel, "High confidence");
 });
 
+test("loaded saved obligations are collapsed until one is selected for editing", () => {
+  const form = createPlanningForm(savedPlanning);
+  form.obligations.push(
+    createEmptyObligation({
+      _id: "507f1f77bcf86cd799439098",
+      clientKey: "saved-507f1f77bcf86cd799439098",
+      name: "Amex",
+      amount: "800",
+      dueDate: "2026-09-10",
+    }),
+  );
+
+  assert.equal(isObligationEditorOpen(form.obligations[0], null), false);
+  assert.equal(isObligationEditorOpen(form.obligations[1], null), false);
+
+  const editingKey = form.obligations[0].clientKey;
+  assert.equal(isObligationEditorOpen(form.obligations[0], editingKey), true);
+  assert.equal(isObligationEditorOpen(form.obligations[1], editingKey), false);
+});
+
+test("adding an obligation opens the new editor without expanding saved items", () => {
+  const form = createPlanningForm(savedPlanning);
+  const added = addObligationForEditing(form, { name: "Car payment" });
+  const newObligation = added.form.obligations.at(-1);
+
+  assert.equal(added.form.obligations.length, 2);
+  assert.equal(newObligation.name, "Car payment");
+  assert.equal(
+    isObligationEditorOpen(newObligation, added.editingObligationKey),
+    true,
+  );
+  assert.equal(
+    isObligationEditorOpen(
+      added.form.obligations[0],
+      added.editingObligationKey,
+    ),
+    false,
+  );
+});
+
 test("incomplete defaults never present zero as confidently safe", () => {
   const view = buildSafeToSpendViewModel({
     safeToSpend: null,
@@ -133,6 +178,35 @@ test("saving a valid plan PUTs the full payload and refreshes both endpoints", a
   assert.equal(submittedPayload.nextPayday, "2026-08-30");
   assert.equal(submittedPayload.essentialBuffer, 200.25);
   assert.equal(saved.safeToSpend.safeToSpend, 729.85);
+});
+
+test("full save and refresh produces transient Plan saved feedback", async () => {
+  const success = getSaveOutcomeMessage({
+    planningError: null,
+    safeToSpendError: null,
+  });
+  let cleared = false;
+
+  await new Promise((resolve) => {
+    scheduleTransientClear(() => {
+      cleared = true;
+      resolve();
+    }, 5);
+  });
+
+  assert.deepEqual(success, { type: "success", text: "Plan saved" });
+  assert.equal(cleared, true);
+});
+
+test("refresh failure produces persistent error feedback instead of Plan saved", () => {
+  const outcome = getSaveOutcomeMessage({
+    planningError: null,
+    safeToSpendError: new Error("Calculator unavailable"),
+  });
+
+  assert.equal(outcome.type, "error");
+  assert.match(outcome.text, /saved.*could not be fully refreshed/i);
+  assert.notEqual(outcome.text, "Plan saved");
 });
 
 test("confirmed obligation payload includes every required field", () => {
@@ -267,6 +341,45 @@ test("after-payday obligation exposes its exclusion reason", () => {
   assert.equal(view.breakdown.obligations[0].status.label, "After next payday");
 });
 
+test("compact obligation summaries use backend overdue and after-payday states", () => {
+  const form = createPlanningForm(savedPlanning);
+  form.obligations[0].amount = "75";
+  form.obligations[0].dueDate = "2026-08-21";
+  const overdueResult = {
+    ...safeToSpend,
+    breakdown: {
+      ...safeToSpend.breakdown,
+      obligations: [
+        {
+          ...safeToSpend.breakdown.obligations[0],
+          dueDate: "2026-08-16",
+          included: true,
+        },
+      ],
+    },
+  };
+  const overdue = buildObligationSummary(form.obligations[0], overdueResult);
+  const afterPayday = buildObligationSummary(form.obligations[0], {
+    ...safeToSpend,
+    breakdown: {
+      ...safeToSpend.breakdown,
+      obligations: [
+        {
+          ...safeToSpend.breakdown.obligations[0],
+          included: false,
+          exclusionReason: "AFTER_NEXT_PAYDAY",
+        },
+      ],
+    },
+  });
+
+  assert.equal(overdue.status.label, "Overdue · Included");
+  assert.equal(afterPayday.status.label, "After next payday");
+  assert.equal(overdue.amountLabel, "$75.00");
+  assert.match(overdue.dueDateLabel, /Aug 21/);
+  assert.equal(overdue.certaintyLabel, "Confirmed");
+});
+
 test("included obligation before horizon start is identified as overdue", () => {
   const view = buildSafeToSpendViewModel({
     ...safeToSpend,
@@ -332,4 +445,28 @@ test("Planning route and navigation remain protected and discoverable", () => {
   assert.match(appSource, /path="\/planning"/);
   assert.match(appSource, /<ProtectedRoute>[\s\S]*?<Planning \/>[\s\S]*?<\/ProtectedRoute>/);
   assert.match(sidebarSource, /label: "Plan", to: "\/planning"/);
+});
+
+test("Planning polish uses compact controls, payday wording, and responsive wrapping", () => {
+  const pageSource = readFileSync(
+    new URL("../src/pages/Planning.jsx", import.meta.url),
+    "utf8",
+  );
+  const editorSource = readFileSync(
+    new URL("../src/components/planning/ObligationEditor.jsx", import.meta.url),
+    "utf8",
+  );
+  const resultSource = readFileSync(
+    new URL("../src/components/planning/SafeToSpendCard.jsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(pageSource, /editingObligationKey/);
+  assert.match(pageSource, /current\?\.type === "success" \? null : current/);
+  assert.match(editorSource, />\s*Edit\s*</);
+  assert.match(editorSource, />\s*Done editing\s*</);
+  assert.match(editorSource, /flex-wrap/);
+  assert.match(resultSource, /Due before payday/);
+  assert.match(resultSource, /What's due/);
+  assert.doesNotMatch(resultSource, />Included obligations</);
 });

@@ -5,14 +5,19 @@ import SafeToSpendCard from "../components/planning/SafeToSpendCard";
 import Sidebar from "../components/Sidebar";
 import {
   PlanningFormValidationError,
+  addObligationForEditing,
+  buildObligationSummary,
   createSubmissionGuard,
-  createEmptyObligation,
   createEmptyPlanningForm,
+  findFirstInvalidObligationKey,
   getApiErrorMessage,
+  getSaveOutcomeMessage,
   getTodayCalendarDate,
+  isObligationEditorOpen,
   loadPlanningExperience,
   removeObligation,
   savePlanningExperience,
+  scheduleTransientClear,
   validatePlanningForm,
 } from "../utils/planningPage";
 
@@ -35,10 +40,39 @@ const Planning = () => {
   const [loadError, setLoadError] = useState("");
   const [resultError, setResultError] = useState("");
   const [message, setMessage] = useState(null);
+  const [editingObligationKey, setEditingObligationKey] = useState(null);
   const savingGuardRef = useRef(createSubmissionGuard());
+  const successTimerRef = useRef(null);
+
+  const cancelSuccessTimer = useCallback(() => {
+    successTimerRef.current?.();
+    successTimerRef.current = null;
+  }, []);
+
+  const clearTransientSuccess = useCallback(() => {
+    cancelSuccessTimer();
+    setMessage((current) => (current?.type === "success" ? null : current));
+  }, [cancelSuccessTimer]);
+
+  const showTransientSuccess = useCallback(
+    (text) => {
+      cancelSuccessTimer();
+      setMessage({ type: "success", text });
+      successTimerRef.current = scheduleTransientClear(() => {
+        successTimerRef.current = null;
+        setMessage((current) =>
+          current?.type === "success" ? null : current,
+        );
+      });
+    },
+    [cancelSuccessTimer],
+  );
 
   const applyLoadedExperience = useCallback((loaded) => {
-    if (loaded.form) setForm(loaded.form);
+    if (loaded.form) {
+      setForm(loaded.form);
+      setEditingObligationKey(null);
+    }
     if (loaded.safeToSpend) setSafeToSpend(loaded.safeToSpend);
 
     setLoadError(
@@ -57,6 +91,8 @@ const Planning = () => {
   }, []);
 
   const loadPage = useCallback(async () => {
+    cancelSuccessTimer();
+    setMessage(null);
     setLoading(true);
     setLoadError("");
     setResultError("");
@@ -64,16 +100,18 @@ const Planning = () => {
     const loaded = await loadPlanningExperience(planningApi);
     applyLoadedExperience(loaded);
     setLoading(false);
-  }, [applyLoadedExperience]);
+  }, [applyLoadedExperience, cancelSuccessTimer]);
 
   useEffect(() => {
     loadPage();
   }, [loadPage]);
 
+  useEffect(() => cancelSuccessTimer, [cancelSuccessTimer]);
+
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
     setFormErrors((current) => ({ ...current, [field]: "" }));
-    setMessage(null);
+    clearTransientSuccess();
   };
 
   const updateObligation = (index, obligation) => {
@@ -89,13 +127,24 @@ const Planning = () => {
         itemIndex === index ? {} : item,
       ),
     }));
-    setMessage(null);
+    clearTransientSuccess();
   };
 
   const handleRemoveObligation = (clientKey) => {
     setForm((current) => removeObligation(current, clientKey));
     setFormErrors((current) => ({ ...current, obligations: [] }));
-    setMessage(null);
+    setEditingObligationKey((current) =>
+      current === clientKey ? null : current,
+    );
+    clearTransientSuccess();
+  };
+
+  const handleAddObligation = () => {
+    const added = addObligationForEditing(form);
+    setForm(added.form);
+    setEditingObligationKey(added.editingObligationKey);
+    setFormErrors((current) => ({ ...current, obligations: [] }));
+    clearTransientSuccess();
   };
 
   const handleSubmit = async (event) => {
@@ -103,11 +152,17 @@ const Planning = () => {
 
     if (!savingGuardRef.current.acquire()) return;
 
+    cancelSuccessTimer();
+    setMessage(null);
+
     const validation = validatePlanningForm(form);
 
     if (!validation.valid) {
       savingGuardRef.current.release();
       setFormErrors(validation.errors);
+      setEditingObligationKey(
+        findFirstInvalidObligationKey(form, validation.errors),
+      );
       setMessage({
         type: "error",
         text: "Please correct the highlighted fields before saving.",
@@ -124,13 +179,12 @@ const Planning = () => {
       applyLoadedExperience(loaded);
       setFormErrors({ obligations: [] });
 
-      if (loaded.planningError || loaded.safeToSpendError) {
-        setMessage({
-          type: "error",
-          text: "Plan saved, but the latest result could not be fully refreshed.",
-        });
+      const outcome = getSaveOutcomeMessage(loaded);
+
+      if (outcome.type === "error") {
+        setMessage(outcome);
       } else {
-        setMessage({ type: "success", text: "Plan saved and recalculated." });
+        showTransientSuccess(outcome.text);
       }
     } catch (error) {
       if (error instanceof PlanningFormValidationError) {
@@ -281,12 +335,7 @@ const Planning = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    setForm((current) => ({
-                      ...current,
-                      obligations: [...current.obligations, createEmptyObligation()],
-                    }))
-                  }
+                  onClick={handleAddObligation}
                   disabled={disabled}
                   className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
                 >
@@ -308,7 +357,17 @@ const Planning = () => {
                       index={index}
                       errors={formErrors.obligations?.[index]}
                       disabled={disabled}
+                      expanded={isObligationEditorOpen(
+                        item,
+                        editingObligationKey,
+                      )}
+                      summary={buildObligationSummary(item, safeToSpend)}
                       onChange={(next) => updateObligation(index, next)}
+                      onEdit={() => {
+                        setEditingObligationKey(item.clientKey);
+                        clearTransientSuccess();
+                      }}
+                      onCollapse={() => setEditingObligationKey(null)}
                       onRemove={() => handleRemoveObligation(item.clientKey)}
                     />
                   ))

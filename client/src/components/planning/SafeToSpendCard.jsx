@@ -52,7 +52,7 @@ const SafeToSpendCard = ({ result, loading, error }) => {
             <p className="mt-4 text-sm leading-6 text-slate-600">
               {view.incomplete
                 ? "This result may not include everything yet. Complete or update your plan below."
-                : "This is what remains after included obligations and your essential buffer."}
+                : "This is what remains after obligations due before payday and your essential buffer."}
             </p>
           </>
         )}
@@ -87,7 +87,7 @@ const SafeToSpendCard = ({ result, loading, error }) => {
               <dd className="font-black text-slate-900">{formatCad(view.breakdown.currentCash)}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-slate-600">Included obligations</dt>
+              <dt className="text-slate-600">Due before payday</dt>
               <dd className="font-black text-slate-900">{formatSubtraction(view.breakdown.includedObligationsTotal)}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
@@ -102,7 +102,7 @@ const SafeToSpendCard = ({ result, loading, error }) => {
 
           {view.breakdown.obligations.length > 0 && (
             <div className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800">
-              <h3 className="font-black text-slate-900">Obligation details</h3>
+              <h3 className="font-black text-slate-900">What's due</h3>
               <div className="mt-3 space-y-3">
                 {view.breakdown.obligations.map((item, index) => (
                   <article key={item.id || `${item.name}-${index}`} className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">

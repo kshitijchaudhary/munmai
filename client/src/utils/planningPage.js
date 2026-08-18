@@ -237,6 +237,34 @@ export const removeObligation = (form, clientKey) => ({
   obligations: form.obligations.filter((item) => item.clientKey !== clientKey),
 });
 
+export const addObligationForEditing = (form, overrides) => {
+  const obligation = createEmptyObligation(overrides);
+
+  return {
+    form: {
+      ...form,
+      obligations: [...form.obligations, obligation],
+    },
+    editingObligationKey: obligation.clientKey,
+  };
+};
+
+export const isObligationEditorOpen = (obligation, editingObligationKey) =>
+  obligation.clientKey === editingObligationKey;
+
+export const findFirstInvalidObligationKey = (form, errors) => {
+  const invalidIndex = errors?.obligations?.findIndex((item) =>
+    Object.values(item || {}).some(Boolean),
+  );
+
+  return invalidIndex >= 0 ? form.obligations[invalidIndex]?.clientKey || null : null;
+};
+
+export const scheduleTransientClear = (callback, delay = 2500) => {
+  const timer = setTimeout(callback, delay);
+  return () => clearTimeout(timer);
+};
+
 export const loadPlanningExperience = async (planningApi) => {
   const [planningResult, safeToSpendResult] = await Promise.allSettled([
     planningApi.getPlanning(),
@@ -282,6 +310,48 @@ const statusForObligation = (item, horizonStart) => {
 
   return { label: "Not included", tone: "incomplete" };
 };
+
+export const buildObligationSummary = (obligation, safeToSpendResult) => {
+  const resultObligations = Array.isArray(
+    safeToSpendResult?.breakdown?.obligations,
+  )
+    ? safeToSpendResult.breakdown.obligations
+    : [];
+  const resultItem = obligation._id
+    ? resultObligations.find(
+        (item) => String(item.id || item._id) === String(obligation._id),
+      )
+    : null;
+  const localAmount = String(obligation.amount ?? "").trim();
+  const amount = localAmount ? Number(localAmount) : null;
+  const dueDate = obligation.dueDate;
+  const certainty =
+    PLANNING_CERTAINTIES.find((item) => item.value === obligation.certainty)
+      ?.label || "Unknown";
+
+  return {
+    name: obligation.name.trim() || "Unnamed obligation",
+    amountLabel: formatCad(amount, "Amount unknown"),
+    dueDateLabel: isStrictCalendarDate(dueDate)
+      ? formatCalendarDate(dueDate)
+      : "Unknown date",
+    certaintyLabel: certainty,
+    status: resultItem
+      ? statusForObligation(
+          resultItem,
+          safeToSpendResult?.horizon?.start || "",
+        )
+      : { label: "Not included / incomplete", tone: "incomplete" },
+  };
+};
+
+export const getSaveOutcomeMessage = (loaded) =>
+  loaded.planningError || loaded.safeToSpendError
+    ? {
+        type: "error",
+        text: "Plan saved, but the latest result could not be fully refreshed.",
+      }
+    : { type: "success", text: "Plan saved" };
 
 export const buildSafeToSpendViewModel = (result) => {
   const horizonStart = result?.horizon?.start || "";
