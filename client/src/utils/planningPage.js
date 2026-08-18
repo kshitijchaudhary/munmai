@@ -1,7 +1,7 @@
 export const PLANNING_CERTAINTIES = [
-  { value: "confirmed", label: "Confirmed" },
-  { value: "estimated", label: "Estimated" },
-  { value: "unknown", label: "Unknown" },
+  { value: "confirmed", label: "Exact amount" },
+  { value: "estimated", label: "Estimate" },
+  { value: "unknown", label: "I don't know the amount yet" },
 ];
 
 export const PLANNING_CATEGORIES = [
@@ -62,6 +62,16 @@ export const formatCalendarDate = (value) => {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00.000Z`));
+};
+
+export const formatShortCalendarDate = (value) => {
+  if (!isStrictCalendarDate(value)) return "Date unknown";
+
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${value}T00:00:00.000Z`));
 };
@@ -293,9 +303,9 @@ export const savePlanningExperience = async (form, planningApi, options) => {
 };
 
 const confidenceLabels = {
-  high: "High confidence",
-  estimated: "Includes estimates",
-  incomplete: "Incomplete",
+  high: "Based on the bills you've entered.",
+  estimated: "Includes estimated amounts",
+  incomplete: "Some upcoming costs are still unknown.",
 };
 
 const statusForObligation = (item, horizonStart) => {
@@ -345,6 +355,17 @@ export const buildObligationSummary = (obligation, safeToSpendResult) => {
   };
 };
 
+export const getCompactPaymentStatus = (status) => {
+  const labels = {
+    overdue: "Overdue · before payday",
+    included: "Before payday",
+    excluded: "After next payday",
+    incomplete: "Needs details",
+  };
+
+  return labels[status?.tone] || labels.incomplete;
+};
+
 export const getSaveOutcomeMessage = (loaded) =>
   loaded.planningError || loaded.safeToSpendError
     ? {
@@ -355,24 +376,47 @@ export const getSaveOutcomeMessage = (loaded) =>
 
 export const buildSafeToSpendViewModel = (result) => {
   const horizonStart = result?.horizon?.start || "";
+  const safeToSpendAmount = result?.safeToSpend;
+  const hasSafeToSpendAmount =
+    safeToSpendAmount !== null &&
+    safeToSpendAmount !== undefined &&
+    Number.isFinite(Number(safeToSpendAmount));
   const obligations = Array.isArray(result?.breakdown?.obligations)
     ? result.breakdown.obligations.map((item) => ({
         ...item,
         amountLabel: formatCad(item.amount, "Amount unknown"),
         dueDateLabel: formatCalendarDate(item.dueDate),
+        shortDueDateLabel: formatShortCalendarDate(item.dueDate),
         status: statusForObligation(item, horizonStart),
       }))
     : [];
+  const includedObligations = obligations.filter((item) => item.included);
+  const laterObligations = obligations.filter(
+    (item) =>
+      !item.included && item.exclusionReason === "AFTER_NEXT_PAYDAY",
+  );
+
+  let decisionLabel = "Complete your plan to see what is safe to spend.";
+
+  if (hasSafeToSpendAmount && Number(safeToSpendAmount) > 0) {
+    decisionLabel = `You can safely spend ${formatCad(safeToSpendAmount)} before payday`;
+  } else if (hasSafeToSpendAmount && Number(safeToSpendAmount) < 0) {
+    decisionLabel = `You're short ${formatCad(Math.abs(Number(safeToSpendAmount)))} before payday`;
+  } else if (hasSafeToSpendAmount) {
+    decisionLabel = "You have no uncommitted money before payday";
+  }
 
   return {
-    amountLabel: formatCad(result?.safeToSpend),
+    amountLabel: formatCad(safeToSpendAmount),
+    decisionLabel,
     confidence: result?.confidence || "incomplete",
     confidenceLabel:
       confidenceLabels[result?.confidence] || confidenceLabels.incomplete,
     horizonLabel: result?.horizon?.end
-      ? `Until ${formatCalendarDate(result.horizon.end)}`
+      ? `Next payday: ${formatShortCalendarDate(result.horizon.end)}`
       : "Add your next payday to calculate",
-    incomplete: result?.confidence === "incomplete" || result?.safeToSpend === null,
+    incomplete:
+      result?.confidence === "incomplete" || !hasSafeToSpendAmount,
     warnings: Array.isArray(result?.warnings) ? result.warnings : [],
     breakdown: {
       currentCash: result?.breakdown?.currentCash ?? null,
@@ -380,6 +424,8 @@ export const buildSafeToSpendViewModel = (result) => {
       includedObligationsTotal:
         result?.breakdown?.includedObligationsTotal ?? 0,
       obligations,
+      includedObligations,
+      laterObligations,
     },
   };
 };

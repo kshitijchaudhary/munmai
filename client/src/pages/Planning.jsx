@@ -210,10 +210,10 @@ const Planning = () => {
         <header className="mb-8">
           <p className="mb-2 text-sm font-semibold text-indigo-600">Plan</p>
           <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
-            Plan your money until payday
+            What can you safely spend before payday?
           </h1>
           <p className="mt-2 max-w-2xl text-slate-500">
-            See what is already spoken for and what is still safe to spend.
+            Start with the answer, then update the details when something changes.
           </p>
         </header>
 
@@ -253,13 +253,13 @@ const Planning = () => {
               <div>
                 <h2 className="text-xl font-black text-slate-900">Your payday plan</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Use only the money and commitments you want considered for this payday period.
+                  Answer three simple questions to keep the result current.
                 </p>
               </div>
 
               <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
                 <label className="block md:col-span-2" htmlFor="planning-current-cash">
-                  <span className="mb-1 block text-sm font-bold text-slate-700">Money you have now</span>
+                  <span className="mb-1 block text-sm font-bold text-slate-700">How much money do you have now?</span>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-4 top-3 text-sm font-bold text-slate-400">$</span>
                     <input
@@ -277,13 +277,13 @@ const Planning = () => {
                     />
                   </div>
                   <p id="planning-current-cash-help" className="mt-1 text-xs text-slate-500">
-                    Include the liquid money you want Munmai to consider until your next payday.
+                    Include the money available to use before your next payday.
                   </p>
                   <FieldError id="planning-current-cash-error" message={formErrors.currentCash} />
                 </label>
 
                 <label className="block" htmlFor="planning-next-payday">
-                  <span className="mb-1 block text-sm font-bold text-slate-700">Next payday</span>
+                  <span className="mb-1 block text-sm font-bold text-slate-700">When is your next payday?</span>
                   <input
                     id="planning-next-payday"
                     type="date"
@@ -300,7 +300,7 @@ const Planning = () => {
                 </label>
 
                 <label className="block" htmlFor="planning-essential-buffer">
-                  <span className="mb-1 block text-sm font-bold text-slate-700">Essential buffer</span>
+                  <span className="mb-1 block text-sm font-bold text-slate-700">Keep for everyday use</span>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-4 top-3 text-sm font-bold text-slate-400">$</span>
                     <input
@@ -318,7 +318,7 @@ const Planning = () => {
                     />
                   </div>
                   <p id="planning-essential-buffer-help" className="mt-1 text-xs text-slate-500">
-                    Money protected for essentials like food, gas, or emergencies.
+                    Money you don't want to spend on bills, such as food, gas, or emergencies.
                   </p>
                   <FieldError id="planning-essential-buffer-error" message={formErrors.essentialBuffer} />
                 </label>
@@ -328,9 +328,9 @@ const Planning = () => {
             <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 md:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">Obligations</h2>
+                  <h2 className="text-xl font-black text-slate-900">What payments are coming up?</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Add the bills and commitments that may be due before payday.
+                    Add the bills and payments Munmai should consider.
                   </p>
                 </div>
                 <button
@@ -339,15 +339,15 @@ const Planning = () => {
                   disabled={disabled}
                   className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
                 >
-                  + Add obligation
+                  + Add payment
                 </button>
               </div>
 
               <div className="mt-5 space-y-4">
                 {form.obligations.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center dark:border-slate-700">
-                    <p className="font-bold text-slate-700">No obligations added.</p>
-                    <p className="mt-1 text-sm text-slate-500">Add anything already spoken for before payday.</p>
+                    <p className="font-bold text-slate-700">No payments added.</p>
+                    <p className="mt-1 text-sm text-slate-500">Add anything that needs paying before payday.</p>
                   </div>
                 ) : (
                   form.obligations.map((item, index) => (
@@ -376,7 +376,7 @@ const Planning = () => {
             </section>
 
             <div className="flex flex-col gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 sm:flex-row sm:items-center sm:justify-between md:p-5">
-              <p className="text-sm text-slate-500">Safe to Spend refreshes after a successful save.</p>
+              <p className="text-sm text-slate-500">All changes are saved together.</p>
               <button
                 type="submit"
                 disabled={disabled}

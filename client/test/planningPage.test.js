@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  PLANNING_CERTAINTIES,
   addObligationForEditing,
   buildObligationSummary,
   buildPlanningPayload,
@@ -9,6 +10,7 @@ import {
   createEmptyObligation,
   createPlanningForm,
   createSubmissionGuard,
+  getCompactPaymentStatus,
   getSaveOutcomeMessage,
   isObligationEditorOpen,
   loadPlanningExperience,
@@ -79,7 +81,12 @@ test("loads saved Planning fields and presents the backend result", async () => 
   assert.equal(loaded.form.essentialBuffer, "25");
   assert.equal(loaded.form.obligations[0].name, "Phone bill");
   assert.equal(view.amountLabel, "$405.00");
-  assert.equal(view.confidenceLabel, "High confidence");
+  assert.equal(
+    view.decisionLabel,
+    "You can safely spend $405.00 before payday",
+  );
+  assert.equal(view.confidenceLabel, "Based on the bills you've entered.");
+  assert.equal(view.horizonLabel, "Next payday: Aug 28");
 });
 
 test("loaded saved obligations are collapsed until one is selected for editing", () => {
@@ -140,7 +147,14 @@ test("incomplete defaults never present zero as confidently safe", () => {
   });
 
   assert.equal(view.amountLabel, "Not available yet");
-  assert.equal(view.confidenceLabel, "Incomplete");
+  assert.equal(
+    view.confidenceLabel,
+    "Some upcoming costs are still unknown.",
+  );
+  assert.equal(
+    view.decisionLabel,
+    "Complete your plan to see what is safe to spend.",
+  );
   assert.equal(view.incomplete, true);
   assert.notEqual(view.amountLabel, "$0.00");
 });
@@ -233,7 +247,7 @@ test("confirmed obligation payload includes every required field", () => {
   });
 });
 
-test("estimated obligation requires amount and date and displays estimate confidence", () => {
+test("estimated obligation requires amount and date and uses plain-language result wording", () => {
   const form = createPlanningForm(savedPlanning);
   form.obligations = [
     createEmptyObligation({ certainty: "estimated", name: "Hydro" }),
@@ -246,8 +260,16 @@ test("estimated obligation requires amount and date and displays estimate confid
   assert.equal(
     buildSafeToSpendViewModel({ ...safeToSpend, confidence: "estimated" })
       .confidenceLabel,
-    "Includes estimates",
+    "Includes estimated amounts",
   );
+});
+
+test("certainty choices map plain language to the existing backend values", () => {
+  assert.deepEqual(PLANNING_CERTAINTIES, [
+    { value: "confirmed", label: "Exact amount" },
+    { value: "estimated", label: "Estimate" },
+    { value: "unknown", label: "I don't know the amount yet" },
+  ]);
 });
 
 test("unknown obligation can omit amount and date without changing certainty", () => {
@@ -306,6 +328,20 @@ test("negative Safe-to-Spend is formatted without clamping", () => {
   });
 
   assert.equal(view.amountLabel, "-$150.00");
+  assert.equal(view.decisionLabel, "You're short $150.00 before payday");
+});
+
+test("zero Safe-to-Spend explains that no uncommitted money remains", () => {
+  const view = buildSafeToSpendViewModel({
+    ...safeToSpend,
+    safeToSpend: 0,
+  });
+
+  assert.equal(
+    view.decisionLabel,
+    "You have no uncommitted money before payday",
+  );
+  assert.equal(view.amountLabel, "$0.00");
 });
 
 test("structured backend warning remains visible in the view model", () => {
@@ -341,6 +377,40 @@ test("after-payday obligation exposes its exclusion reason", () => {
   assert.equal(view.breakdown.obligations[0].status.label, "After next payday");
 });
 
+test("backend inclusion data separates current payments from later payments", () => {
+  const laterId = "507f1f77bcf86cd799439098";
+  const later = {
+    id: laterId,
+    name: "Amex",
+    amount: 800,
+    dueDate: "2026-09-10",
+    certainty: "confirmed",
+    category: "credit_card",
+    included: false,
+    exclusionReason: "AFTER_NEXT_PAYDAY",
+  };
+  const view = buildSafeToSpendViewModel({
+    ...safeToSpend,
+    breakdown: {
+      ...safeToSpend.breakdown,
+      obligations: [...safeToSpend.breakdown.obligations, later],
+    },
+  });
+
+  assert.deepEqual(
+    view.breakdown.includedObligations.map((item) => item.id),
+    [obligationId],
+  );
+  assert.deepEqual(
+    view.breakdown.laterObligations.map((item) => item.id),
+    [laterId],
+  );
+  assert.equal(
+    view.breakdown.includedObligations.some((item) => item.id === laterId),
+    false,
+  );
+});
+
 test("compact obligation summaries use backend overdue and after-payday states", () => {
   const form = createPlanningForm(savedPlanning);
   form.obligations[0].amount = "75";
@@ -359,6 +429,7 @@ test("compact obligation summaries use backend overdue and after-payday states",
     },
   };
   const overdue = buildObligationSummary(form.obligations[0], overdueResult);
+  const beforePayday = buildObligationSummary(form.obligations[0], safeToSpend);
   const afterPayday = buildObligationSummary(form.obligations[0], {
     ...safeToSpend,
     breakdown: {
@@ -375,9 +446,21 @@ test("compact obligation summaries use backend overdue and after-payday states",
 
   assert.equal(overdue.status.label, "Overdue · Included");
   assert.equal(afterPayday.status.label, "After next payday");
+  assert.equal(
+    getCompactPaymentStatus(overdue.status),
+    "Overdue · before payday",
+  );
+  assert.equal(
+    getCompactPaymentStatus(beforePayday.status),
+    "Before payday",
+  );
+  assert.equal(
+    getCompactPaymentStatus(afterPayday.status),
+    "After next payday",
+  );
   assert.equal(overdue.amountLabel, "$75.00");
   assert.match(overdue.dueDateLabel, /Aug 21/);
-  assert.equal(overdue.certaintyLabel, "Confirmed");
+  assert.equal(overdue.certaintyLabel, "Exact amount");
 });
 
 test("included obligation before horizon start is identified as overdue", () => {
@@ -447,7 +530,7 @@ test("Planning route and navigation remain protected and discoverable", () => {
   assert.match(sidebarSource, /label: "Plan", to: "\/planning"/);
 });
 
-test("Planning polish uses compact controls, payday wording, and responsive wrapping", () => {
+test("decision UX keeps compact editing while simplifying labels and secondary fields", () => {
   const pageSource = readFileSync(
     new URL("../src/pages/Planning.jsx", import.meta.url),
     "utf8",
@@ -466,7 +549,23 @@ test("Planning polish uses compact controls, payday wording, and responsive wrap
   assert.match(editorSource, />\s*Edit\s*</);
   assert.match(editorSource, />\s*Done editing\s*</);
   assert.match(editorSource, /flex-wrap/);
-  assert.match(resultSource, /Due before payday/);
-  assert.match(resultSource, /What's due/);
-  assert.doesNotMatch(resultSource, />Included obligations</);
+  assert.match(editorSource, /What is it\?/);
+  assert.match(editorSource, /How much\?/);
+  assert.match(editorSource, /When is it due\?/);
+  assert.match(editorSource, /How certain is the amount\?/);
+  assert.match(editorSource, /<details[\s\S]*?>[\s\S]*?More options/);
+  assert.match(editorSource, /Category/);
+  assert.match(editorSource, /Note \(optional\)/);
+  assert.match(pageSource, /How much money do you have now\?/);
+  assert.match(pageSource, /When is your next payday\?/);
+  assert.match(pageSource, /Keep for everyday use/);
+  assert.match(pageSource, /What payments are coming up\?/);
+  assert.match(resultSource, /Money you have now/);
+  assert.match(resultSource, /Needs paying/);
+  assert.match(resultSource, /Keep for everyday use/);
+  assert.match(resultSource, /Safe to spend/);
+  assert.match(resultSource, /Needs paying before payday/);
+  assert.match(resultSource, /Later — after next payday/);
+  assert.match(resultSource, /<details/);
+  assert.doesNotMatch(resultSource, /High confidence/);
 });
