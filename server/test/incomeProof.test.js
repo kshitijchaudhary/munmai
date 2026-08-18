@@ -14,8 +14,9 @@ const [
   { default: jwt },
   { default: Income },
   { default: Expense },
+  { default: Planning },
   { default: User },
-  { deleteAccount },
+  { deleteAccount, exportUserData },
   { default: incomeRoutes },
   { default: expenseRoutes },
   { errorHandler },
@@ -25,6 +26,7 @@ const [
   import("jsonwebtoken"),
   import("../models/Income.js"),
   import("../models/Expense.js"),
+  import("../models/Planning.js"),
   import("../models/User.js"),
   import("../controllers/authController.js"),
   import("../routes/incomeRoutes.js"),
@@ -94,12 +96,21 @@ const clearStoredFiles = async () => {
 
 const createControllerResponse = () => ({
   body: undefined,
+  headers: {},
   statusCode: 200,
+  setHeader(name, value) {
+    this.headers[name] = value;
+    return this;
+  },
   status(code) {
     this.statusCode = code;
     return this;
   },
   json(body) {
+    this.body = body;
+    return this;
+  },
+  send(body) {
     this.body = body;
     return this;
   },
@@ -381,6 +392,9 @@ test("account deletion cleans canonical files only after database deletion succe
     incomeDeleted = true;
   });
   t.mock.method(Expense, "deleteMany", async () => undefined);
+  t.mock.method(Planning, "deleteMany", async (filter) => {
+    assert.deepEqual(filter, { user: userId });
+  });
   t.mock.method(User, "findByIdAndDelete", async () => undefined);
 
   const res = createControllerResponse();
@@ -389,6 +403,47 @@ test("account deletion cleans canonical files only after database deletion succe
   assert.equal(res.statusCode, 200);
   assert.equal(incomeDeleted, true);
   assert.equal(existsSync(path.join(uploadDir, fileName)), false);
+});
+
+test("account export includes only the authenticated user's Planning data", async (t) => {
+  const planning = {
+    currentCash: 500,
+    currency: "CAD",
+    essentialBuffer: 100,
+    nextPayday: "2099-12-31",
+    obligations: [],
+    user: userId,
+  };
+  const emptySortedQuery = () => ({
+    sort() {
+      return this;
+    },
+    lean: async () => [],
+  });
+
+  t.mock.method(Income, "find", emptySortedQuery);
+  t.mock.method(Expense, "find", emptySortedQuery);
+  t.mock.method(Planning, "findOne", (filter) => {
+    assert.deepEqual(filter, { user: userId });
+    return { lean: async () => planning };
+  });
+
+  const res = createControllerResponse();
+  await exportUserData(
+    {
+      user: {
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        email: "owner@example.com",
+        id: userId,
+        name: "Owner",
+        username: "owner",
+      },
+    },
+    res,
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body).planning, planning);
 });
 
 test("proof retrieval uses canonical fileUrl and safe private download headers", async (t) => {

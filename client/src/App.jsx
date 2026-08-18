@@ -16,6 +16,7 @@ import MoneyTaxPack from "./pages/MoneyTaxPack";
 import ImportReview from "./pages/ImportReview";
 import MonthlySummary from "./pages/MonthlySummary";
 import OpeningBalance from "./pages/OpeningBalance";
+import Planning from "./pages/Planning";
 import Liabilities from "./pages/Liabilities";
 import Groups from "./pages/Groups";
 import GroupInvitations from "./pages/GroupInvitations";
@@ -102,6 +103,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MonthlySummary />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/planning"
+              element={
+                <ProtectedRoute>
+                  <Planning />
                 </ProtectedRoute>
               }
             />
