@@ -26,7 +26,13 @@ const ObligationRow = ({ item, showOverdue = false }) => (
   </li>
 );
 
-const SafeToSpendCard = ({ result, loading, error }) => {
+const SafeToSpendCard = ({
+  result,
+  loading,
+  error,
+  contextLabel = "Before payday",
+  contextNote = "",
+}) => {
   const view = buildSafeToSpendViewModel(result);
   const negative = Number(result?.safeToSpend) < 0;
 
@@ -37,8 +43,13 @@ const SafeToSpendCard = ({ result, loading, error }) => {
     >
       <div className="border-b border-slate-100 p-5 dark:border-slate-800 md:p-6">
         <p className="text-xs font-black uppercase tracking-widest text-indigo-600">
-          Before payday
+          {contextLabel}
         </p>
+        {contextNote && (
+          <p className="mt-2 text-xs font-semibold text-slate-500">
+            {contextNote}
+          </p>
+        )}
 
         {loading ? (
           <div className="py-8" aria-live="polite">
