@@ -2,24 +2,30 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  NextCyclePreviewValidationError,
   PLANNING_AMOUNT_TYPES,
   PLANNING_CADENCES,
   PLANNING_CERTAINTIES,
   addObligationForEditing,
+  buildNextCyclePreviewViewModel,
   buildObligationSummary,
   buildPlanningPayload,
   buildSafeToSpendViewModel,
   createEmptyObligation,
+  createPlanningFormFromPreview,
   createPlanningForm,
   createSubmissionGuard,
   getCompactPaymentStatus,
   getSaveOutcomeMessage,
   isObligationEditorOpen,
+  isPlanningFormDirty,
   loadPlanningExperience,
   removeObligation,
+  requestNextCyclePreview,
   savePlanningExperience,
   scheduleTransientClear,
   updateObligationRecurrence,
+  validateNextCyclePayday,
   validatePlanningForm,
 } from "../src/utils/planningPage.js";
 
@@ -70,6 +76,46 @@ const safeToSpend = {
     ],
   },
   warnings: [],
+};
+
+const nextCyclePreview = {
+  planning: {
+    currentCash: null,
+    currency: "CAD",
+    essentialBuffer: 25,
+    nextPayday: "2026-09-11",
+    obligations: [
+      {
+        name: "Car payment",
+        amount: 233,
+        dueDate: "2026-09-25",
+        certainty: "confirmed",
+        category: "bill",
+        note: "Loan",
+        recurring: true,
+        amountType: "fixed",
+        cadence: "monthly",
+      },
+      {
+        name: "Scotia",
+        amount: null,
+        dueDate: "2026-09-21",
+        certainty: "unknown",
+        category: "credit_card",
+        note: "Statement",
+        recurring: true,
+        amountType: "variable",
+        cadence: "monthly",
+      },
+    ],
+  },
+  warnings: [
+    {
+      code: "ROLLED_DATE_STILL_STALE",
+      obligationName: "Car payment",
+      message: "Review the next Car payment date before saving.",
+    },
+  ],
 };
 
 test("loads saved Planning fields and presents the backend result", async () => {
@@ -130,6 +176,116 @@ test("switching recurrence on requires choices and switching it off clears them"
   assert.equal(cleared.recurring, false);
   assert.equal(cleared.amountType, "");
   assert.equal(cleared.cadence, "");
+});
+
+test("next-cycle payday validation is strict and requires a later cycle", () => {
+  const options = { currentPayday: NEXT_PAYDAY, today: TODAY };
+
+  assert.equal(validateNextCyclePayday("2026-09-11", options), "");
+  assert.match(validateNextCyclePayday("", options), /Choose/);
+  assert.match(validateNextCyclePayday("2026-9-11", options), /valid/);
+  assert.match(validateNextCyclePayday("2026-02-30", options), /valid/);
+  assert.match(validateNextCyclePayday("2026-08-16", options), /today/);
+  assert.match(validateNextCyclePayday(NEXT_PAYDAY, options), /after/);
+});
+
+test("requesting a preview calls only the preview API and never persists", async () => {
+  const calls = [];
+  const preview = await requestNextCyclePreview(
+    "2026-09-11",
+    {
+      prepareNextPlanningCycle: async (nextPayday) => {
+        calls.push(["preview", nextPayday]);
+        return nextCyclePreview;
+      },
+      updatePlanning: async () => calls.push(["update"]),
+    },
+    { currentPayday: NEXT_PAYDAY, today: TODAY },
+  );
+
+  assert.equal(preview, nextCyclePreview);
+  assert.deepEqual(calls, [["preview", "2026-09-11"]]);
+});
+
+test("invalid next-cycle payday is rejected before an API request", async () => {
+  let calls = 0;
+
+  await assert.rejects(
+    requestNextCyclePreview(
+      NEXT_PAYDAY,
+      { prepareNextPlanningCycle: async () => (calls += 1) },
+      { currentPayday: NEXT_PAYDAY, today: TODAY },
+    ),
+    NextCyclePreviewValidationError,
+  );
+  assert.equal(calls, 0);
+});
+
+test("preview view shows fixed, variable, buffer, cash reset, and warnings", () => {
+  const view = buildNextCyclePreviewViewModel(nextCyclePreview);
+
+  assert.match(view.nextPaydayLabel, /Sep 11/);
+  assert.equal(view.essentialBufferLabel, "$25.00");
+  assert.match(view.currentCashLabel, /Not carried forward/);
+  assert.equal(view.obligations[0].name, "Car payment");
+  assert.equal(view.obligations[0].amountLabel, "$233.00");
+  assert.equal(view.obligations[0].recurrenceLabel, "Monthly · Same amount");
+  assert.equal(view.obligations[1].name, "Scotia");
+  assert.equal(view.obligations[1].amountLabel, "New amount needed");
+  assert.equal(view.obligations[1].newAmountNeeded, true);
+  assert.deepEqual(view.warnings, nextCyclePreview.warnings);
+});
+
+test("preview defensively omits one-off payments from review", () => {
+  const previewWithOneOff = structuredClone(nextCyclePreview);
+  previewWithOneOff.planning.obligations.push({
+    name: "Friend repayment",
+    recurring: false,
+  });
+  const view = buildNextCyclePreviewViewModel(previewWithOneOff);
+
+  assert.equal(
+    view.obligations.some((obligation) => obligation.name === "Friend repayment"),
+    false,
+  );
+});
+
+test("using a preview creates an unsaved form with blank cash and fresh IDs", () => {
+  const previewWithUnexpectedId = structuredClone(nextCyclePreview);
+  previewWithUnexpectedId.planning.obligations[0]._id = obligationId;
+  const form = createPlanningFormFromPreview(previewWithUnexpectedId);
+
+  assert.equal(form.currentCash, "");
+  assert.equal(form.nextPayday, "2026-09-11");
+  assert.equal(form.essentialBuffer, "25");
+  assert.equal(form.obligations[0]._id, undefined);
+  assert.equal(form.obligations[0].amount, "233");
+  assert.equal(form.obligations[0].certainty, "confirmed");
+  assert.equal(form.obligations[1].amount, "");
+  assert.equal(form.obligations[1].certainty, "unknown");
+  assert.notEqual(form.obligations[0].clientKey, form.obligations[1].clientKey);
+});
+
+test("preview creation does not mutate or replace the current local form", () => {
+  const current = createPlanningForm(savedPlanning);
+  current.currentCash = "777";
+  const before = structuredClone(current);
+
+  buildNextCyclePreviewViewModel(nextCyclePreview);
+
+  assert.deepEqual(current, before);
+  assert.equal(current.currentCash, "777");
+});
+
+test("dirty-state comparison protects unsaved current form changes", () => {
+  const saved = createPlanningForm(savedPlanning);
+  const unchanged = structuredClone(saved);
+  const edited = structuredClone(saved);
+  edited.currentCash = "875";
+
+  assert.equal(isPlanningFormDirty(unchanged, saved), false);
+  assert.equal(isPlanningFormDirty(edited, saved), true);
+  assert.equal(saved.currentCash, "500");
 });
 
 test("loaded saved obligations are collapsed until one is selected for editing", () => {
@@ -682,6 +838,43 @@ test("Planning route and navigation remain protected and discoverable", () => {
   assert.match(appSource, /path="\/planning"/);
   assert.match(appSource, /<ProtectedRoute>[\s\S]*?<Planning \/>[\s\S]*?<\/ProtectedRoute>/);
   assert.match(sidebarSource, /label: "Plan", to: "\/planning"/);
+});
+
+test("next-cycle UI keeps preview, acceptance, and persistence as explicit steps", () => {
+  const apiSource = readFileSync(
+    new URL("../src/api/planning.js", import.meta.url),
+    "utf8",
+  );
+  const pageSource = readFileSync(
+    new URL("../src/pages/Planning.jsx", import.meta.url),
+    "utf8",
+  );
+  const previewSource = readFileSync(
+    new URL(
+      "../src/components/planning/NextCyclePreview.jsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const resultSource = readFileSync(
+    new URL("../src/components/planning/SafeToSpendCard.jsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(apiSource, /post\("\/planning\/prepare-next-cycle"/);
+  assert.match(pageSource, /Prepare next payday plan/);
+  assert.match(pageSource, /requestNextCyclePreview/);
+  assert.match(pageSource, /createPlanningFormFromPreview/);
+  assert.match(pageSource, /isPlanningFormDirty/);
+  assert.match(pageSource, /Current saved plan/);
+  assert.match(pageSource, /savePlanningExperience\(form, planningApi\)/);
+  assert.match(previewSource, /<label[\s\S]*?New next payday/);
+  assert.match(previewSource, /type="date"/);
+  assert.match(previewSource, /type="button"[\s\S]*?Use this plan/);
+  assert.match(previewSource, /Replace unsaved changes/);
+  assert.match(previewSource, /Cancel preview/);
+  assert.match(previewSource, /obligation\.amountLabel/);
+  assert.match(resultSource, /contextLabel/);
 });
 
 test("decision UX keeps compact editing while simplifying labels and secondary fields", () => {

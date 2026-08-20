@@ -40,6 +40,13 @@ export class PlanningFormValidationError extends Error {
   }
 }
 
+export class NextCyclePreviewValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "NextCyclePreviewValidationError";
+  }
+}
+
 export const getTodayCalendarDate = (date = new Date()) =>
   [
     String(date.getUTCFullYear()).padStart(4, "0"),
@@ -167,6 +174,111 @@ export const createPlanningForm = (planningResponse) => {
 };
 
 export const createEmptyPlanningForm = () => createPlanningForm(null);
+
+export const validateNextCyclePayday = (
+  nextPayday,
+  { currentPayday = "", today = getTodayCalendarDate() } = {},
+) => {
+  if (!nextPayday) return "Choose the next payday for the new cycle.";
+  if (!isStrictCalendarDate(nextPayday)) return "Use a valid calendar date.";
+  if (nextPayday < today) return "Next payday must be today or later.";
+  if (isStrictCalendarDate(currentPayday) && nextPayday <= currentPayday) {
+    return "Choose a payday after the current planning cycle payday.";
+  }
+
+  return "";
+};
+
+export const requestNextCyclePreview = async (
+  nextPayday,
+  planningApi,
+  options,
+) => {
+  const error = validateNextCyclePayday(nextPayday, options);
+
+  if (error) throw new NextCyclePreviewValidationError(error);
+
+  return planningApi.prepareNextPlanningCycle(nextPayday);
+};
+
+export const createPlanningFormFromPreview = (preview) => {
+  const planning = preview?.planning || {};
+  const obligations = Array.isArray(planning.obligations)
+    ? planning.obligations.map(({ _id, ...obligation }) => {
+        void _id;
+        return obligation;
+      })
+    : [];
+  const form = createPlanningForm({
+    planning: {
+      ...planning,
+      currentCash: null,
+      obligations,
+    },
+  });
+
+  return { ...form, currentCash: "" };
+};
+
+const comparablePlanningForm = (form) => ({
+  currentCash: String(form?.currentCash ?? ""),
+  essentialBuffer: String(form?.essentialBuffer ?? ""),
+  nextPayday: String(form?.nextPayday ?? ""),
+  obligations: Array.isArray(form?.obligations)
+    ? form.obligations.map((obligation) => ({
+        _id: obligation._id ? String(obligation._id) : null,
+        amount: String(obligation.amount ?? ""),
+        amountType: String(obligation.amountType ?? ""),
+        cadence: String(obligation.cadence ?? ""),
+        category: String(obligation.category ?? ""),
+        certainty: String(obligation.certainty ?? ""),
+        dueDate: String(obligation.dueDate ?? ""),
+        name: String(obligation.name ?? ""),
+        note: String(obligation.note ?? ""),
+        recurring: obligation.recurring === true,
+      }))
+    : [],
+});
+
+export const isPlanningFormDirty = (form, savedForm) =>
+  savedForm
+    ? JSON.stringify(comparablePlanningForm(form)) !==
+      JSON.stringify(comparablePlanningForm(savedForm))
+    : false;
+
+export const buildNextCyclePreviewViewModel = (preview) => {
+  const planning = preview?.planning || {};
+  const obligations = Array.isArray(planning.obligations)
+    ? planning.obligations.filter((obligation) => obligation.recurring === true)
+    : [];
+
+  return {
+    currentCashLabel: "Not carried forward — enter your current amount after using this plan.",
+    essentialBufferLabel: formatCad(planning.essentialBuffer),
+    nextPaydayLabel: formatCalendarDate(planning.nextPayday),
+    obligations: obligations.map((obligation) => {
+      const cadence = PLANNING_CADENCES.find(
+        (item) => item.value === obligation.cadence,
+      )?.label;
+      const amountType = PLANNING_AMOUNT_TYPES.find(
+        (item) => item.value === obligation.amountType,
+      )?.label;
+      const newAmountNeeded = obligation.amountType === "variable";
+
+      return {
+        amountLabel: newAmountNeeded
+          ? "New amount needed"
+          : formatCad(obligation.amount, "Amount unknown"),
+        dueDateLabel: formatCalendarDate(obligation.dueDate),
+        name: obligation.name,
+        newAmountNeeded,
+        recurrenceLabel:
+          cadence && amountType ? `${cadence} · ${amountType}` : "Recurring",
+      };
+    }),
+    warnings: Array.isArray(preview?.warnings) ? preview.warnings : [],
+  };
+};
 
 const validateMoney = (value, { allowZero, required }) => {
   const normalized = String(value ?? "").trim();

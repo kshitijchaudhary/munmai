@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as planningApi from "../api/planning";
+import NextCyclePreview from "../components/planning/NextCyclePreview";
 import ObligationEditor from "../components/planning/ObligationEditor";
 import SafeToSpendCard from "../components/planning/SafeToSpendCard";
 import Sidebar from "../components/Sidebar";
 import {
   PlanningFormValidationError,
+  NextCyclePreviewValidationError,
   addObligationForEditing,
+  buildNextCyclePreviewViewModel,
   buildObligationSummary,
+  createPlanningFormFromPreview,
   createSubmissionGuard,
   createEmptyPlanningForm,
   findFirstInvalidObligationKey,
@@ -14,8 +18,10 @@ import {
   getSaveOutcomeMessage,
   getTodayCalendarDate,
   isObligationEditorOpen,
+  isPlanningFormDirty,
   loadPlanningExperience,
   removeObligation,
+  requestNextCyclePreview,
   savePlanningExperience,
   scheduleTransientClear,
   validatePlanningForm,
@@ -41,7 +47,16 @@ const Planning = () => {
   const [resultError, setResultError] = useState("");
   const [message, setMessage] = useState(null);
   const [editingObligationKey, setEditingObligationKey] = useState(null);
+  const [prepareNextCycleOpen, setPrepareNextCycleOpen] = useState(false);
+  const [nextCyclePayday, setNextCyclePayday] = useState("");
+  const [nextCyclePreview, setNextCyclePreview] = useState(null);
+  const [nextCycleError, setNextCycleError] = useState("");
+  const [preparingNextCycle, setPreparingNextCycle] = useState(false);
+  const [confirmPreviewReplacement, setConfirmPreviewReplacement] =
+    useState(false);
+  const [preparedPlanActive, setPreparedPlanActive] = useState(false);
   const savingGuardRef = useRef(createSubmissionGuard());
+  const savedFormRef = useRef(null);
   const successTimerRef = useRef(null);
 
   const cancelSuccessTimer = useCallback(() => {
@@ -71,9 +86,20 @@ const Planning = () => {
   const applyLoadedExperience = useCallback((loaded) => {
     if (loaded.form) {
       setForm(loaded.form);
+      savedFormRef.current = loaded.form;
       setEditingObligationKey(null);
+      setPrepareNextCycleOpen(false);
+      setNextCyclePreview(null);
     }
     if (loaded.safeToSpend) setSafeToSpend(loaded.safeToSpend);
+    if (
+      loaded.form &&
+      loaded.safeToSpend &&
+      !loaded.planningError &&
+      !loaded.safeToSpendError
+    ) {
+      setPreparedPlanActive(false);
+    }
 
     setLoadError(
       loaded.planningError
@@ -147,6 +173,71 @@ const Planning = () => {
     clearTransientSuccess();
   };
 
+  const cancelNextCyclePreview = () => {
+    setPrepareNextCycleOpen(false);
+    setNextCyclePayday("");
+    setNextCyclePreview(null);
+    setNextCycleError("");
+    setConfirmPreviewReplacement(false);
+  };
+
+  const handleStartNextCyclePreview = () => {
+    setPrepareNextCycleOpen(true);
+    setNextCyclePayday("");
+    setNextCyclePreview(null);
+    setNextCycleError("");
+    setConfirmPreviewReplacement(false);
+    clearTransientSuccess();
+  };
+
+  const handleRequestNextCyclePreview = async (event) => {
+    event.preventDefault();
+    setPreparingNextCycle(true);
+    setNextCycleError("");
+    setConfirmPreviewReplacement(false);
+
+    try {
+      const preview = await requestNextCyclePreview(
+        nextCyclePayday,
+        planningApi,
+        { currentPayday: savedFormRef.current?.nextPayday },
+      );
+      setNextCyclePreview(preview);
+    } catch (error) {
+      setNextCycleError(
+        error instanceof NextCyclePreviewValidationError
+          ? error.message
+          : getApiErrorMessage(error, "Could not prepare the next plan."),
+      );
+    } finally {
+      setPreparingNextCycle(false);
+    }
+  };
+
+  const applyNextCyclePreview = () => {
+    const preparedForm = createPlanningFormFromPreview(nextCyclePreview);
+    setForm(preparedForm);
+    setFormErrors({ obligations: [] });
+    setEditingObligationKey(null);
+    setPreparedPlanActive(true);
+    cancelNextCyclePreview();
+    setMessage({
+      type: "info",
+      text: "Prepared plan ready. Enter your current cash, review payment details, then save the plan.",
+    });
+  };
+
+  const formDirty = isPlanningFormDirty(form, savedFormRef.current);
+
+  const handleUseNextCyclePreview = () => {
+    if (formDirty) {
+      setConfirmPreviewReplacement(true);
+      return;
+    }
+
+    applyNextCyclePreview();
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -201,7 +292,12 @@ const Planning = () => {
     }
   };
 
-  const disabled = loading || saving;
+  const disabled = loading || saving || preparingNextCycle;
+  const previewView = nextCyclePreview
+    ? buildNextCyclePreviewViewModel(nextCyclePreview)
+    : null;
+  const showingCurrentResultContext =
+    prepareNextCycleOpen || preparedPlanActive;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -232,7 +328,9 @@ const Planning = () => {
             className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-semibold ${
               message.type === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-rose-200 bg-rose-50 text-rose-800"
+                : message.type === "info"
+                  ? "border-indigo-200 bg-indigo-50 text-indigo-900"
+                  : "border-rose-200 bg-rose-50 text-rose-800"
             }`}
           >
             {message.text}
@@ -245,10 +343,61 @@ const Planning = () => {
               result={safeToSpend}
               loading={loading}
               error={resultError}
+              contextLabel={
+                preparedPlanActive
+                  ? "Previous saved result"
+                  : showingCurrentResultContext
+                    ? "Current saved plan"
+                    : "Before payday"
+              }
+              contextNote={
+                preparedPlanActive
+                  ? "This result does not yet reflect the prepared plan."
+                  : prepareNextCycleOpen
+                    ? "This result belongs to the current saved plan, not the preview."
+                    : ""
+              }
             />
           </div>
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-6">
+          <div className="space-y-6">
+            {!prepareNextCycleOpen && !preparedPlanActive && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleStartNextCyclePreview}
+                  disabled={disabled}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  Prepare next payday plan
+                </button>
+              </div>
+            )}
+
+            {prepareNextCycleOpen && (
+              <NextCyclePreview
+                confirmReplacement={confirmPreviewReplacement}
+                dirty={formDirty}
+                disabled={disabled}
+                error={nextCycleError}
+                minPayday={getTodayCalendarDate()}
+                nextPayday={nextCyclePayday}
+                onCancel={cancelNextCyclePreview}
+                onChangePayday={(value) => {
+                  setNextCyclePayday(value);
+                  setNextCycleError("");
+                }}
+                onConfirmReplacement={applyNextCyclePreview}
+                onKeepCurrent={cancelNextCyclePreview}
+                onRequestPreview={handleRequestNextCyclePreview}
+                onUsePreview={handleUseNextCyclePreview}
+                preparing={preparingNextCycle}
+                preview={nextCyclePreview}
+                view={previewView}
+              />
+            )}
+
+            <form onSubmit={handleSubmit} noValidate className="space-y-6">
             <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 md:p-6">
               <div>
                 <h2 className="text-xl font-black text-slate-900">Your payday plan</h2>
@@ -385,7 +534,8 @@ const Planning = () => {
                 {saving ? "Saving plan..." : "Save plan"}
               </button>
             </div>
-          </form>
+            </form>
+          </div>
         </div>
       </main>
     </div>
