@@ -2,6 +2,121 @@
 
 All notable Munmai release changes are documented here.
 
+## Unreleased — Safe-to-Spend Planning
+
+### Added
+
+- **Safe-to-Spend Planning v0:** Added one private manual payday plan per user,
+  including money available now, next payday, an everyday-use buffer, and
+  confirmed, estimated, or unknown obligations.
+- **Safe-to-Spend result:** Added a backend-derived result with an explanation
+  of included payments, later payments, retained buffer, confidence, and
+  warnings.
+- **Recurring planning obligations:** Added one-off or recurring metadata,
+  fixed or variable amount behavior, and weekly, biweekly, or monthly cadence.
+- **Explicit next-cycle preview:** Added an authenticated, read-only preview
+  that carries recurring payment structure into a user-supplied next payday.
+
+### Improved
+
+- Reworked the web Planning page around an answer-first Safe-to-Spend result,
+  compact payment cards, one active editor, progressive disclosure, and clear
+  before-payday, overdue, and later-payment context.
+- Added an explicit Prepare → Preview → Use → Edit → Save flow. A preview does
+  not replace local or persisted Planning state without further user action.
+
+### Safety Notes
+
+- Safe-to-Spend preserves negative results, does not fabricate unknown costs,
+  and does not treat recurring metadata as current-cycle arithmetic input.
+- Current cash never carries into a prepared cycle. Variable recurring amounts
+  reset to unknown, one-off obligations are excluded, and embedded obligation
+  IDs are not reused.
+- Overdue obligations remain in the current saved plan. There is no automatic
+  payday inference, rollover, future-instance generation, or background job.
+- Planning and next-cycle previews remain authenticated and owner-scoped.
+
+### Scope Notes
+
+- Safe-to-Spend Planning is implemented in the API and web client. A native
+  mobile Planning UI is not currently implemented.
+
+## v2.2.0 — Munmai Mobile Foundation
+
+### Added
+
+- Expo mobile application foundation with initial app shell, routes, and assets.
+
+### Notes
+
+- Native mobile Planning UI is not included.
+
+## v2.1.5 — Documentation Alignment
+
+### Improved
+
+- Documented receipt upload guardrails and environment configuration.
+
+## v2.1.4 — Stale Dashboard Session Recovery
+
+### Fixed
+
+- Recover stale dashboard sessions after token expiry.
+- Skip telemetry events when unauthenticated.
+
+## v2.1.3 — Receipt Upload Guardrails
+
+### Added
+
+- Receipt upload guardrails and daily upload limit in Receipt Inbox.
+
+## v2.1.2 — Daily Dashboard Polish
+
+### Improved
+
+- Reduced dashboard copy noise and tightened layout.
+- Hide monthly control details by default.
+
+## v2.1.1 — Munmai Branding Cleanup
+
+### Fixed
+
+- Removed old Finvexa branding residue from documentation and backup script.
+
+## v2.1.0 — Simple Daily Workflow
+
+### Improved
+
+- Simplified dashboard daily workflow and add-transaction modal.
+- Added dashboard receipt upload entry point.
+- Regrouped sidebar by workflow.
+
+## v2.0.3 — Group Workflow UX Polish
+
+### Improved
+
+- Simplified Groups sidebar entry and made Groups page a group hub.
+- Compact group join code display.
+
+## v2.0.2 — Navigation and Demo UX Polish
+
+### Notes
+
+- Re-tagged v2.0.1 with no additional changes.
+
+## v2.0.1 — Navigation and Demo UX Polish
+
+### Improved
+
+- Polished v2 navigation and dashboard actions.
+- Surfaced group join code in summary.
+
+## v2.0.0 — Phase 2 Stable
+
+### Improved
+
+- Updated README, architecture, demo flow, and screenshots for v2 stabilization.
+- Added v2 smoke test results and checklist.
 
 ## v1.9.0 — Receipt Inbox Prototype
 

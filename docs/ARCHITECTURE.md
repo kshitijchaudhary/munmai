@@ -76,6 +76,61 @@ Dashboard and tax-pack endpoints aggregate personal and shared records for the
 current user. The web client additionally exposes imports, budgets, liabilities,
 opening balances, monthly review, receipts, and tax-oriented CSV/PDF exports.
 
+## Planning and Safe-to-Spend
+
+Planning is a private, owner-scoped projection for near-term decisions. Each
+user can have one `Planning` document with embedded obligations. It is separate
+from historical `Income` and `Expense` records: Planning does not reinterpret
+`PersonalOpeningBalance` as current cash, and it does not treat `Settlement`
+records as debt. The user supplies current cash explicitly.
+
+The Planning document stores dollar amounts as JavaScript/Mongoose `Number`
+values, consistent with the current persistence model. Safe-to-Spend converts
+validated amounts to integer cents for calculation and converts the result back
+to dollars for the API response. The derived result is never persisted.
+
+Planning and obligation dates use strict `YYYY-MM-DD` calendar semantics.
+Schema validation enforces valid calendar shape; incoming saved plans also
+require a next payday of today or later. Obligations distinguish confirmed,
+estimated, and unknown information. Unknown amounts are not fabricated.
+
+Recurring metadata lives on each embedded obligation:
+
+- `recurring` distinguishes one-off and repeating payments;
+- `amountType` is `fixed` or `variable` for recurring payments;
+- `cadence` is `weekly`, `biweekly`, or `monthly`.
+
+This metadata does not change current-cycle Safe-to-Spend arithmetic.
+`server/services/planningRecurrenceService.js` separately prepares one-step
+next-cycle previews; recurrence logic does not live in
+`safeToSpendService.js`.
+
+### Planning API
+
+All Planning routes require JWT authentication and scope database access to the
+authenticated user.
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /api/planning` | Returns the user's saved Planning document, or the empty Planning defaults when none exists. |
+| `PUT /api/planning` | Validates and fully replaces/upserts the authenticated user's single Planning document. This remains the only Planning persistence path. |
+| `GET /api/planning/safe-to-spend` | Derives the current result, breakdown, confidence, and warnings from saved Planning state without persisting the result. |
+| `POST /api/planning/prepare-next-cycle` | Returns 409 when no current Planning record exists; otherwise returns a read-only next-cycle preview for a user-supplied payday and persists nothing. |
+
+The user-supplied preview payday must be today or later and after the saved
+cycle's payday. The preview resets `currentCash`, carries `essentialBuffer`,
+excludes one-off obligations, preserves fixed recurring amounts and certainty,
+and resets variable recurring amounts to `null`/`unknown`. It advances each
+carried due date by exactly one cadence interval, warns when that date is still
+stale, and omits prior embedded obligation IDs. The current saved plan remains
+unchanged until the user reviews the preview and submits it through the existing
+`PUT /api/planning` route.
+
+Safe-to-Spend Planning currently has a web UI at `/planning`; a native mobile
+Planning screen is not implemented.
+
+Planning is included in authenticated account export and account deletion.
+
 ## Activity feed
 
 `GET /api/activity` returns one sorted event array containing:
@@ -126,8 +181,9 @@ See [FINANCIAL_INTEGRITY.md](FINANCIAL_INTEGRITY.md).
 
 The React Router SPA includes public login, registration, forgot/reset password,
 privacy, terms, and storage-information routes. Protected routes cover
-dashboard, money transactions/receipts/tax pack, imports, monthly summary,
-opening balance, debt, Spaces, invitations, profile, and settings.
+dashboard, Planning and Safe-to-Spend, money transactions/receipts/tax pack,
+imports, monthly summary, opening balance, debt, Spaces, invitations, profile,
+and settings.
 
 Vercel rewrites all SPA paths to `index.html`.
 

@@ -33,9 +33,14 @@ daily path.
 
 ## Experience principles
 
+- **Lead with the answer.** Decision surfaces should present the useful answer
+  first, then make the inputs and explanation easy to inspect or change.
 - **Capture first.** Recording what just happened should be fast and obvious.
 - **Show meaning, not raw accounting.** Prefer contextual language and one
-  meaningful priority over equal-weight metric grids.
+  meaningful priority over equal-weight metric grids. Use plain language in the
+  interface instead of exposing internal domain-model terminology.
+- **Explain consequential numbers.** A recommendation should show the inputs,
+  inclusions, exclusions, and uncertainty that produced it.
 - **Keep the interface calm.** Avoid turning ordinary money tracking into
   administrative work.
 - **Make shared money human.** Spaces should explain people, contributions,
@@ -45,7 +50,13 @@ daily path.
 - **Use progressive disclosure.** Capture the minimum useful record first and
   expose optional organization when it is relevant.
 - **Preserve review before commit.** Imported financial data should be reviewed
-  before it creates personal records.
+  before it creates personal records. A prepared planning cycle likewise stays
+  a preview until the user explicitly accepts and saves it.
+- **Prefer manual control before automation.** Current cash, payday changes,
+  and planning-cycle transitions should remain explicit until automated
+  behavior can preserve the same correctness and review safeguards.
+- **Keep saved state and previews distinct.** The current plan, a next-cycle
+  preview, and unsaved edits must never be presented as the same state.
 - **Prefer trustworthy records over speculative automation.** OCR, AI
   classification, and bank sync remain deferred until their lifecycle,
   correction, privacy, and failure behavior can be supported responsibly.
@@ -63,3 +74,9 @@ The five mobile destinations reflect these principles:
 
 This document describes product intent, not a promise that every proposed
 future capability is implemented.
+
+## Known UX follow-up
+
+Next-cycle preparation is functionally correct but still more complex than
+ideal. Future polish should simplify the Prepare → Preview → Use → Edit → Save
+flow without weakening financial safeguards.

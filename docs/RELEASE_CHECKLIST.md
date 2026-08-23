@@ -26,6 +26,8 @@
 - SPA refresh works on public, protected, Space, and reset-password routes.
 - Registration, verification, login, session expiry, reset, and logout work.
 - Personal transactions, receipts, imports, reports, and shared workflows have smoke coverage.
+- Planning smoke coverage includes manual save, Safe-to-Spend explanation,
+  recurring metadata, and the read-only next-cycle preview/use flow.
 
 ## Mobile
 
