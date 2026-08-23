@@ -34,6 +34,39 @@ defense in depth.
 Mobile form models mirror the same minimum, precision, maximum, and error copy
 for immediate feedback, while the backend remains authoritative.
 
+## Planning and Safe-to-Spend invariants
+
+Planning amounts use the existing dollar `Number` persistence model and
+Planning-specific canonical validation. Safe-to-Spend performs its arithmetic
+in integer cents so included obligations and the everyday-use buffer subtract
+without floating-point accumulation drift.
+
+The current-cycle calculation follows these invariants:
+
+- credit limits are never treated as available cash;
+- current cash comes only from the private Planning document supplied by the
+  user, not from opening balances or other inferred records;
+- unknown obligation amounts are not fabricated or silently included;
+- negative Safe-to-Spend results are preserved rather than clamped to zero;
+- recurring, amount-type, and cadence metadata do not alter current-cycle
+  arithmetic;
+- overdue obligations are not silently removed from the current plan.
+
+Next-cycle preparation is an authenticated, owner-scoped preview rather than a
+write. It cannot mutate the saved Planning document. One-off obligations are
+not carried, fixed recurring amounts retain their current value and certainty,
+and variable recurring amounts reset to `null` with `unknown` certainty. Current
+cash never carries forward automatically, while the everyday-use buffer does.
+Prior obligation IDs are not reused.
+
+Munmai does not infer the user's next payday, repeatedly skip missed recurrence
+intervals, or run rollover in a background job. The user supplies the next
+payday, reviews the preview, explicitly applies it to the local web form, and
+persists it only through the normal Planning PUT.
+
+Planning reads, writes, Safe-to-Spend calculation, preview preparation, account
+export, and account deletion are scoped to the authenticated user.
+
 ## Transaction dates
 
 Income and personal expense create/update endpoints validate calendar dates on

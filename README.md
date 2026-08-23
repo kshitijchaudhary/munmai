@@ -25,8 +25,25 @@ offline queues, and predictive financial advice are not current capabilities.
   sessions from SecureStore, sign out, and request password recovery.
 - Review dashboard and monthly summaries, budget pace, liabilities, receipt
   coverage, and tax-oriented exports on the web.
+- Build a private manual payday plan on the web and review a derived,
+  explainable Safe-to-Spend result before the next payday.
 - Preview and review CSV or text-based PDF statement imports before committing
   them, with duplicate detection, history, archive, and revert support.
+
+## Safe-to-Spend Planning (web)
+
+The web Planning experience lets a user enter the money available now, the next
+payday, an everyday-use buffer, and upcoming obligations. Obligations can be
+confirmed, estimated, or unknown so missing information is shown rather than
+fabricated. The result explains the money available, payments considered, the
+buffer retained, and the resulting Safe-to-Spend amount.
+
+Obligations may be one-off or recurring. Recurring payments record whether the
+amount is fixed or variable and whether they repeat weekly, every two weeks, or
+monthly. Preparing the next payday plan is an explicit preview-and-review flow:
+fixed amounts carry forward, variable amounts require a new value, current cash
+is never inferred, and nothing replaces the saved plan until the user submits
+the existing Save plan action. Native mobile Planning UI is not implemented.
 
 ## Repository structure
 
