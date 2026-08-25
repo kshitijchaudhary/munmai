@@ -11,6 +11,7 @@ export const PUBLIC_ROUTES = {
   analytics: '/analytics',
   account: '/more',
   groups: '/groups',
+  planning: '/planning',
   signIn: '/sign-in',
   forgotPassword: '/forgot-password',
   register: '/register',
@@ -39,6 +40,7 @@ export function shouldHideAuthenticatedTabBar(pathname: string): boolean {
 
   return (
     normalizedPath === PUBLIC_ROUTES.transactionForm ||
+    normalizedPath === PUBLIC_ROUTES.planning ||
     /^\/groups\/[^/]+\/(?:add-expense|settlements\/new)$/.test(normalizedPath)
   );
 }

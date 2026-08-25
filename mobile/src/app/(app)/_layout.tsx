@@ -162,6 +162,7 @@ export default function AuthenticatedTabsLayout() {
               }}
             />
             <Tabs.Screen name="more" options={{ href: null }} />
+            <Tabs.Screen name="planning" options={{ href: null }} />
           </Tabs>
         </View>
       </View>
