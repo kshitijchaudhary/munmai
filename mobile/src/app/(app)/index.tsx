@@ -21,6 +21,7 @@ import { ScreenContainer } from '@/components/screen-container';
 import { ScreenHeader } from '@/components/screen-header';
 import { TodayInsightCard } from '@/components/today-insight-card';
 import { TodayPulse } from '@/components/today-pulse';
+import { SurfaceCard } from '@/components/surface-card';
 import { colors } from '@/constants/theme';
 import { buildGroupRoute } from '@/groups/group-routes';
 import { PUBLIC_ROUTES } from '@/navigation/routes';
@@ -194,11 +195,37 @@ export default function DashboardScreen() {
           onPress={() => router.navigate(PUBLIC_ROUTES.transactions as Href)}
         />
       ) : null}
+
+      <Pressable
+        accessibilityHint="Opens your payday plan"
+        accessibilityRole="button"
+        onPress={() => router.push(PUBLIC_ROUTES.planning as Href)}
+        style={({ pressed }) => pressed && styles.planningEntryPressed}>
+        <SurfaceCard style={styles.planningEntry}>
+          <View style={styles.planningEntryCopy}>
+            <Text style={styles.planningEntryEyebrow}>Safe to Spend</Text>
+            <Text style={styles.planningEntryTitle}>Plan until payday</Text>
+            <Text style={styles.planningEntryText}>See what you can spend before payday.</Text>
+          </View>
+          <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.planningEntryArrow}>›</Text>
+        </SurfaceCard>
+      </Pressable>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  planningEntry: {
+    minHeight: 88,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  planningEntryPressed: { opacity: 0.76 },
+  planningEntryCopy: { minWidth: 0, flex: 1, gap: 3 },
+  planningEntryEyebrow: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, textTransform: 'uppercase' },
+  planningEntryTitle: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  planningEntryText: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  planningEntryArrow: { color: colors.accent, fontSize: 30, fontWeight: '600' },
   successBanner: {
     flexDirection: 'row',
     alignItems: 'center',
