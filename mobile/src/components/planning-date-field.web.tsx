@@ -8,6 +8,7 @@ import { formatCalendarDate, getTodayCalendarDate } from '@/planning/planning-mo
 interface PlanningDateFieldProps {
   allowClear?: boolean;
   disabled?: boolean;
+  embeddedIOS?: boolean;
   error?: string;
   label: string;
   minimumToday?: boolean;
