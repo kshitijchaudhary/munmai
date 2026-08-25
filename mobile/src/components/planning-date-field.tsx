@@ -9,6 +9,7 @@ import { dateValueToLocalNoon, formatCalendarDate, getTodayCalendarDate, localDa
 interface PlanningDateFieldProps {
   allowClear?: boolean;
   disabled?: boolean;
+  embeddedIOS?: boolean;
   error?: string;
   label: string;
   minimumToday?: boolean;
@@ -21,6 +22,7 @@ const todayAtNoon = () => dateValueToLocalNoon(getTodayCalendarDate()) ?? new Da
 export function PlanningDateField({
   allowClear = false,
   disabled = false,
+  embeddedIOS = false,
   error,
   label,
   minimumToday = false,
@@ -71,7 +73,18 @@ export function PlanningDateField({
       ) : null}
       {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
 
-      {Platform.OS === 'ios' ? (
+      {Platform.OS === 'ios' && embeddedIOS && pickerVisible ? (
+        <View style={styles.inlinePicker}>
+          <View style={styles.modalHeader}>
+            <Pressable accessibilityRole="button" onPress={() => setPickerVisible(false)} style={styles.modalAction}><Text style={styles.cancel}>Cancel</Text></Pressable>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <Pressable accessibilityRole="button" onPress={() => { onChange(localDateToValue(draftDate)); setPickerVisible(false); }} style={styles.modalAction}><Text style={styles.done}>Done</Text></Pressable>
+          </View>
+          <DateTimePicker display="inline" minimumDate={minimumToday ? todayAtNoon() : undefined} mode="date" onValueChange={(_event, date) => setDraftDate(date)} themeVariant="dark" value={draftDate} />
+        </View>
+      ) : null}
+
+      {Platform.OS === 'ios' && !embeddedIOS ? (
         <Modal animationType="fade" onRequestClose={() => setPickerVisible(false)} transparent visible={pickerVisible}>
           <View accessibilityViewIsModal style={styles.backdrop}>
             <View style={styles.modalCard}>
@@ -101,6 +114,7 @@ const styles = StyleSheet.create({
   clearButton: { minHeight: touchTargets.minimum, alignSelf: 'flex-start', justifyContent: 'center' },
   clearText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   error: { color: colors.expense, fontSize: 13, lineHeight: 18 },
+  inlinePicker: { overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3, 8, 20, 0.72)' },
   modalCard: { borderTopWidth: 1, borderColor: colors.border, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface, paddingBottom: 24 },
   modalHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingHorizontal: 12 },

@@ -95,6 +95,14 @@ export interface PlanningFormErrors {
   obligations: ObligationErrors[];
 }
 
+export type PaymentEditorSession =
+  | { draft: PlanningFormObligation; index: null; mode: 'add' }
+  | { draft: PlanningFormObligation; index: number; mode: 'edit' };
+
+export type PaymentEditorApplyResult =
+  | { applied: false; errors: ObligationErrors; form: PlanningForm }
+  | { applied: true; errors: ObligationErrors; form: PlanningForm };
+
 export interface PlanningApi {
   getPlanning(signal?: AbortSignal): Promise<PlanningResponse>;
   getSafeToSpend(signal?: AbortSignal): Promise<SafeToSpendResult>;
@@ -229,6 +237,21 @@ function validateMoney(value: string, allowZero: boolean, required: boolean): st
   return undefined;
 }
 
+export function validatePlanningObligation(item: PlanningFormObligation): ObligationErrors {
+  const known = item.certainty === 'confirmed' || item.certainty === 'estimated';
+  const errors: ObligationErrors = {};
+  if (!item.name.trim()) errors.name = 'Enter a payment name.';
+  else if (item.name.trim().length > 200) errors.name = 'Payment name cannot exceed 200 characters.';
+  const amountError = validateMoney(item.amount, false, known);
+  if (amountError) errors.amount = amountError;
+  if (known && !item.dueDate) errors.dueDate = 'Choose a due date.';
+  else if (item.dueDate && !isStrictCalendarDate(item.dueDate)) errors.dueDate = 'Use a valid calendar date.';
+  if (item.note.length > 500) errors.note = 'Note cannot exceed 500 characters.';
+  if (item.recurring && !item.amountType) errors.amountType = 'Choose whether the amount stays the same or changes.';
+  if (item.recurring && !item.cadence) errors.cadence = 'Choose how often this payment repeats.';
+  return errors;
+}
+
 export function validatePlanningForm(form: PlanningForm, today = getTodayCalendarDate()): { errors: PlanningFormErrors; valid: boolean } {
   const errors: PlanningFormErrors = {
     currentCash: validateMoney(form.currentCash, true, true),
@@ -239,20 +262,7 @@ export function validatePlanningForm(form: PlanningForm, today = getTodayCalenda
   else if (!isStrictCalendarDate(form.nextPayday)) errors.nextPayday = 'Use a valid calendar date.';
   else if (form.nextPayday < today) errors.nextPayday = 'Next payday must be today or later.';
 
-  form.obligations.forEach((item) => {
-    const known = item.certainty === 'confirmed' || item.certainty === 'estimated';
-    const itemErrors: ObligationErrors = {};
-    if (!item.name.trim()) itemErrors.name = 'Enter a payment name.';
-    else if (item.name.trim().length > 200) itemErrors.name = 'Payment name cannot exceed 200 characters.';
-    const amountError = validateMoney(item.amount, false, known);
-    if (amountError) itemErrors.amount = amountError;
-    if (known && !item.dueDate) itemErrors.dueDate = 'Choose a due date.';
-    else if (item.dueDate && !isStrictCalendarDate(item.dueDate)) itemErrors.dueDate = 'Use a valid calendar date.';
-    if (item.note.length > 500) itemErrors.note = 'Note cannot exceed 500 characters.';
-    if (item.recurring && !item.amountType) itemErrors.amountType = 'Choose whether the amount stays the same or changes.';
-    if (item.recurring && !item.cadence) itemErrors.cadence = 'Choose how often this payment repeats.';
-    errors.obligations.push(itemErrors);
-  });
+  form.obligations.forEach((item) => errors.obligations.push(validatePlanningObligation(item)));
 
   return {
     errors,
@@ -290,6 +300,50 @@ export function setObligationRecurring(item: PlanningFormObligation, recurring: 
 
 export function removeObligation(form: PlanningForm, clientKey: string): PlanningForm {
   return { ...form, obligations: form.obligations.filter((item) => item.clientKey !== clientKey) };
+}
+
+export function openNewPaymentEditor(): PaymentEditorSession {
+  return { draft: createEmptyObligation(), index: null, mode: 'add' };
+}
+
+export function openExistingPaymentEditor(form: PlanningForm, index: number): PaymentEditorSession | null {
+  const obligation = form.obligations[index];
+  return obligation ? { draft: { ...obligation }, index, mode: 'edit' } : null;
+}
+
+export function applyPaymentEditor(form: PlanningForm, session: PaymentEditorSession): PaymentEditorApplyResult {
+  const errors = validatePlanningObligation(session.draft);
+  if (Object.keys(errors).length > 0) return { applied: false, errors, form };
+
+  if (session.mode === 'add') {
+    return {
+      applied: true,
+      errors: {},
+      form: { ...form, obligations: [...form.obligations, { ...session.draft }] },
+    };
+  }
+
+  const original = form.obligations[session.index];
+  if (!original) return { applied: false, errors: { name: 'This payment is no longer available.' }, form };
+  const updated = {
+    ...session.draft,
+    _id: original._id,
+    clientKey: original.clientKey,
+  };
+  return {
+    applied: true,
+    errors: {},
+    form: {
+      ...form,
+      obligations: form.obligations.map((item, index) => index === session.index ? updated : item),
+    },
+  };
+}
+
+export function removePaymentEditor(form: PlanningForm, session: PaymentEditorSession): PlanningForm {
+  if (session.mode !== 'edit') return form;
+  const original = form.obligations[session.index];
+  return original ? removeObligation(form, original.clientKey) : form;
 }
 
 export function createSubmissionGuard() {
@@ -356,8 +410,8 @@ export function getBackendPaymentStatus(item: SafeToSpendObligation, horizonStar
 
 export const PAYMENT_STATUS_LABELS: Record<CompactPaymentStatus, string> = {
   before: 'Before payday',
-  overdue: 'Overdue · before payday',
-  later: 'After next payday',
+  overdue: 'Overdue',
+  later: 'After payday',
   details: 'Needs details',
 };
 
@@ -371,5 +425,6 @@ export function getRecurrenceLabel(item: Pick<PlanningFormObligation, 'recurring
   if (!item.recurring || !item.amountType || !item.cadence) return null;
   const cadence = CADENCE_OPTIONS.find((option) => option.value === item.cadence)?.label;
   const amountType = AMOUNT_TYPE_OPTIONS.find((option) => option.value === item.amountType)?.label;
-  return cadence && amountType ? `${cadence} · ${amountType}` : null;
+  if (!cadence || !amountType) return null;
+  return item.amountType === 'variable' ? `${cadence} · ${amountType}` : cadence;
 }

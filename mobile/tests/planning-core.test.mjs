@@ -5,6 +5,7 @@ import test from 'node:test';
 import { createPlanningApi } from '../src/planning/planning-api-adapter.ts';
 import {
   PAYMENT_STATUS_LABELS,
+  applyPaymentEditor,
   buildPlanningPayload,
   createEmptyObligation,
   createPlanningForm,
@@ -15,7 +16,9 @@ import {
   getRecurrenceLabel,
   getSafeToSpendBreakdown,
   loadPlanningExperience,
-  removeObligation,
+  openExistingPaymentEditor,
+  openNewPaymentEditor,
+  removePaymentEditor,
   savePlanningExperience,
   setObligationRecurring,
   validatePlanningForm,
@@ -196,10 +199,90 @@ test('existing IDs are preserved and new payments do not fabricate backend IDs',
   assert.equal('_id' in payload.obligations[1], false);
 });
 
-test('removing a payment excludes it from the full replacement PUT payload', () => {
+test('Add Payment opens a focused new-payment draft without adding to the form', () => {
   const form = validForm();
-  const removed = removeObligation(form, form.obligations[0].clientKey);
+  const editor = openNewPaymentEditor();
+  assert.equal(editor.mode, 'add');
+  assert.equal(editor.index, null);
+  assert.equal(editor.draft.name, '');
+  assert.equal(form.obligations.length, 1);
+});
+
+test('new payment is added only after valid modal confirmation', () => {
+  const form = validForm();
+  const editor = openNewPaymentEditor();
+  editor.draft = { ...editor.draft, name: 'Hydro', amount: '80', dueDate: '2026-08-27' };
+  assert.equal(form.obligations.length, 1);
+  const applied = applyPaymentEditor(form, editor);
+  assert.equal(applied.applied, true);
+  assert.equal(applied.form.obligations.length, 2);
+  assert.equal(applied.form.obligations[1].name, 'Hydro');
+});
+
+test('invalid Add Payment remains a draft and reuses obligation validation errors', () => {
+  const form = validForm();
+  const editor = openNewPaymentEditor();
+  const applied = applyPaymentEditor(form, editor);
+  assert.equal(applied.applied, false);
+  assert.equal(applied.form, form);
+  assert.match(applied.errors.name, /payment name/i);
+  assert.match(applied.errors.amount, /Enter an amount/);
+  assert.match(applied.errors.dueDate, /Choose a due date/);
+});
+
+test('cancelling a new-payment draft leaves the form unchanged', () => {
+  const form = validForm();
+  const snapshot = structuredClone(form);
+  const editor = openNewPaymentEditor();
+  editor.draft.name = 'Discard me';
+  assert.deepEqual(form, snapshot);
+});
+
+test('Edit Payment opens a pre-filled independent draft', () => {
+  const form = validForm();
+  const editor = openExistingPaymentEditor(form, 0);
+  assert.equal(editor.mode, 'edit');
+  assert.equal(editor.index, 0);
+  assert.deepEqual(editor.draft, form.obligations[0]);
+  assert.notEqual(editor.draft, form.obligations[0]);
+});
+
+test('cancelling an edited draft preserves the original obligation', () => {
+  const form = validForm();
+  const snapshot = structuredClone(form.obligations[0]);
+  const editor = openExistingPaymentEditor(form, 0);
+  editor.draft.name = 'Changed only in draft';
+  editor.draft.amount = '999';
+  assert.deepEqual(form.obligations[0], snapshot);
+});
+
+test('Update Payment applies draft fields while preserving identity', () => {
+  const form = validForm();
+  const editor = openExistingPaymentEditor(form, 0);
+  editor.draft = {
+    ...editor.draft,
+    _id: '64a000000000000000000099',
+    clientKey: 'replaced-client-key',
+    name: 'Updated car payment',
+    amount: '240',
+  };
+  const applied = applyPaymentEditor(form, editor);
+  assert.equal(applied.applied, true);
+  assert.equal(applied.form.obligations[0].name, 'Updated car payment');
+  assert.equal(applied.form.obligations[0].amount, '240');
+  assert.equal(applied.form.obligations[0]._id, id);
+  assert.equal(applied.form.obligations[0].clientKey, form.obligations[0].clientKey);
+  assert.notEqual(applied.form, form);
+});
+
+test('edit-modal removal changes only local form state and excludes the payment from the next PUT payload', () => {
+  const form = validForm();
+  const snapshot = structuredClone(form);
+  const removed = removePaymentEditor(form, openExistingPaymentEditor(form, 0));
+  assert.deepEqual(form, snapshot);
+  assert.equal(removed.obligations.length, 0);
   assert.deepEqual(buildPlanningPayload(removed, '2026-08-23').obligations, []);
+  assert.equal(removePaymentEditor(form, openNewPaymentEditor()), form);
 });
 
 test('recurrence supports one-off, fixed, variable, cadence labels, and clearing metadata', () => {
@@ -209,7 +292,7 @@ test('recurrence supports one-off, fixed, variable, cadence labels, and clearing
   assert.equal(base.cadence, '');
   const fixed = { ...base, recurring: true, amountType: 'fixed', cadence: 'monthly' };
   const variable = { ...base, recurring: true, amountType: 'variable', cadence: 'biweekly' };
-  assert.equal(getRecurrenceLabel(fixed), 'Monthly · Same amount');
+  assert.equal(getRecurrenceLabel(fixed), 'Monthly');
   assert.equal(getRecurrenceLabel(variable), 'Every 2 weeks · Amount changes');
   assert.deepEqual(setObligationRecurring(fixed, false), { ...fixed, recurring: false, amountType: '', cadence: '' });
 });
@@ -220,7 +303,7 @@ test('backend-derived compact statuses cover before payday, overdue, later, and 
   assert.equal(getBackendPaymentStatus({ ...base, dueDate: '2026-08-22' }, '2026-08-23'), 'overdue');
   assert.equal(getBackendPaymentStatus({ ...base, included: false, exclusionReason: 'AFTER_NEXT_PAYDAY' }, '2026-08-23'), 'later');
   assert.equal(getBackendPaymentStatus({ ...base, included: false, exclusionReason: 'UNKNOWN_AMOUNT' }, '2026-08-23'), 'details');
-  assert.deepEqual(PAYMENT_STATUS_LABELS, { before: 'Before payday', overdue: 'Overdue · before payday', later: 'After next payday', details: 'Needs details' });
+  assert.deepEqual(PAYMENT_STATUS_LABELS, { before: 'Before payday', overdue: 'Overdue', later: 'After payday', details: 'Needs details' });
 });
 
 test('compact status matches saved IDs only and never infers inclusion for a new item', () => {
@@ -273,24 +356,92 @@ test('Planning is reachable from Today without changing the five tabs', () => {
   assert.match(layoutSource, /name="planning" options=\{\{ href: null \}\}/);
 });
 
-test('screen keeps explicit save, visible errors, transient success, one editor key, and Slice A scope', () => {
+test('screen keeps explicit save, visible errors, transient success, and Slice A scope', () => {
   const source = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
   assert.match(source, /Save plan/);
   assert.match(source, /Plan saved/);
   assert.match(source, /setTimeout[\s\S]*2500/);
   assert.match(source, /accessibilityLiveRegion/);
-  assert.match(source, /editingKey === item\.clientKey/);
-  assert.match(source, /Later — after next payday/);
+  assert.match(source, /<PaymentEditorModal/);
+  assert.match(source, /animationType="slide"/);
+  assert.match(source, /KeyboardAvoidingView/);
+  assert.match(source, /onRequestClose=\{onCancel\}/);
+  assert.match(source, /payments are'} after payday/);
+  assert.doesNotMatch(source, /Changes apply to this plan after confirmation\.|All changes are saved together\./);
   assert.doesNotMatch(source, /prepare-next-cycle|rollover|bank|notification|SafeToSpend.*[-+]/);
+});
+
+test('payments heading owns the only compact Add action', () => {
+  const source = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
+  const heading = source.indexOf('Upcoming payments');
+  const add = source.indexOf('<Text style={styles.addButtonText}>+ Add</Text>');
+  const list = source.indexOf('form.obligations.length === 0');
+  assert.ok(heading >= 0 && add > heading && list > add);
+  assert.equal(source.match(/<Text style=\{styles\.addButtonText\}>\+ Add<\/Text>/g)?.length, 1);
+  assert.doesNotMatch(source, />\+ Add Payment<\/Text>/);
+});
+
+test('the whole compact payment card opens editing without visible card actions', () => {
+  const source = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
+  const cardSource = source.slice(source.indexOf('function PaymentCard'), source.indexOf('const emptyErrors'));
+  assert.match(cardSource, /accessibilityHint="Opens payment details for editing"/);
+  assert.match(cardSource, /accessibilityRole="button"[\s\S]*onPress=\{onEdit\}/);
+  assert.match(cardSource, /styles\.paymentTopRow/);
+  assert.match(cardSource, /\{dueDate\} · \{status\}/);
+  assert.doesNotMatch(cardSource, />Edit<|>Remove</);
+});
+
+test('Remove Payment exists only in edit mode inside the payment modal', () => {
+  const source = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
+  const modalSource = source.slice(source.indexOf('function PaymentEditorModal'), source.indexOf('function PaymentCard'));
+  assert.match(modalSource, /\{!adding \? \([\s\S]*Remove Payment[\s\S]*\) : null\}/);
+  assert.equal(source.match(/>Remove Payment</g)?.length, 1);
+  assert.match(source, /onRemove=\{removeEditorPayment\}/);
+});
+
+test('certainty and recurrence details stay behind collapsed More options', () => {
+  const source = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
+  const editorSource = source.slice(source.indexOf('function PaymentEditor('), source.indexOf('function PaymentEditorModal'));
+  const collapsed = editorSource.indexOf('useState(false)');
+  const conditional = editorSource.indexOf('{moreOpen ? (');
+  const certainty = editorSource.indexOf('label="Amount certainty"');
+  const recurring = editorSource.indexOf('{item.recurring ? (');
+  const recurrenceDetails = editorSource.indexOf('label="Does the amount usually stay the same?"');
+  assert.ok(collapsed >= 0 && conditional > collapsed && certainty > conditional);
+  assert.ok(recurring > certainty && recurrenceDetails > recurring);
+});
+
+test('main Planning scroll never permanently renders the full payment editor', () => {
+  const source = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
+  const cardStart = source.indexOf('function PaymentCard');
+  const cardEnd = source.indexOf('const emptyErrors');
+  const cardSource = source.slice(cardStart, cardEnd);
+  assert.doesNotMatch(cardSource, /<PaymentEditor/);
+  assert.equal(source.match(/<PaymentEditor\b/g)?.length, 1);
+  assert.match(source, /label=\{adding \? 'Add Payment' : 'Update Payment'\}/);
 });
 
 test('compact mobile layout keeps long content wrapped and actions accessible', () => {
   const source = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
   const todaySource = readFileSync(new URL('../src/app/(app)/index.tsx', import.meta.url), 'utf8');
-  assert.match(source, /numberOfLines=\{2\}/);
+  assert.match(source, /numberOfLines=\{1\}/);
   assert.match(source, /flexWrap: 'wrap'/);
   assert.match(source, /minWidth: 0/);
   assert.match(source, /touchTargets\.minimum/);
   assert.match(source, /accessibilityRole="(?:button|radio)"/);
+  assert.match(source, /maxHeight: '94%'/);
+  assert.match(source, /keyboardShouldPersistTaps="handled"/);
+  assert.match(source, /paddingBottom: Math\.max\(insets\.bottom/);
   assert.match(todaySource, /accessibilityHint="Opens your payday plan"/);
+});
+
+test('payment-modal date editing avoids a nested iOS modal and preserves web input behavior', () => {
+  const screenSource = readFileSync(new URL('../src/screens/planning-screen.tsx', import.meta.url), 'utf8');
+  const nativeDateSource = readFileSync(new URL('../src/components/planning-date-field.tsx', import.meta.url), 'utf8');
+  const webDateSource = readFileSync(new URL('../src/components/planning-date-field.web.tsx', import.meta.url), 'utf8');
+  assert.match(screenSource, /<PlanningDateField[^>]*embeddedIOS/);
+  assert.match(nativeDateSource, /embeddedIOS && pickerVisible/);
+  assert.match(nativeDateSource, /display="inline"/);
+  assert.match(nativeDateSource, /Platform\.OS === 'ios' && !embeddedIOS/);
+  assert.match(webDateSource, /type="date"/);
 });
