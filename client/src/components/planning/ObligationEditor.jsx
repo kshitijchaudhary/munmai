@@ -41,6 +41,9 @@ const ObligationEditor = ({
   onEdit,
   onCollapse,
   onRemove,
+  newPayment = false,
+  onAddToPlan,
+  onCancelNew,
 }) => {
   const known =
     obligation.certainty === "confirmed" || obligation.certainty === "estimated";
@@ -106,16 +109,17 @@ const ObligationEditor = ({
 
   return (
     <fieldset className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-950/40 md:p-5">
-      <legend className="sr-only">Payment {index + 1}</legend>
+      <legend className="sr-only">{newPayment ? "New payment" : `Payment ${index + 1}`}</legend>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-            Payment {index + 1}
+            {newPayment ? "New payment" : `Payment ${index + 1}`}
           </p>
           {obligation._id && (
             <p className="mt-1 text-xs text-slate-400">Previously saved payment · use Save plan to keep edits</p>
           )}
         </div>
+        {!newPayment && (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
@@ -134,6 +138,7 @@ const ObligationEditor = ({
             Remove
           </button>
         </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -390,6 +395,13 @@ const ObligationEditor = ({
           </div>
         </details>
       </div>
+      {newPayment && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={onAddToPlan} disabled={disabled} className="min-h-11 rounded-xl bg-slate-900 px-4 py-2 font-bold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950">Add to plan</button>
+          <button type="button" onClick={onCancelNew} disabled={disabled} className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">Cancel</button>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Add this payment, then save your plan.</p>
+        </div>
+      )}
     </fieldset>
   );
 };
