@@ -7,7 +7,8 @@ import Sidebar from "../components/Sidebar";
 import {
   PlanningFormValidationError,
   NextCyclePreviewValidationError,
-  addObligationForEditing,
+  addPaymentDraftToPlan,
+  createEmptyObligation,
   buildNextCyclePreviewViewModel,
   buildObligationSummary,
   createPlanningFormFromPreview,
@@ -15,11 +16,12 @@ import {
   createEmptyPlanningForm,
   findFirstInvalidObligationKey,
   formatCad,
-  formatCalendarDate,
+  formatPlanDetailsDate,
   isStrictCalendarDate,
   getApiErrorMessage,
   getSaveOutcomeMessage,
   getTodayCalendarDate,
+  getPlanningChangeState,
   isObligationEditorOpen,
   isPlanningFormDirty,
   loadPlanningExperience,
@@ -45,6 +47,12 @@ const Planning = () => {
   const [form, setForm] = useState(createEmptyPlanningForm);
   const [planEditing, setPlanEditing] = useState(false);
   const [laterOpen, setLaterOpen] = useState(false);
+  const [newPayment, setNewPayment] = useState(null);
+  const [newPaymentErrors, setNewPaymentErrors] = useState({});
+  const [newPaymentMessage, setNewPaymentMessage] = useState("");
+  const newPaymentRef = useRef(null);
+  const addPaymentButtonRef = useRef(null);
+  const restoreAddPaymentFocusRef = useRef(false);
   const [formErrors, setFormErrors] = useState({ obligations: [] });
   const [safeToSpend, setSafeToSpend] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -175,11 +183,47 @@ const Planning = () => {
     clearTransientSuccess();
   };
 
+  const focusNewPayment = (field = 'name') => {
+    const input = newPaymentRef.current?.querySelector(`[id$="-${field}"]`);
+    input?.focus();
+    input?.scrollIntoView({ block: 'nearest' });
+  };
+  const newPaymentKey = newPayment?.clientKey;
+  useEffect(() => {
+    if (newPaymentKey) focusNewPayment();
+    else if (restoreAddPaymentFocusRef.current) {
+      restoreAddPaymentFocusRef.current = false;
+      addPaymentButtonRef.current?.focus();
+    }
+  }, [newPaymentKey]);
+  useEffect(() => {
+    const firstError = Object.keys(newPaymentErrors).find((field) => newPaymentErrors[field]);
+    if (firstError) focusNewPayment(firstError);
+  }, [newPaymentErrors]);
+
   const handleAddObligation = () => {
-    const added = addObligationForEditing(form);
-    setForm(added.form);
-    setEditingObligationKey(added.editingObligationKey);
+    setNewPayment((current) => current ?? createEmptyObligation());
+    focusNewPayment();
+    clearTransientSuccess();
+  };
+  const cancelNewPayment = () => {
+    restoreAddPaymentFocusRef.current = true;
+    setNewPayment(null);
+    setNewPaymentErrors({});
+    setNewPaymentMessage('');
+  };
+  const handleAddToPlan = () => {
+    const added = addPaymentDraftToPlan(form, newPayment);
+    if (!added.added) {
+      setNewPaymentErrors(added.errors);
+      setNewPaymentMessage('Complete the highlighted payment details.');
+      return;
+    }
+    // The duplicate-key guard also protects two clicks before the form closes.
+    setForm((current) => addPaymentDraftToPlan(current, newPayment).form);
     setFormErrors((current) => ({ ...current, obligations: [] }));
+    if (newPayment.dueDate > form.nextPayday) setLaterOpen(true);
+    cancelNewPayment();
     clearTransientSuccess();
   };
 
@@ -239,6 +283,7 @@ const Planning = () => {
   };
 
   const formDirty = isPlanningFormDirty(form, savedFormRef.current);
+  const { detailsDirty, paymentsDirty } = getPlanningChangeState(form, savedFormRef.current);
 
   const handleUseNextCyclePreview = () => {
     if (formDirty) {
@@ -252,6 +297,11 @@ const Planning = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (newPayment) {
+      setNewPaymentMessage('Add this payment to the plan or cancel it before saving.');
+      focusNewPayment();
+      return;
+    }
     if (!savingGuardRef.current.acquire()) return;
 
     cancelSuccessTimer();
@@ -318,7 +368,7 @@ const Planning = () => {
 
   const laterRows = orderedObligations.filter(({ obligation }) => isStrictCalendarDate(form.nextPayday) && isStrictCalendarDate(obligation.dueDate) && obligation.dueDate > form.nextPayday);
   const currentRows = orderedObligations.filter((row) => !laterRows.includes(row));
-  const editorActive = planEditing || formDirty || editingObligationKey !== null || preparedPlanActive;
+  const editorActive = planEditing || formDirty || editingObligationKey !== null || preparedPlanActive || newPayment !== null;
   const cancelEdits = () => {
     if (!savedFormRef.current) return;
     setForm(structuredClone(savedFormRef.current));
@@ -326,9 +376,24 @@ const Planning = () => {
     setEditingObligationKey(null);
     setPlanEditing(!savedFormRef.current.nextPayday);
     setPreparedPlanActive(false);
+    setNewPayment(null);
+    setNewPaymentErrors({});
+    setNewPaymentMessage("");
     clearTransientSuccess();
     setMessage(null);
   };
+  // Keep planEditing and the form untouched while the separate payment draft is open.
+  const detailsEditorVisible = planEditing && !newPayment;
+  const detailsOwnSaveControls = detailsEditorVisible && (detailsDirty || refreshIncomplete || preparedPlanActive);
+  const saveControls = (formDirty || saving || refreshIncomplete) && !newPayment ? <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+              <p role="status" className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">{saving ? "Saving changes…" : refreshIncomplete ? "Edits kept · saved result unavailable" : formDirty ? "Unsaved changes" : "Unsaved changes"}</p>
+              {message && <p role={message.type === "error" ? "alert" : "status"} className="mt-2 text-sm">{message.text}</p>}
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button type="submit" disabled={disabled} className="min-h-11 rounded-xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950">{saving ? "Saving plan..." : detailsDirty && paymentsDirty ? "Save all changes" : "Save plan"}</button>
+                <button type="button" disabled={disabled} onClick={cancelEdits} className="min-h-11 rounded-xl border px-5 py-3 font-bold dark:text-white">Cancel all changes</button>
+              </div>
+            </div> : null;
+
   const renderPayment = ({ obligation: item, index }) => (
     <ObligationEditor key={item.clientKey} obligation={item} index={index}
       errors={formErrors.obligations?.[index]} disabled={disabled}
@@ -345,7 +410,7 @@ const Planning = () => {
       <Sidebar />
       <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 md:px-6 lg:ml-72 lg:w-auto">
         <h1 className="text-3xl font-black text-slate-900 dark:text-white">Your payday plan</h1>
-        {loadError && <div role="alert" className="text-sm text-rose-700">{loadError} <button type="button" disabled={disabled || formDirty} onClick={loadPage} className="min-h-11 underline">Try again</button></div>}
+        {loadError && <div role="alert" className="text-sm text-rose-700">{loadError} <button type="button" disabled={disabled || formDirty || newPayment !== null} onClick={loadPage} className="min-h-11 underline">Try again</button></div>}
         <SafeToSpendCard result={safeToSpend} loading={loading} error={resultError}
           contextLabel="Current saved plan"
           contextNote={preparedPlanActive ? "Saved result · prepared plan not yet saved." : formDirty ? "Saved result · edits not included." : prepareNextCycleOpen ? "Saved result · preview not included." : ""}
@@ -354,10 +419,12 @@ const Planning = () => {
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <section id="planning-editor" className="rounded-3xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 md:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{planEditing ? "Edit plan" : "Saved details"}</h2>
-                <button type="button" disabled={disabled} aria-expanded={planEditing} aria-controls="plan-fields" onClick={() => setPlanEditing((current) => !current)} className="min-h-11 rounded-xl border px-4 py-2 font-semibold dark:text-white">{planEditing ? "Hide fields" : "Edit plan"}</button>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{detailsEditorVisible ? "Edit plan" : "Plan details"}</h2>
+                {!newPayment && (!planEditing || (!detailsDirty && !refreshIncomplete && !preparedPlanActive)) && (
+                  <button type="button" disabled={disabled} aria-expanded={planEditing} aria-controls="plan-fields" onClick={() => setPlanEditing((current) => !current)} className="min-h-11 rounded-xl border px-4 py-2 font-semibold dark:text-white">{planEditing ? "Close" : "Edit plan"}</button>
+                )}
               </div>
-              {planEditing ? <div id="plan-fields">              <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+              {detailsEditorVisible ? <div id="plan-fields">              <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
                 <label className="block md:col-span-2" htmlFor="planning-current-cash">
                   <span className="mb-1 block text-sm font-bold text-slate-700">How much money do you have now?</span>
                   <div className="relative">
@@ -424,17 +491,28 @@ const Planning = () => {
                 </label>
               </div></div> : (
                 <dl className="mt-3 grid grid-cols-1 gap-3 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-3">
-                  <div><dt>Saved cash</dt><dd className="font-bold">{formatCad(savedFormRef.current.currentCash)}</dd></div>
-                  <div><dt>Payday</dt><dd className="font-bold">{formatCalendarDate(savedFormRef.current.nextPayday)}</dd></div>
-                  <div><dt>Everyday spending</dt><dd className="font-bold">{formatCad(savedFormRef.current.essentialBuffer)}</dd></div>
+                  <div><dt>Money available now</dt><dd className="font-bold">{formatCad(savedFormRef.current.currentCash)}</dd></div>
+                  <div><dt>Next payday</dt><dd className="font-bold">{formatPlanDetailsDate(savedFormRef.current.nextPayday)}</dd></div>
+                  <div><dt>Set aside for everyday spending</dt><dd className="font-bold">{formatCad(savedFormRef.current.essentialBuffer)}</dd></div>
                 </dl>
               )}
+              {detailsOwnSaveControls && saveControls}
             </section>
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 md:p-6">
+            <section id="planning-payments" className="rounded-3xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 md:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Payments{formDirty ? " · Draft" : ""}</h2>
-                <button type="button" onClick={handleAddObligation} disabled={disabled} className="min-h-11 rounded-xl border px-4 py-2 font-bold dark:text-white">+ Add payment</button>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Payments{paymentsDirty ? " · Draft" : ""}</h2>
+                {!newPayment && <button type="button" ref={addPaymentButtonRef} aria-expanded={newPayment !== null} aria-controls="new-payment-editor" onClick={handleAddObligation} disabled={disabled} className="min-h-11 rounded-xl border px-4 py-2 font-bold dark:text-white">+ Add payment</button>}
               </div>
+              {!detailsOwnSaveControls && saveControls}
+              {newPayment && (
+                <div id="new-payment-editor" ref={newPaymentRef} className="mt-4">
+                  <ObligationEditor obligation={newPayment} index={form.obligations.length}
+                    errors={newPaymentErrors} disabled={disabled} expanded newPayment
+                    onChange={(next) => { setNewPayment(next); setNewPaymentErrors({}); setNewPaymentMessage(''); }}
+                    onAddToPlan={handleAddToPlan} onCancelNew={cancelNewPayment} />
+                  {newPaymentMessage && <p role="alert" className="mt-2 text-sm text-rose-700">{newPaymentMessage}</p>}
+                </div>
+              )}
               <div className="mt-3 space-y-3">{currentRows.map(renderPayment)}</div>
               {form.obligations.length === 0 && <p className="mt-3 text-sm text-slate-500">No payments added.</p>}
               {laterRows.length > 0 && <details open={laterOpen} onToggle={(event) => setLaterOpen(event.currentTarget.open)} className="mt-4">
@@ -442,19 +520,12 @@ const Planning = () => {
                 <div className="mt-3 space-y-3">{laterRows.map(renderPayment)}</div>
               </details>}
             </section>
-            {editorActive && <div className="rounded-3xl border bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <p role="status" className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">{saving ? "Saving changes…" : refreshIncomplete ? "Edits kept · saved result unavailable" : formDirty ? "Unsaved changes" : "No unsaved changes"}</p>
-              {message && <p role={message.type === "error" ? "alert" : "status"} className="mt-2 text-sm">{message.text}</p>}
-              <div className="mt-3 flex flex-wrap gap-3">
-                <button type="submit" disabled={disabled} className="min-h-11 rounded-xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950">{saving ? "Saving plan..." : "Save plan"}</button>
-                <button type="button" disabled={disabled} onClick={cancelEdits} className="min-h-11 rounded-xl border px-5 py-3 font-bold dark:text-white">Cancel</button>
-              </div>
-            </div>}
+
           </form>
         )}
         {!editorActive && message && <p role={message.type === "error" ? "alert" : "status"} className="text-sm text-slate-600">{message.text}</p>}
-        {!loading && savedFormRef.current?.nextPayday && !prepareNextCycleOpen && !preparedPlanActive && (
-          <button type="button" onClick={handleStartNextCyclePreview} disabled={disabled} className="min-h-11 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 underline dark:text-slate-300">Prepare next payday plan</button>
+        {!loading && !saving && !editorActive && !refreshIncomplete && savedFormRef.current?.nextPayday && !prepareNextCycleOpen && (
+          <button type="button" onClick={handleStartNextCyclePreview} disabled={disabled || newPayment !== null} className="min-h-11 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 underline dark:text-slate-300">Prepare next payday plan</button>
         )}
             {prepareNextCycleOpen && (
               <NextCyclePreview

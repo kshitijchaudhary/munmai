@@ -6,7 +6,8 @@ import {
   PLANNING_AMOUNT_TYPES,
   PLANNING_CADENCES,
   PLANNING_CERTAINTIES,
-  addObligationForEditing,
+  addPaymentDraftToPlan,
+  validatePlanningObligation,
   buildNextCyclePreviewViewModel,
   buildObligationSummary,
   buildPlanningPayload,
@@ -17,6 +18,8 @@ import {
   createSubmissionGuard,
   getCompactPaymentStatus,
   getSaveOutcomeMessage,
+  getPlanningChangeState,
+  formatPlanDetailsDate,
   isObligationEditorOpen,
   isPlanningFormDirty,
   loadPlanningExperience,
@@ -309,24 +312,23 @@ test("loaded saved obligations are collapsed until one is selected for editing",
   assert.equal(isObligationEditorOpen(form.obligations[1], editingKey), false);
 });
 
-test("adding an obligation opens the new editor without expanding saved items", () => {
+test("new payment stays outside the plan until validated and appends only once", () => {
   const form = createPlanningForm(savedPlanning);
-  const added = addObligationForEditing(form, { name: "Car payment" });
-  const newObligation = added.form.obligations.at(-1);
-
+  const original = structuredClone(form);
+  const draft = createEmptyObligation();
+  const rejected = addPaymentDraftToPlan(form, draft);
+  assert.equal(rejected.added, false);
+  assert.equal(rejected.form, form);
+  assert.ok(rejected.errors.name);
+  assert.deepEqual(form, original);
+  Object.assign(draft, { name: 'Car payment', amount: '80', dueDate: '2026-08-20' });
+  const added = addPaymentDraftToPlan(form, draft);
+  assert.equal(added.added, true);
   assert.equal(added.form.obligations.length, 2);
-  assert.equal(newObligation.name, "Car payment");
-  assert.equal(
-    isObligationEditorOpen(newObligation, added.editingObligationKey),
-    true,
-  );
-  assert.equal(
-    isObligationEditorOpen(
-      added.form.obligations[0],
-      added.editingObligationKey,
-    ),
-    false,
-  );
+  assert.equal(added.form.obligations[1].clientKey, draft.clientKey);
+  assert.notEqual(added.form.obligations[1], draft);
+  assert.equal(addPaymentDraftToPlan(added.form, draft).form, added.form);
+  assert.deepEqual(form, original);
 });
 
 test("incomplete defaults never present zero as confidently safe", () => {
@@ -1020,4 +1022,59 @@ test("a successful write supplies a saved baseline even when refreshed reads fai
   assert.equal(loaded.savedForm.obligations[0]._id, obligationId);
   assert.equal(getSaveOutcomeMessage(loaded).type, 'error');
   assert.equal(form.currentCash, '123');
+});
+
+
+test("new payment validation shares confirmed, estimated, unknown and strict date rules", () => {
+  const form = createPlanningForm(savedPlanning);
+  for (const certainty of ['confirmed', 'estimated']) {
+    const draft = createEmptyObligation({ name: 'Payment', certainty });
+    assert.ok(validatePlanningObligation(draft).amount);
+    assert.ok(validatePlanningObligation(draft).dueDate);
+    Object.assign(draft, { amount: '20.25', dueDate: '2026-08-01' });
+    assert.equal(addPaymentDraftToPlan(form, draft).added, true);
+    draft.dueDate = '2026-02-30';
+    assert.ok(validatePlanningObligation(draft).dueDate);
+    draft.dueDate = NEXT_PAYDAY;
+    assert.equal(addPaymentDraftToPlan(form, draft).added, true);
+    draft.amount = '20.001';
+    assert.ok(validatePlanningObligation(draft).amount);
+  }
+  const unknown = createEmptyObligation({ name: 'Utility', certainty: 'unknown' });
+  assert.equal(addPaymentDraftToPlan(form, unknown).added, true);
+  unknown.name = ' ';
+  assert.equal(addPaymentDraftToPlan(form, unknown).added, false);
+});
+
+test("new recurring payment requires the existing recurrence metadata", () => {
+  const draft = createEmptyObligation({ name: 'Phone', amount: '70', dueDate: NEXT_PAYDAY, recurring: true });
+  assert.ok(validatePlanningObligation(draft).amountType);
+  assert.ok(validatePlanningObligation(draft).cadence);
+  draft.amountType = 'variable';
+  draft.cadence = 'monthly';
+  assert.equal(Object.values(validatePlanningObligation(draft)).some(Boolean), false);
+});
+
+
+test("shared save label tracks details and payment changes independently", () => {
+  const saved = createPlanningForm(savedPlanning);
+  const draft = structuredClone(saved);
+  assert.deepEqual(getPlanningChangeState(draft, saved), { detailsDirty: false, paymentsDirty: false });
+  draft.currentCash = '150';
+  assert.deepEqual(getPlanningChangeState(draft, saved), { detailsDirty: true, paymentsDirty: false });
+  draft.obligations[0].amount = '99';
+  assert.deepEqual(getPlanningChangeState(draft, saved), { detailsDirty: true, paymentsDirty: true });
+  draft.currentCash = saved.currentCash;
+  assert.deepEqual(getPlanningChangeState(draft, saved), { detailsDirty: false, paymentsDirty: true });
+  draft.obligations[0].amount = saved.obligations[0].amount;
+  draft.obligations[0].clientKey = 'display-only-key';
+  assert.deepEqual(getPlanningChangeState(draft, saved), { detailsDirty: false, paymentsDirty: false });
+});
+
+
+test("saved details date is clear and respects calendar boundaries", () => {
+  assert.equal(formatPlanDetailsDate('2026-10-08'), '8 Oct 2026');
+  assert.equal(formatPlanDetailsDate('2026-01-01'), '1 Jan 2026');
+  assert.equal(formatPlanDetailsDate('2026-02-30'), 'Date unknown');
+  assert.equal(formatPlanDetailsDate(null), 'Date unknown');
 });

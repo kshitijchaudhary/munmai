@@ -88,6 +88,13 @@ export const formatCalendarDate = (value) => {
   }).format(new Date(`${value}T00:00:00.000Z`));
 };
 
+export const formatPlanDetailsDate = (value) => {
+  if (!isStrictCalendarDate(value)) return "Date unknown";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00.000Z`));
+};
+
 export const formatShortCalendarDate = (value) => {
   if (!isStrictCalendarDate(value)) return "Date unknown";
 
@@ -246,6 +253,16 @@ export const isPlanningFormDirty = (form, savedForm) =>
       JSON.stringify(comparablePlanningForm(savedForm))
     : false;
 
+export const getPlanningChangeState = (form, savedForm) => {
+  if (!savedForm) return { detailsDirty: false, paymentsDirty: false };
+  const current = comparablePlanningForm(form);
+  const saved = comparablePlanningForm(savedForm);
+  return {
+    detailsDirty: ['currentCash', 'essentialBuffer', 'nextPayday'].some((field) => current[field] !== saved[field]),
+    paymentsDirty: JSON.stringify(current.obligations) !== JSON.stringify(saved.obligations),
+  };
+};
+
 export const buildNextCyclePreviewViewModel = (preview) => {
   const planning = preview?.planning || {};
   const obligations = Array.isArray(planning.obligations)
@@ -300,32 +317,7 @@ const validateMoney = (value, { allowZero, required }) => {
   return "";
 };
 
-export const validatePlanningForm = (
-  form,
-  { today = getTodayCalendarDate() } = {},
-) => {
-  const errors = {
-    currentCash: validateMoney(form.currentCash, {
-      allowZero: true,
-      required: true,
-    }),
-    nextPayday: "",
-    essentialBuffer: validateMoney(form.essentialBuffer, {
-      allowZero: true,
-      required: true,
-    }),
-    obligations: [],
-  };
-
-  if (!form.nextPayday) {
-    errors.nextPayday = "Choose your next payday.";
-  } else if (!isStrictCalendarDate(form.nextPayday)) {
-    errors.nextPayday = "Use a valid calendar date.";
-  } else if (form.nextPayday < today) {
-    errors.nextPayday = "Next payday must be today or later.";
-  }
-
-  form.obligations.forEach((item) => {
+export const validatePlanningObligation = (item) => {
     const known = item.certainty === "confirmed" || item.certainty === "estimated";
     const obligationErrors = {
       name: item.name.trim() ? "" : "Enter an obligation name.",
@@ -358,8 +350,35 @@ export const validatePlanningForm = (
       obligationErrors.dueDate = "Use a valid calendar date.";
     }
 
-    errors.obligations.push(obligationErrors);
-  });
+  return obligationErrors;
+};
+
+export const validatePlanningForm = (
+  form,
+  { today = getTodayCalendarDate() } = {},
+) => {
+  const errors = {
+    currentCash: validateMoney(form.currentCash, {
+      allowZero: true,
+      required: true,
+    }),
+    nextPayday: "",
+    essentialBuffer: validateMoney(form.essentialBuffer, {
+      allowZero: true,
+      required: true,
+    }),
+    obligations: [],
+  };
+
+  if (!form.nextPayday) {
+    errors.nextPayday = "Choose your next payday.";
+  } else if (!isStrictCalendarDate(form.nextPayday)) {
+    errors.nextPayday = "Use a valid calendar date.";
+  } else if (form.nextPayday < today) {
+    errors.nextPayday = "Next payday must be today or later.";
+  }
+
+  errors.obligations = form.obligations.map(validatePlanningObligation);
 
   const topLevelValid = !errors.currentCash && !errors.nextPayday && !errors.essentialBuffer;
   const obligationsValid = errors.obligations.every((item) =>
@@ -408,16 +427,14 @@ export const updateObligationRecurrence = (obligation, recurring) => ({
   cadence: "",
 });
 
-export const addObligationForEditing = (form, overrides) => {
-  const obligation = createEmptyObligation(overrides);
-
-  return {
-    form: {
-      ...form,
-      obligations: [...form.obligations, obligation],
-    },
-    editingObligationKey: obligation.clientKey,
-  };
+export const addPaymentDraftToPlan = (form, draft) => {
+  if (!draft) return { added: false, form, errors: {} };
+  const errors = validatePlanningObligation(draft);
+  if (Object.values(errors).some(Boolean)) return { added: false, form, errors };
+  if (form.obligations.some((item) => item.clientKey === draft.clientKey)) {
+    return { added: false, form, errors: {} };
+  }
+  return { added: true, form: { ...form, obligations: [...form.obligations, { ...draft }] }, errors: {} };
 };
 
 export const isObligationEditorOpen = (obligation, editingObligationKey) =>
