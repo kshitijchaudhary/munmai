@@ -14,12 +14,16 @@ import {
   createSubmissionGuard,
   createEmptyPlanningForm,
   findFirstInvalidObligationKey,
+  formatCad,
+  formatCalendarDate,
+  isStrictCalendarDate,
   getApiErrorMessage,
   getSaveOutcomeMessage,
   getTodayCalendarDate,
   isObligationEditorOpen,
   isPlanningFormDirty,
   loadPlanningExperience,
+  orderPlanningObligations,
   removeObligation,
   requestNextCyclePreview,
   savePlanningExperience,
@@ -39,10 +43,13 @@ const FieldError = ({ id, message }) =>
 
 const Planning = () => {
   const [form, setForm] = useState(createEmptyPlanningForm);
+  const [planEditing, setPlanEditing] = useState(false);
+  const [laterOpen, setLaterOpen] = useState(false);
   const [formErrors, setFormErrors] = useState({ obligations: [] });
   const [safeToSpend, setSafeToSpend] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshIncomplete, setRefreshIncomplete] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [resultError, setResultError] = useState("");
   const [message, setMessage] = useState(null);
@@ -86,6 +93,7 @@ const Planning = () => {
   const applyLoadedExperience = useCallback((loaded) => {
     if (loaded.form) {
       setForm(loaded.form);
+      setPlanEditing(!loaded.form.nextPayday);
       savedFormRef.current = loaded.form;
       setEditingObligationKey(null);
       setPrepareNextCycleOpen(false);
@@ -99,6 +107,7 @@ const Planning = () => {
       !loaded.safeToSpendError
     ) {
       setPreparedPlanActive(false);
+      setRefreshIncomplete(false);
     }
 
     setLoadError(
@@ -141,6 +150,7 @@ const Planning = () => {
   };
 
   const updateObligation = (index, obligation) => {
+    if (obligation.dueDate > form.nextPayday) setLaterOpen(true);
     setForm((current) => ({
       ...current,
       obligations: current.obligations.map((item, itemIndex) =>
@@ -220,6 +230,7 @@ const Planning = () => {
     setFormErrors({ obligations: [] });
     setEditingObligationKey(null);
     setPreparedPlanActive(true);
+    setPlanEditing(true);
     cancelNextCyclePreview();
     setMessage({
       type: "info",
@@ -251,6 +262,8 @@ const Planning = () => {
     if (!validation.valid) {
       savingGuardRef.current.release();
       setFormErrors(validation.errors);
+      setPlanEditing(true);
+      setLaterOpen(true);
       setEditingObligationKey(
         findFirstInvalidObligationKey(form, validation.errors),
       );
@@ -267,14 +280,19 @@ const Planning = () => {
 
     try {
       const loaded = await savePlanningExperience(form, planningApi);
-      applyLoadedExperience(loaded);
-      setFormErrors({ obligations: [] });
-
       const outcome = getSaveOutcomeMessage(loaded);
 
       if (outcome.type === "error") {
+        // The PUT succeeded, but a partial refresh must not replace the draft.
+        setRefreshIncomplete(true);
+        setPlanEditing(true);
+        savedFormRef.current = loaded.savedForm;
+        setSafeToSpend(null);
+        setResultError("The latest saved result could not be verified. Save again to refresh.");
         setMessage(outcome);
       } else {
+        applyLoadedExperience(loaded);
+        setFormErrors({ obligations: [] });
         showTransientSuccess(outcome.text);
       }
     } catch (error) {
@@ -296,117 +314,50 @@ const Planning = () => {
   const previewView = nextCyclePreview
     ? buildNextCyclePreviewViewModel(nextCyclePreview)
     : null;
-  const showingCurrentResultContext =
-    prepareNextCycleOpen || preparedPlanActive;
+  const orderedObligations = orderPlanningObligations(form);
+
+  const laterRows = orderedObligations.filter(({ obligation }) => isStrictCalendarDate(form.nextPayday) && isStrictCalendarDate(obligation.dueDate) && obligation.dueDate > form.nextPayday);
+  const currentRows = orderedObligations.filter((row) => !laterRows.includes(row));
+  const editorActive = planEditing || formDirty || editingObligationKey !== null || preparedPlanActive;
+  const cancelEdits = () => {
+    if (!savedFormRef.current) return;
+    setForm(structuredClone(savedFormRef.current));
+    setFormErrors({ obligations: [] });
+    setEditingObligationKey(null);
+    setPlanEditing(!savedFormRef.current.nextPayday);
+    setPreparedPlanActive(false);
+    clearTransientSuccess();
+    setMessage(null);
+  };
+  const renderPayment = ({ obligation: item, index }) => (
+    <ObligationEditor key={item.clientKey} obligation={item} index={index}
+      errors={formErrors.obligations?.[index]} disabled={disabled}
+      expanded={isObligationEditorOpen(item, editingObligationKey)}
+      summary={buildObligationSummary(item, safeToSpend, { draft: formDirty })}
+      onChange={(next) => updateObligation(index, next)}
+      onEdit={() => { setEditingObligationKey(item.clientKey); clearTransientSuccess(); }}
+      onCollapse={() => setEditingObligationKey(null)}
+      onRemove={() => handleRemoveObligation(item.clientKey)} />
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-slate-50 pb-20 dark:bg-slate-950">
       <Sidebar />
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:ml-72 lg:w-auto">
-        <header className="mb-8">
-          <p className="mb-2 text-sm font-semibold text-indigo-600">Plan</p>
-          <h1 className="text-3xl font-black text-slate-900 md:text-4xl">
-            What can you safely spend before payday?
-          </h1>
-          <p className="mt-2 max-w-2xl text-slate-500">
-            Start with the answer, then update the details when something changes.
-          </p>
-        </header>
-
-        {loadError && (
-          <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 sm:flex-row sm:items-center sm:justify-between">
-            <span>{loadError}</span>
-            <button type="button" onClick={loadPage} className="self-start font-black underline sm:self-auto">
-              Try again
-            </button>
-          </div>
-        )}
-
-        {message && (
-          <div
-            role={message.type === "error" ? "alert" : "status"}
-            className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-semibold ${
-              message.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : message.type === "info"
-                  ? "border-indigo-200 bg-indigo-50 text-indigo-900"
-                  : "border-rose-200 bg-rose-50 text-rose-800"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <div className="xl:sticky xl:top-8">
-            <SafeToSpendCard
-              result={safeToSpend}
-              loading={loading}
-              error={resultError}
-              contextLabel={
-                preparedPlanActive
-                  ? "Previous saved result"
-                  : showingCurrentResultContext
-                    ? "Current saved plan"
-                    : "Before payday"
-              }
-              contextNote={
-                preparedPlanActive
-                  ? "This result does not yet reflect the prepared plan."
-                  : prepareNextCycleOpen
-                    ? "This result belongs to the current saved plan, not the preview."
-                    : ""
-              }
-            />
-          </div>
-
-          <div className="space-y-6">
-            {!prepareNextCycleOpen && !preparedPlanActive && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleStartNextCyclePreview}
-                  disabled={disabled}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                >
-                  Prepare next payday plan
-                </button>
+      <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 md:px-6 lg:ml-72 lg:w-auto">
+        <h1 className="text-3xl font-black text-slate-900 dark:text-white">Your payday plan</h1>
+        {loadError && <div role="alert" className="text-sm text-rose-700">{loadError} <button type="button" disabled={disabled || formDirty} onClick={loadPage} className="min-h-11 underline">Try again</button></div>}
+        <SafeToSpendCard result={safeToSpend} loading={loading} error={resultError}
+          contextLabel="Current saved plan"
+          contextNote={preparedPlanActive ? "Saved result · prepared plan not yet saved." : formDirty ? "Saved result · edits not included." : prepareNextCycleOpen ? "Saved result · preview not included." : ""}
+          onReview={() => { setPlanEditing(true); document.getElementById('planning-editor')?.scrollIntoView({ block: 'start' }); }} />
+        {!loading && savedFormRef.current && (
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <section id="planning-editor" className="rounded-3xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 md:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{planEditing ? "Edit plan" : "Saved details"}</h2>
+                <button type="button" disabled={disabled} aria-expanded={planEditing} aria-controls="plan-fields" onClick={() => setPlanEditing((current) => !current)} className="min-h-11 rounded-xl border px-4 py-2 font-semibold dark:text-white">{planEditing ? "Hide fields" : "Edit plan"}</button>
               </div>
-            )}
-
-            {prepareNextCycleOpen && (
-              <NextCyclePreview
-                confirmReplacement={confirmPreviewReplacement}
-                dirty={formDirty}
-                disabled={disabled}
-                error={nextCycleError}
-                minPayday={getTodayCalendarDate()}
-                nextPayday={nextCyclePayday}
-                onCancel={cancelNextCyclePreview}
-                onChangePayday={(value) => {
-                  setNextCyclePayday(value);
-                  setNextCycleError("");
-                }}
-                onConfirmReplacement={applyNextCyclePreview}
-                onKeepCurrent={cancelNextCyclePreview}
-                onRequestPreview={handleRequestNextCyclePreview}
-                onUsePreview={handleUseNextCyclePreview}
-                preparing={preparingNextCycle}
-                preview={nextCyclePreview}
-                view={previewView}
-              />
-            )}
-
-            <form onSubmit={handleSubmit} noValidate className="space-y-6">
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 md:p-6">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">Your payday plan</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Answer three simple questions to keep the result current.
-                </p>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+              {planEditing ? <div id="plan-fields">              <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
                 <label className="block md:col-span-2" htmlFor="planning-current-cash">
                   <span className="mb-1 block text-sm font-bold text-slate-700">How much money do you have now?</span>
                   <div className="relative">
@@ -449,7 +400,7 @@ const Planning = () => {
                 </label>
 
                 <label className="block" htmlFor="planning-essential-buffer">
-                  <span className="mb-1 block text-sm font-bold text-slate-700">Keep for everyday use</span>
+                  <span className="mb-1 block text-sm font-bold text-slate-700">Set aside for everyday spending</span>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-4 top-3 text-sm font-bold text-slate-400">$</span>
                     <input
@@ -467,76 +418,68 @@ const Planning = () => {
                     />
                   </div>
                   <p id="planning-essential-buffer-help" className="mt-1 text-xs text-slate-500">
-                    Money you don't want to spend on bills, such as food, gas, or emergencies.
+                    Money for groceries, transport, and unexpected costs until your next payday. Don’t include bills already listed below.
                   </p>
                   <FieldError id="planning-essential-buffer-error" message={formErrors.essentialBuffer} />
                 </label>
-              </div>
+              </div></div> : (
+                <dl className="mt-3 grid grid-cols-1 gap-3 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-3">
+                  <div><dt>Saved cash</dt><dd className="font-bold">{formatCad(savedFormRef.current.currentCash)}</dd></div>
+                  <div><dt>Payday</dt><dd className="font-bold">{formatCalendarDate(savedFormRef.current.nextPayday)}</dd></div>
+                  <div><dt>Everyday spending</dt><dd className="font-bold">{formatCad(savedFormRef.current.essentialBuffer)}</dd></div>
+                </dl>
+              )}
             </section>
-
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 md:p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900">What payments are coming up?</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Add the bills and payments Munmai should consider.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAddObligation}
-                  disabled={disabled}
-                  className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:text-slate-300 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
-                >
-                  + Add payment
-                </button>
+            <section className="rounded-3xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 md:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Payments{formDirty ? " · Draft" : ""}</h2>
+                <button type="button" onClick={handleAddObligation} disabled={disabled} className="min-h-11 rounded-xl border px-4 py-2 font-bold dark:text-white">+ Add payment</button>
               </div>
-
-              <div className="mt-5 space-y-4">
-                {form.obligations.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center dark:border-slate-700">
-                    <p className="font-bold text-slate-700">No payments added.</p>
-                    <p className="mt-1 text-sm text-slate-500">Add anything that needs paying before payday.</p>
-                  </div>
-                ) : (
-                  form.obligations.map((item, index) => (
-                    <ObligationEditor
-                      key={item.clientKey}
-                      obligation={item}
-                      index={index}
-                      errors={formErrors.obligations?.[index]}
-                      disabled={disabled}
-                      expanded={isObligationEditorOpen(
-                        item,
-                        editingObligationKey,
-                      )}
-                      summary={buildObligationSummary(item, safeToSpend)}
-                      onChange={(next) => updateObligation(index, next)}
-                      onEdit={() => {
-                        setEditingObligationKey(item.clientKey);
-                        clearTransientSuccess();
-                      }}
-                      onCollapse={() => setEditingObligationKey(null)}
-                      onRemove={() => handleRemoveObligation(item.clientKey)}
-                    />
-                  ))
-                )}
-              </div>
+              <div className="mt-3 space-y-3">{currentRows.map(renderPayment)}</div>
+              {form.obligations.length === 0 && <p className="mt-3 text-sm text-slate-500">No payments added.</p>}
+              {laterRows.length > 0 && <details open={laterOpen} onToggle={(event) => setLaterOpen(event.currentTarget.open)} className="mt-4">
+                <summary className="min-h-11 cursor-pointer rounded-lg py-2 font-bold text-slate-700 focus-visible:outline focus-visible:outline-indigo-500 dark:text-slate-200">Later payments ({laterRows.length})</summary>
+                <div className="mt-3 space-y-3">{laterRows.map(renderPayment)}</div>
+              </details>}
             </section>
-
-            <div className="flex flex-col gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 sm:flex-row sm:items-center sm:justify-between md:p-5">
-              <p className="text-sm text-slate-500">All changes are saved together.</p>
-              <button
-                type="submit"
+            {editorActive && <div className="rounded-3xl border bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <p role="status" className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">{saving ? "Saving changes…" : refreshIncomplete ? "Edits kept · saved result unavailable" : formDirty ? "Unsaved changes" : "No unsaved changes"}</p>
+              {message && <p role={message.type === "error" ? "alert" : "status"} className="mt-2 text-sm">{message.text}</p>}
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button type="submit" disabled={disabled} className="min-h-11 rounded-xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950">{saving ? "Saving plan..." : "Save plan"}</button>
+                <button type="button" disabled={disabled} onClick={cancelEdits} className="min-h-11 rounded-xl border px-5 py-3 font-bold dark:text-white">Cancel</button>
+              </div>
+            </div>}
+          </form>
+        )}
+        {!editorActive && message && <p role={message.type === "error" ? "alert" : "status"} className="text-sm text-slate-600">{message.text}</p>}
+        {!loading && savedFormRef.current?.nextPayday && !prepareNextCycleOpen && !preparedPlanActive && (
+          <button type="button" onClick={handleStartNextCyclePreview} disabled={disabled} className="min-h-11 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 underline dark:text-slate-300">Prepare next payday plan</button>
+        )}
+            {prepareNextCycleOpen && (
+              <NextCyclePreview
+                confirmReplacement={confirmPreviewReplacement}
+                dirty={formDirty}
                 disabled={disabled}
-                className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:bg-slate-300 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
-              >
-                {saving ? "Saving plan..." : "Save plan"}
-              </button>
-            </div>
-            </form>
-          </div>
-        </div>
+                error={nextCycleError}
+                minPayday={getTodayCalendarDate()}
+                nextPayday={nextCyclePayday}
+                onCancel={cancelNextCyclePreview}
+                onChangePayday={(value) => {
+                  setNextCyclePayday(value);
+                  setNextCycleError("");
+                }}
+                onConfirmReplacement={applyNextCyclePreview}
+                onKeepCurrent={cancelNextCyclePreview}
+                onRequestPreview={handleRequestNextCyclePreview}
+                onUsePreview={handleUseNextCyclePreview}
+                preparing={preparingNextCycle}
+                preview={nextCyclePreview}
+                view={previewView}
+              />
+            )}
+
+
       </main>
     </div>
   );

@@ -20,6 +20,7 @@ import {
   isObligationEditorOpen,
   isPlanningFormDirty,
   loadPlanningExperience,
+  orderPlanningObligations,
   removeObligation,
   requestNextCyclePreview,
   savePlanningExperience,
@@ -135,9 +136,9 @@ test("loads saved Planning fields and presents the backend result", async () => 
   assert.equal(view.amountLabel, "$405.00");
   assert.equal(
     view.decisionLabel,
-    "You can safely spend $405.00 before payday",
+    "$405.00 extra until Aug 28",
   );
-  assert.equal(view.confidenceLabel, "Based on the bills you've entered.");
+  assert.equal(view.confidenceLabel, "Based on your saved money, payments, and everyday spending allowance.");
   assert.equal(view.horizonLabel, "Next payday: Aug 28");
 });
 
@@ -352,7 +353,7 @@ test("incomplete defaults never present zero as confidently safe", () => {
   );
   assert.equal(
     view.decisionLabel,
-    "Complete your plan to see what is safe to spend.",
+    "Estimate incomplete",
   );
   assert.equal(view.incomplete, true);
   assert.notEqual(view.amountLabel, "$0.00");
@@ -594,7 +595,7 @@ test("negative Safe-to-Spend is formatted without clamping", () => {
   });
 
   assert.equal(view.amountLabel, "-$150.00");
-  assert.equal(view.decisionLabel, "You're short $150.00 before payday");
+  assert.equal(view.decisionLabel, "$150.00 short until Aug 28");
 });
 
 test("zero Safe-to-Spend explains that no uncommitted money remains", () => {
@@ -605,7 +606,7 @@ test("zero Safe-to-Spend explains that no uncommitted money remains", () => {
 
   assert.equal(
     view.decisionLabel,
-    "You have no uncommitted money before payday",
+    "$0.00 extra until Aug 28",
   );
   assert.equal(view.amountLabel, "$0.00");
 });
@@ -909,14 +910,114 @@ test("decision UX keeps compact editing while simplifying labels and secondary f
   assert.match(editorSource, /Note \(optional\)/);
   assert.match(pageSource, /How much money do you have now\?/);
   assert.match(pageSource, /When is your next payday\?/);
-  assert.match(pageSource, /Keep for everyday use/);
-  assert.match(pageSource, /What payments are coming up\?/);
+  assert.match(pageSource, /Set aside for everyday spending/);
+  assert.match(pageSource, /Payments/);
   assert.match(resultSource, /Money you have now/);
   assert.match(resultSource, /Needs paying/);
-  assert.match(resultSource, /Keep for everyday use/);
-  assert.match(resultSource, /Safe to spend/);
-  assert.match(resultSource, /Needs paying before payday/);
-  assert.match(resultSource, /Later — after next payday/);
+  assert.match(resultSource, /Set aside for everyday spending/);
+  assert.match(resultSource, /See breakdown/);
+  assert.match(resultSource, /payments due on payday are included/);
+  assert.match(pageSource, /Later payments/);
   assert.match(resultSource, /<details/);
   assert.doesNotMatch(resultSource, /High confidence/);
+});
+
+test("shortfall explains cash, included payments and the everyday spending allowance", () => {
+  const view = buildSafeToSpendViewModel({ ...safeToSpend, safeToSpend: -433,
+    breakdown: { ...safeToSpend.breakdown, currentCash: 100, includedObligationsTotal: 233, essentialBuffer: 300 } });
+  assert.equal(view.amountLabel, "-$433.00");
+  assert.equal(view.decisionLabel, "$433.00 short until Aug 28");
+  assert.equal(view.breakdown.includedObligationsTotal, 233);
+  assert.equal(view.breakdown.essentialBuffer, 300);
+});
+
+test("editable payments sort by payday group and date without changing payload order or identity", () => {
+  const form = createPlanningForm(savedPlanning);
+  form.obligations = [
+    createEmptyObligation({ name: 'Later last', dueDate: '2026-09-10' }),
+    createEmptyObligation({ name: 'Payday', dueDate: NEXT_PAYDAY }),
+    createEmptyObligation({ name: 'Undated', dueDate: '', certainty: 'unknown' }),
+    createEmptyObligation({ name: 'Overdue', dueDate: '2026-08-01' }),
+    createEmptyObligation({ name: 'Before payday', dueDate: '2026-08-20' }),
+    createEmptyObligation({ name: 'Later first', dueDate: '2026-08-29' }),
+    createEmptyObligation({ name: 'Unknown amount', dueDate: '2026-08-21', certainty: 'unknown' }),
+    createEmptyObligation({ name: 'Same day', dueDate: '2026-08-20' }),
+  ];
+  const original = structuredClone(form);
+  const rows = orderPlanningObligations(form);
+  assert.deepEqual(rows.map(({ obligation }) => obligation.name),
+    ['Overdue', 'Before payday', 'Same day', 'Unknown amount', 'Payday', 'Later first', 'Later last', 'Undated']);
+  assert.deepEqual(form, original);
+  rows.forEach(({ obligation, index }) => assert.equal(obligation, form.obligations[index]));
+  assert.equal(isPlanningFormDirty(form, original), false);
+  assert.equal(rows.find(({ obligation }) => obligation.name === 'Later first').index, 5);
+  const changed = { ...form, nextPayday: '2026-08-20' };
+  assert.equal(orderPlanningObligations(changed).at(-1).obligation.name, 'Undated');
+});
+
+test("missing payday and invalid dates sort deterministically without inferring a payday", () => {
+  const form = { nextPayday: '', obligations: [
+    { name: 'Invalid', dueDate: '2026-02-30' },
+    { name: 'Later', dueDate: '2026-08-28' },
+    { name: 'Earlier', dueDate: '2026-08-01' },
+    { name: 'No date', dueDate: '' },
+  ] };
+  assert.deepEqual(orderPlanningObligations(form).map(({ obligation }) => obligation.name),
+    ['Earlier', 'Later', 'Invalid', 'No date']);
+});
+
+test("draft payment summaries do not claim inclusion from the old saved result", () => {
+  const form = createPlanningForm(savedPlanning);
+  form.obligations[0].dueDate = '2026-09-10';
+  const summary = buildObligationSummary(form.obligations[0], safeToSpend, { draft: true });
+  assert.equal(getCompactPaymentStatus(summary.status), 'Unsaved changes');
+});
+
+test("partial refresh after PUT preserves draft data and reports an error for either failed read", async () => {
+  for (const failedRead of ['getPlanning', 'getSafeToSpend']) {
+    const form = createPlanningForm(savedPlanning);
+    form.currentCash = '100';
+    const before = structuredClone(form);
+    let writes = 0;
+    const api = {
+      updatePlanning: async () => { writes++; },
+      getPlanning: async () => savedPlanning,
+      getSafeToSpend: async () => safeToSpend,
+      [failedRead]: async () => { throw new Error('Refresh unavailable'); },
+    };
+    const loaded = await savePlanningExperience(form, api, { today: TODAY });
+    assert.equal(writes, 1);
+    assert.equal(getSaveOutcomeMessage(loaded).type, 'error');
+    assert.deepEqual(form, before);
+  }
+});
+
+test("incomplete positive and zero results never promise spendable money", () => {
+  for (const amount of [405, 0, null]) {
+    const view = buildSafeToSpendViewModel({ ...safeToSpend, confidence: 'incomplete', safeToSpend: amount });
+    assert.equal(view.decisionLabel, 'Estimate incomplete');
+    assert.equal(view.knownShortfallLabel, null);
+    assert.equal(view.incomplete, true);
+  }
+});
+
+test("incomplete negative result keeps the backend shortfall as a known amount", () => {
+  const view = buildSafeToSpendViewModel({ ...safeToSpend, confidence: 'incomplete', safeToSpend: -433 });
+  assert.equal(view.decisionLabel, 'Estimate incomplete');
+  assert.equal(view.knownShortfallLabel, '$433.00 short until Aug 28');
+  assert.equal(view.amountLabel, '-$433.00');
+});
+
+test("a successful write supplies a saved baseline even when refreshed reads fail", async () => {
+  const form = createPlanningForm(savedPlanning);
+  form.currentCash = '123';
+  const loaded = await savePlanningExperience(form, {
+    updatePlanning: async (payload) => ({ planning: payload }),
+    getPlanning: async () => { throw new Error('offline'); },
+    getSafeToSpend: async () => { throw new Error('offline'); },
+  }, { today: TODAY });
+  assert.equal(loaded.savedForm.currentCash, '123');
+  assert.equal(loaded.savedForm.obligations[0]._id, obligationId);
+  assert.equal(getSaveOutcomeMessage(loaded).type, 'error');
+  assert.equal(form.currentCash, '123');
 });

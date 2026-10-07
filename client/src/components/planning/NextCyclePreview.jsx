@@ -99,7 +99,7 @@ const NextCyclePreview = ({
             </dd>
           </div>
           <div className="rounded-2xl bg-white p-4 dark:bg-slate-900">
-            <dt className="font-bold text-slate-500">Keep for everyday use</dt>
+            <dt className="font-bold text-slate-500">Set aside for everyday spending</dt>
             <dd className="mt-1 font-black text-slate-900 dark:text-slate-100">
               {view.essentialBufferLabel}
             </dd>

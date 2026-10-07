@@ -113,7 +113,7 @@ const ObligationEditor = ({
             Payment {index + 1}
           </p>
           {obligation._id && (
-            <p className="mt-1 text-xs text-slate-400">Saved payment</p>
+            <p className="mt-1 text-xs text-slate-400">Previously saved payment · use Save plan to keep edits</p>
           )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
