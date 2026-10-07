@@ -305,7 +305,6 @@ const Dashboard = () => {
   };
 
   const hasAnyTransactions = transactionDataLoaded && stats.allTransactions.length > 0;
-  const showOnboarding = transactionDataLoaded && !hasAnyTransactions;
   const dashboardLoadError =
     transactionError || budgetError || debtRealityError
       ? "We couldn't load your dashboard data yet. Refresh the dashboard to try again."
@@ -362,18 +361,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {showOnboarding && (
-          <section className="mb-8 rounded-3xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/30 md:p-6">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">
-              Start simple.
-            </h2>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-              Add one transaction or upload one receipt. You can organize the
-              rest later.
-            </p>
-          </section>
-        )}
-
         <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12 xl:items-start">
           <div className="space-y-6 xl:col-span-7">
             <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
@@ -395,16 +382,11 @@ const Dashboard = () => {
                   title="Upload receipt"
                   description="Upload now, organize later."
                   onClick={() => setReceiptUploadModalOpen(true)}
-                  primary
                 />
               </div>
             </div>
 
             <div>
-              <SectionHeading
-                title="Monthly Control"
-                description="A simple check on this month's spending pace."
-              />
               <MonthlyControlCard
                 budget={budgetSummary}
                 onSetBudget={openBudgetModal}
@@ -421,7 +403,7 @@ const Dashboard = () => {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                      Recent Transactions
+                      Latest transactions · All dates
                     </h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       Latest 5 income and expense entries.
@@ -467,15 +449,16 @@ const Dashboard = () => {
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                    This Month
+                    Selected month
                   </p>
                   <h3 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
                     {stats.periodLabel}
                   </h3>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <select
+                    aria-label="Month"
                     value={selectedMonth}
                     onChange={(event) => setSelectedMonth(Number(event.target.value))}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
@@ -488,6 +471,7 @@ const Dashboard = () => {
                   </select>
 
                   <select
+                    aria-label="Year"
                     value={selectedYear}
                     onChange={(event) => setSelectedYear(Number(event.target.value))}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
@@ -503,19 +487,19 @@ const Dashboard = () => {
 
               <div className="grid grid-cols-1 gap-3">
                 <MiniMoneyCard
-                  label="In"
+                  label="Income"
                   value={stats.periodIncomeTotal}
                   tone="text-emerald-600 dark:text-emerald-400"
                   available={transactionDataLoaded}
                 />
                 <MiniMoneyCard
-                  label="Out"
+                  label="Expenses"
                   value={stats.periodExpenseTotal}
                   tone="text-rose-600 dark:text-rose-400"
                   available={transactionDataLoaded}
                 />
                 <MiniMoneyCard
-                  label="Net"
+                  label="Net this month"
                   value={stats.periodBalance}
                   tone={stats.periodBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}
                   available={transactionDataLoaded}
@@ -690,10 +674,10 @@ const CommandAction = ({ title, description, to, onClick, primary = false }) => 
 
 const MiniMoneyCard = ({ label, value, tone, available = true }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
-    <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+    <p className="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
       {label}
     </p>
-    <p className={`text-2xl font-black ${available ? tone : "text-slate-400 dark:text-slate-500"}`}>
+    <p className={`break-words text-2xl font-black ${available ? tone : "text-slate-400 dark:text-slate-500"}`}>
       {available ? formatCurrency(value) : "Unavailable"}
     </p>
   </div>
@@ -712,10 +696,10 @@ const SimpleLink = ({ to, label }) => (
 const OverallPositionCard = ({ balance, available = true }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <p className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-      Total position
+      Recorded net · All dates
     </p>
     <p
-      className={`text-3xl font-black ${
+      className={`break-words text-3xl font-black ${
         !available
           ? "text-slate-400 dark:text-slate-500"
           : Number(balance || 0) < 0
@@ -726,7 +710,7 @@ const OverallPositionCard = ({ balance, available = true }) => (
       {available ? formatCurrency(balance) : "Unavailable"}
     </p>
     <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-      All income minus all expenses already loaded on this dashboard.
+      All recorded income minus all recorded expenses, across all dates. Excludes opening balances, shared balances, debts, and planned payments. This is not available cash or Safe to Spend.
     </p>
   </div>
 );
@@ -851,9 +835,9 @@ const MonthlyControlCard = ({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-black text-slate-900 dark:text-white">
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">
               Monthly Control
-            </h3>
+            </h2>
             <span
               className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-widest ring-1 ${
                 loadError
@@ -891,11 +875,7 @@ const MonthlyControlCard = ({
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
           Monthly spending pace is temporarily unavailable.
         </div>
-      ) : !hasBudget ? (
-        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-          Set a monthly spending limit to track your pace.
-        </div>
-      ) : (
+      ) : !hasBudget ? null : (
         <>
           <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
             <div className="mb-2 flex items-center justify-between gap-3 text-sm">

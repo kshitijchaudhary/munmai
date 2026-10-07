@@ -458,13 +458,13 @@ export const loadPlanningExperience = async (planningApi) => {
 
 export const savePlanningExperience = async (form, planningApi, options) => {
   const payload = buildPlanningPayload(form, options);
-  await planningApi.updatePlanning(payload);
+  const saved = await planningApi.updatePlanning(payload);
   const refreshed = await loadPlanningExperience(planningApi);
-  return { ...refreshed, payload };
+  return { ...refreshed, payload, savedForm: createPlanningForm(saved?.planning ? saved : payload) };
 };
 
 const confidenceLabels = {
-  high: "Based on the bills you've entered.",
+  high: "Based on your saved money, payments, and everyday spending allowance.",
   estimated: "Includes estimated amounts",
   incomplete: "Some upcoming costs are still unknown.",
 };
@@ -482,7 +482,7 @@ const statusForObligation = (item, horizonStart) => {
   return { label: "Not included", tone: "incomplete" };
 };
 
-export const buildObligationSummary = (obligation, safeToSpendResult) => {
+export const buildObligationSummary = (obligation, safeToSpendResult, { draft = false } = {}) => {
   const resultObligations = Array.isArray(
     safeToSpendResult?.breakdown?.obligations,
   )
@@ -521,7 +521,9 @@ export const buildObligationSummary = (obligation, safeToSpendResult) => {
             ).label
           }`
         : null,
-    status: resultItem
+    status: draft
+      ? { label: 'Unsaved changes', tone: 'draft' }
+      : resultItem
       ? statusForObligation(
           resultItem,
           safeToSpendResult?.horizon?.start || "",
@@ -536,6 +538,7 @@ export const getCompactPaymentStatus = (status) => {
     included: "Before payday",
     excluded: "After next payday",
     incomplete: "Needs details",
+    draft: "Unsaved changes",
   };
 
   return labels[status?.tone] || labels.incomplete;
@@ -571,39 +574,40 @@ export const buildSafeToSpendViewModel = (result) => {
       !item.included && item.exclusionReason === "AFTER_NEXT_PAYDAY",
   );
 
-  let decisionLabel = "Complete your plan to see what is safe to spend.";
 
-  if (hasSafeToSpendAmount && Number(safeToSpendAmount) > 0) {
-    decisionLabel = `You can safely spend ${formatCad(safeToSpendAmount)} before payday`;
-  } else if (hasSafeToSpendAmount && Number(safeToSpendAmount) < 0) {
-    decisionLabel = `You're short ${formatCad(Math.abs(Number(safeToSpendAmount)))} before payday`;
-  } else if (hasSafeToSpendAmount) {
-    decisionLabel = "You have no uncommitted money before payday";
-  }
+  const incomplete = result?.confidence === "incomplete" || !hasSafeToSpendAmount;
+  const until = result?.horizon?.end ? ` until ${formatShortCalendarDate(result.horizon.end)}` : "";
+  const knownShortfallLabel = hasSafeToSpendAmount && Number(safeToSpendAmount) < 0
+    ? `${formatCad(Math.abs(Number(safeToSpendAmount)))} short${until}` : null;
+  const decisionLabel = incomplete ? "Estimate incomplete" : knownShortfallLabel || `${formatCad(safeToSpendAmount)} extra${until}`;
 
   return {
     amountLabel: formatCad(safeToSpendAmount),
     decisionLabel,
+    knownShortfallLabel,
     confidence: result?.confidence || "incomplete",
-    confidenceLabel:
-      confidenceLabels[result?.confidence] || confidenceLabels.incomplete,
-    horizonLabel: result?.horizon?.end
-      ? `Next payday: ${formatShortCalendarDate(result.horizon.end)}`
-      : "Add your next payday to calculate",
-    incomplete:
-      result?.confidence === "incomplete" || !hasSafeToSpendAmount,
+    confidenceLabel: confidenceLabels[result?.confidence] || confidenceLabels.incomplete,
+    horizonLabel: result?.horizon?.end ? `Next payday: ${formatShortCalendarDate(result.horizon.end)}` : "Add your next payday to calculate",
+    incomplete,
     warnings: Array.isArray(result?.warnings) ? result.warnings : [],
     breakdown: {
       currentCash: result?.breakdown?.currentCash ?? null,
       essentialBuffer: result?.breakdown?.essentialBuffer ?? null,
-      includedObligationsTotal:
-        result?.breakdown?.includedObligationsTotal ?? 0,
-      obligations,
-      includedObligations,
-      laterObligations,
+      includedObligationsTotal: result?.breakdown?.includedObligationsTotal ?? 0,
+      obligations, includedObligations, laterObligations,
     },
   };
 };
 
 export const getApiErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.message || fallback;
+
+// A display projection preserves original indices for edits and validation.
+export const orderPlanningObligations = (form) => {
+  const payday = isStrictCalendarDate(form.nextPayday) ? form.nextPayday : null;
+  const group = (item) => !isStrictCalendarDate(item.dueDate) ? 2 : payday && item.dueDate > payday ? 1 : 0;
+  return form.obligations.map((obligation, index) => ({ obligation, index }))
+    .sort((left, right) => group(left.obligation) - group(right.obligation) ||
+      (isStrictCalendarDate(left.obligation.dueDate) && isStrictCalendarDate(right.obligation.dueDate)
+        ? left.obligation.dueDate.localeCompare(right.obligation.dueDate) : 0) || left.index - right.index);
+};
