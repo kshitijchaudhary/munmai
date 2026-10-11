@@ -132,23 +132,61 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: client/package-lock.json
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: client
         run: npm ci
 
+      # Planning browser fixtures use the real backend calculation/recurrence
+      # services, whose imports require the backend's locked dependencies.
+      - name: Install Planning fixture dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Install Planning browser runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/planning-browser" --no-save --package-lock=false playwright-core@1.63.0
+          node "$RUNNER_TEMP/planning-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+
       - name: Lint frontend
         working-directory: client
         run: npm run lint
 
-      - name: Test frontend
-        working-directory: client
-        run: npm test
-
       - name: Build frontend
         working-directory: client
         run: npm run build
+
+      - name: Test frontend including Planning browser interactions
+        working-directory: client
+        env:
+          PLANNING_UI_URL: http://127.0.0.1:4173
+        run: |
+          set -o pipefail
+          export PLANNING_PLAYWRIGHT_PATH="$RUNNER_TEMP/planning-browser/node_modules/playwright-core"
+          npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > "$RUNNER_TEMP/planning-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"; cat "$RUNNER_TEMP/planning-preview.log"' EXIT
+          node --input-type=module -e '
+            for (let attempt = 0; attempt < 30; attempt++) {
+              try {
+                const response = await fetch(process.env.PLANNING_UI_URL);
+                if (response.ok) process.exit(0);
+              } catch {}
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            throw new Error("Planning preview did not become ready.");
+          '
+          npm test -- --test-reporter=tap 2>&1 | tee "$RUNNER_TEMP/client-tests.tap"
+          node --input-type=module -e '
+            import { readFile } from "node:fs/promises";
+            const report = await readFile(process.argv[1], "utf8");
+            if (!/^# skipped 0\s*$/m.test(report)) {
+              throw new Error("Client validation requires zero skipped tests.");
+            }
+          ' "$RUNNER_TEMP/client-tests.tap"
 
   mobile-validation:
     name: Mobile validation
