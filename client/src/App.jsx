@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Outlet, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
 import AuthProvider from "./context/AuthProvider";
 import { AuthContext } from "./context/authContext";
@@ -43,14 +43,9 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-function App() {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ErrorBoundary>
-          <Router>
-            <PageTracker />
-            <Routes>
+const AppLayout = () => <><PageTracker /><Outlet /></>;
+const router = createBrowserRouter(createRoutesFromElements(
+  <Route element={<AppLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -179,12 +174,10 @@ function App() {
               }
             />
             <Route path="/" element={<Navigate to="/dashboard" />} />
-            </Routes>
-          </Router>
-        </ErrorBoundary>
-      </AuthProvider>
-    </ThemeProvider>
-  );
-}
+  </Route>
+));
 
+function App() {
+  return <ThemeProvider><AuthProvider><ErrorBoundary><RouterProvider router={router} /></ErrorBoundary></AuthProvider></ThemeProvider>;
+}
 export default App;
