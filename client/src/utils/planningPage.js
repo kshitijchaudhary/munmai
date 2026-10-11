@@ -565,7 +565,7 @@ export const getSaveOutcomeMessage = (loaded) =>
   loaded.planningError || loaded.safeToSpendError
     ? {
         type: "error",
-        text: "Plan saved, but the latest result could not be fully refreshed.",
+        text: "Plan saved. Couldn’t refresh the result.",
       }
     : { type: "success", text: "Plan saved" };
 
@@ -627,4 +627,13 @@ export const orderPlanningObligations = (form) => {
     .sort((left, right) => group(left.obligation) - group(right.obligation) ||
       (isStrictCalendarDate(left.obligation.dueDate) && isStrictCalendarDate(right.obligation.dueDate)
         ? left.obligation.dueDate.localeCompare(right.obligation.dueDate) : 0) || left.index - right.index);
+};
+
+
+export const isPlanningExperienceComplete = (loaded) => Boolean(loaded.form && loaded.safeToSpend && !loaded.planningError && !loaded.safeToSpendError);
+
+export const isPlanningPaymentDirty = (payment, savedForm) => {
+  const saved = savedForm?.obligations?.find((item) => item.clientKey === payment.clientKey || (payment._id && item._id === payment._id));
+  if (!saved) return true;
+  return JSON.stringify(comparablePlanningForm({ obligations: [payment] }).obligations) !== JSON.stringify(comparablePlanningForm({ obligations: [saved] }).obligations);
 };

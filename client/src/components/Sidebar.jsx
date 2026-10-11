@@ -111,7 +111,7 @@ const NavItem = ({ item, onNavigate }) => {
   );
 };
 
-const SidebarContent = ({ onNavigate }) => {
+const SidebarContent = ({ onNavigate, onSignOut }) => {
   const { logout } = useContext(AuthContext);
   const sections = useMemo(() => getNavSections(), []);
 
@@ -147,7 +147,7 @@ const SidebarContent = ({ onNavigate }) => {
 
       <button
         type="button"
-        onClick={logout}
+        onClick={onSignOut || logout}
         className="mt-6 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 active:scale-95"
       >
         Sign Out
@@ -159,13 +159,13 @@ const SidebarContent = ({ onNavigate }) => {
   );
 };
 
-const Sidebar = () => {
+const Sidebar = ({ onSignOut }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white px-4 py-6 dark:border-slate-800 dark:bg-slate-950 lg:block">
-        <SidebarContent />
+        <SidebarContent onSignOut={onSignOut} />
       </aside>
 
       <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 lg:hidden">
@@ -184,7 +184,7 @@ const Sidebar = () => {
 
         {mobileOpen && (
           <div className="mt-4 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-100 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-950">
-            <SidebarContent onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent onNavigate={() => setMobileOpen(false)} onSignOut={onSignOut} />
           </div>
         )}
       </div>
