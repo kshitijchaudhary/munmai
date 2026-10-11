@@ -9,6 +9,7 @@ const NextCyclePreview = ({
   minPayday,
   nextPayday,
   onCancel,
+  onBack,
   onChangePayday,
   onConfirmReplacement,
   onKeepCurrent,
@@ -36,11 +37,11 @@ const NextCyclePreview = ({
       </div>
       <button
         type="button"
-        onClick={onCancel}
+        onClick={onBack}
         disabled={disabled}
         className="self-start rounded-xl px-3 py-2 text-sm font-black text-slate-600 hover:bg-white disabled:text-slate-300 dark:text-slate-300 dark:hover:bg-slate-900"
       >
-        Cancel preview
+        Back
       </button>
     </div>
 
@@ -83,6 +84,7 @@ const NextCyclePreview = ({
         >
           {preparing ? "Preparing preview..." : "Preview next plan"}
         </button>
+        <button type="button" onClick={onCancel} disabled={disabled} className="min-h-11 rounded-xl border px-4 py-2 font-bold">Cancel preview</button>
       </form>
     ) : (
       <div className="mt-5">
@@ -128,10 +130,9 @@ const NextCyclePreview = ({
           </div>
         )}
 
-        <div className="mt-5">
-          <h3 className="font-black text-slate-900 dark:text-slate-100">
-            Recurring payments
-          </h3>
+        {view.obligations.some((item) => item.newAmountNeeded) && <p role="status" className="mt-4 text-sm font-semibold text-amber-800 dark:text-amber-300">Some payments need a new amount. Review them before saving.</p>}
+        <details className="mt-5">
+          <summary className="min-h-11 cursor-pointer py-2 font-bold text-slate-900 dark:text-white">Recurring payments ({view.obligations.length})</summary>
           {view.obligations.length === 0 ? (
             <p className="mt-2 rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
               No recurring payments will be carried into this plan.
@@ -161,12 +162,10 @@ const NextCyclePreview = ({
               ))}
             </ul>
           )}
-        </div>
-
+        </details>
         {dirty && !confirmReplacement && (
           <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-            Your current form has unsaved changes. They will not be replaced
-            unless you explicitly confirm.
+            Pending plan edits or a new-payment draft will be replaced only if you explicitly discard them.
           </p>
         )}
 
@@ -184,7 +183,7 @@ const NextCyclePreview = ({
                 onClick={onConfirmReplacement}
                 className="rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-black text-white hover:bg-rose-600"
               >
-                Replace unsaved changes
+                Discard edits and use prepared plan
               </button>
               <button
                 type="button"

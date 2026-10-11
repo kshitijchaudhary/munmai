@@ -22,6 +22,8 @@ import {
   formatPlanDetailsDate,
   isObligationEditorOpen,
   isPlanningFormDirty,
+  isPlanningPaymentDirty,
+  isPlanningExperienceComplete,
   loadPlanningExperience,
   orderPlanningObligations,
   removeObligation,
@@ -421,7 +423,7 @@ test("refresh failure produces persistent error feedback instead of Plan saved",
   });
 
   assert.equal(outcome.type, "error");
-  assert.match(outcome.text, /saved.*could not be fully refreshed/i);
+  assert.match(outcome.text, /saved.*refresh the result/i);
   assert.notEqual(outcome.text, "Plan saved");
 });
 
@@ -874,7 +876,7 @@ test("next-cycle UI keeps preview, acceptance, and persistence as explicit steps
   assert.match(previewSource, /<label[\s\S]*?New next payday/);
   assert.match(previewSource, /type="date"/);
   assert.match(previewSource, /type="button"[\s\S]*?Use this plan/);
-  assert.match(previewSource, /Replace unsaved changes/);
+  assert.match(previewSource, /Discard edits and use prepared plan/);
   assert.match(previewSource, /Cancel preview/);
   assert.match(previewSource, /obligation\.amountLabel/);
   assert.match(resultSource, /contextLabel/);
@@ -1077,4 +1079,26 @@ test("saved details date is clear and respects calendar boundaries", () => {
   assert.equal(formatPlanDetailsDate('2026-01-01'), '1 Jan 2026');
   assert.equal(formatPlanDetailsDate('2026-02-30'), 'Date unknown');
   assert.equal(formatPlanDetailsDate(null), 'Date unknown');
+});
+
+
+test('payment dirty marks compare that payment against its saved ID, not details or order', () => {
+  const saved = createPlanningForm(savedPlanning);
+  const draft = structuredClone(saved);
+  draft.currentCash = '900';
+  assert.equal(isPlanningPaymentDirty(draft.obligations[0], saved), false);
+  draft.obligations[0].amount = '80';
+  assert.equal(isPlanningPaymentDirty(draft.obligations[0], saved), true);
+  assert.equal(isPlanningPaymentDirty(createEmptyObligation(), saved), true);
+  const rekeyed = { ...saved.obligations[0], clientKey: 'another-local-key' };
+  assert.equal(isPlanningPaymentDirty(rekeyed, saved), false);
+});
+
+test('a refreshed baseline requires both reads, even when the estimate itself is incomplete', () => {
+  const loaded = { form: createPlanningForm(savedPlanning), safeToSpend: { confidence: 'incomplete' } };
+  assert.equal(isPlanningExperienceComplete(loaded), true);
+  assert.equal(isPlanningExperienceComplete({ ...loaded, planningError: new Error('failed') }), false);
+  assert.equal(isPlanningExperienceComplete({ ...loaded, safeToSpendError: new Error('failed') }), false);
+  assert.equal(isPlanningExperienceComplete({ ...loaded, form: null }), false);
+  assert.equal(isPlanningExperienceComplete({ ...loaded, safeToSpend: null }), false);
 });
